@@ -3,6 +3,8 @@ package com.sysgroup.mediasys.service;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,7 +19,7 @@ import com.sysgroup.mediasys.repository.UserRepository;
 @Transactional
 public class UserServiceImpl implements UserService{
 	
-	
+	private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 	private static List<User> users;
 	
 	@Autowired
@@ -25,11 +27,13 @@ public class UserServiceImpl implements UserService{
 	
 
 	public List<User> findAllUsers() {
+		log.info("findAllUsers invocked!");
 		users = new ArrayList<User>();
 		List<UserEntity> entities = (List<UserEntity>) userRepository.findAll();
 		for(UserEntity entity : entities) {
 			users.add(UserConverter.convert(entity));
 		}
+		log.info("findAllUsers completed!");
 		return users;
 	}
 	

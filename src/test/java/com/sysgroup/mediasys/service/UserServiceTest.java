@@ -41,8 +41,8 @@ public class UserServiceTest extends BaseJUnit4Test{
 	
 	@Test
 	public void getAll() {
-		List<UserEntity> users = (List<UserEntity>) userRepository.findAll();
-		for(UserEntity entity : users) {
+		List<User> users = (List<User>) userService.findAllUsers();
+		for(User entity : users) {
 			System.out.println(entity.toString());
 		}
 	}
