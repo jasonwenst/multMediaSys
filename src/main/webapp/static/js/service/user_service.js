@@ -4,7 +4,7 @@
 App.factory('User', ['$resource', function ($resource) {
 	//$resource() function returns an object of resource class
     return $resource(
-    		'http://localhost:8080/Spring4MVCAngularJSNgResourceExample/user/:id', 
+    		'http://localhost:8080/mediasys/user/:id', 
     		{id: '@id'},//Handy for update & delete. id will be set with id of instance
     		{
     			update: {

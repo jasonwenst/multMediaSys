@@ -44,6 +44,7 @@
                                       <span ng-show="myForm.uname.$error.required">This is a required field</span>
                                       <span ng-show="myForm.uname.$error.minlength">Minimum length required is 3</span>
                                       <span ng-show="myForm.uname.$invalid">This field is invalid </span>
+                                      <span ng-show="myForm.uname.$error.required">This is a required field</span>
                                   </div>
                               </div>
                           </div>
@@ -71,10 +72,19 @@
                               </div>
                           </div>
                       </div>
+                      
+                      <div class="row">
+                          <div class="form-group col-md-12">
+                              <label class="col-md-2 control-lable" for="address">Password</label>
+                              <div class="col-md-7">
+                                  <input type="text" ng-model="ctrl.user.password" id="password" class="form-control input-sm" required placeholder="Enter your Password "/>
+                              </div>
+                          </div>
+                      </div>
 
                       <div class="row">
                           <div class="form-actions floatRight">
-                              <input type="submit"  value="{{!ctrl.user.id ? 'Add' : 'Update'}}" class="btn btn-primary btn-sm" ng-disabled="myForm.$invalid">
+                              <input type="submit"  value="{{!ctrl.user.id ? 'Add' : 'Update'}}" class="btn btn-primary btn-sm" ng-disabled="myForm.$invalid"/>
                               <button type="button" ng-click="ctrl.reset()" class="btn btn-warning btn-sm" ng-disabled="myForm.$pristine">Reset Form</button>
                           </div>
                       </div>

@@ -1,5 +1,7 @@
 package com.sysgroup.mediasys.converter;
 
+import org.springframework.util.StringUtils;
+
 import com.sysgroup.mediasys.entity.UserEntity;
 import com.sysgroup.mediasys.model.User;
 
@@ -27,7 +29,7 @@ public class UserConverter {
 		entity.setEmail(user.getEmail());
 		entity.setId(user.getId());
 		entity.setPassword(user.getPassword());
-		entity.setSsoId(user.getSsoId());
+		entity.setSsoId(StringUtils.isEmpty(user.getSsoId()) ? String.valueOf(System.currentTimeMillis()) : user.getSsoId() );
 		return entity;
 	}
 }
