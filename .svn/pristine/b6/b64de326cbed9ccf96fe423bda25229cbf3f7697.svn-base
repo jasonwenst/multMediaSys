@@ -1,0 +1,83 @@
+/* $Id: */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：util.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Jul 26, 2013）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __UTIL_H___
+#define __UTIL_H___
+
+#include "base.h"
+
+
+namespace cpf
+{
+
+/**
+ * 格式化字符串到string
+ * @param format
+ * @return
+ */
+aistring FormatString(const char * format, ...);
+
+/**
+ * 获取系统当前微秒
+ * @return
+ */
+int64 GetMicroSecTime();
+
+/**
+ * 获取系统当前毫秒
+ * @return
+ */
+int64 GetMilliSecTime();
+
+/**
+ * 获取系统当前秒
+ * @return
+ */
+int64 GetSecTime();
+
+/**
+ * 分割字符串信息
+ * @param strInStr  原始字符串
+ * @param strInDivideStr    分割符号
+ * @param lstOut      输出
+ * @param cFlag     分割掩码
+ * @return
+ */
+int32 BaseDivideStrEx(const aistring & strInStr, const aistring & strInDivideStr,
+        CStringList * lstOut, const char cFlag);
+
+/**
+ * Trim一个字符串
+ * @param strSrc
+ * @return 返回新串
+ */
+aistring TrimStr(const aistring strSrc);
+
+/**
+ * Trim一个字符串,输入等于输出
+ * @param str
+ */
+void Trim(char * str);
+
+};
+
+
+
+
+#endif /* __UTIL_H___ */

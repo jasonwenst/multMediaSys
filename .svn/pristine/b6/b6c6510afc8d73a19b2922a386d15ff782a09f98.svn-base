@@ -1,0 +1,222 @@
+#include "common_tool.h"
+
+std::string FormatString(const char * format, ...)
+{
+    char buf[4096];
+   	std::string strRet;
+    if ( format != 0 )
+    {
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buf, sizeof(buf), format, args);
+        buf[sizeof(buf) - 1] = 0;
+        va_end(args);
+        strRet = buf;
+    }
+    return strRet;
+}
+
+int32 ClearFile(const char* szFile)
+{
+	if(0 == szFile)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "filename is null !");
+		return -1;
+	}
+
+	if(0 != access(szFile, 0))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "access failed, not exist, continue OK !");
+		return 0;
+	}
+
+	if(0 != remove(szFile))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "remove the file successfully !");
+		return -1;
+	}
+
+	return 0;
+}
+
+
+int32 Trim(aistring& strSrc)
+{
+	if("" == strSrc)
+	{
+		return 0;	
+	}
+
+	strSrc.erase(0, strSrc.find_first_not_of("\n"));
+	strSrc.erase(strSrc.find_last_not_of("\n") + 1);
+
+	strSrc.erase(0, strSrc.find_first_not_of("\r"));
+	strSrc.erase(strSrc.find_last_not_of("\r") + 1);
+
+	strSrc.erase(0, strSrc.find_first_not_of("\t"));
+	strSrc.erase(strSrc.find_last_not_of("\t") + 1);
+
+	strSrc.erase(0, strSrc.find_first_not_of(" "));
+	strSrc.erase(strSrc.find_last_not_of(" ") + 1);
+	
+	return 0;
+}
+
+
+// 分割字符串
+int32 StrokLine(
+		const char* szLine, 
+		const char* szSeparator,
+		aistring& key, 
+		aistring& value)
+{
+	if(NULL == szLine || NULL == szSeparator)
+	{
+		key = "";
+		value = "";
+		return -1;
+	}
+
+	aistring line = szLine;
+	int32 iPos = line.find(szSeparator);
+	if(aistring::npos == iPos)
+	{
+		key = "";
+		value = line;
+		return -1;
+	}
+
+	key = line.substr(0, iPos);
+	value = line.substr(iPos + 1);
+	Trim(key);
+	Trim(value);
+	return 0;
+}
+
+int32 WriteToFile(const char *szFileName, const char *szFileContent)
+{
+	if (NULL == szFileName || NULL == szFileContent) 
+	{
+		return -1;
+	}
+
+	FILE *fd = fopen(szFileName, "w");
+	if(!fd)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "open  %s fail!", szFileName);
+		return -1;
+	}
+	
+	int32 iRet = fwrite(szFileContent, strlen(szFileContent), 1, fd);
+	if(1 != iRet)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "write to %s error", szFileName);
+		fclose(fd);
+		return -1;
+	}
+
+	fclose(fd);
+	return 0;
+}
+
+
+void ReplaceString(aistring & strSource, const char * szTarget, const char * szSymbol) 
+{ 
+	aistring strTmpCmd; 
+ 
+	size_t iPos = strSource.find(szSymbol); 
+	while(iPos != aistring::npos) 
+	{ 
+		aistring strDest1 = strSource.substr(0, iPos); 
+		aistring strDest2 = strSource.substr(iPos + strlen(szSymbol)); 
+ 
+		strTmpCmd = FormatString("%s %s %s", strDest1.c_str(), szTarget, strDest2.c_str()); 
+		strSource = strTmpCmd; 
+		iPos = strSource.find(szSymbol); 
+	} 
+	return; 
+}
+
+
+int32 ExecShell(const aistring &strShellCmd, bool isHaveOut, aistring & strOut)
+{
+    //	static CLock cLock;
+    //	CAutoLock cAutoLock(cLock);
+    //设置一下系统信号量
+    static bool isSetChildSig = false;
+    if(!isSetChildSig)
+    {
+        isSetChildSig = true;
+        signal(SIGCHLD, SIG_DFL);
+        // DBE2_LOG(INFO_LOGGER, "set child signal to default process!");
+    }
+    aistring strTempOutFileName = FormatString("/tmp/%d-%d-%lld.ngtmp", getpid(), pthread_self(), cpf::GetMicroSecTime());;
+    aistring strCmd = strShellCmd;
+    bool isBackGround = false;
+    if(isHaveOut)
+    {
+        strCmd += ">" + strTempOutFileName;
+    }
+    else
+    {
+        if(strShellCmd.length() > 0 && strShellCmd[strShellCmd.length() - 1] == '&')
+        {
+            isBackGround = true;
+        }
+    }
+
+    if(isBackGround)
+    {
+        //后台运行的,那么使用pwrapper封装一下,保证端口的释放
+        strCmd = "pwrapper @ " + strCmd;
+    }
+
+    int32 iRet = 0;
+
+    iRet = system(strCmd.c_str());
+
+    if(isHaveOut)
+    {
+        //从文件中获取输出
+        FILE * pFile = fopen(strTempOutFileName.c_str(), "r");
+        if(pFile)
+        {
+			char szBuff[1024 * 10] = {0};
+            memset(szBuff, 0, sizeof(szBuff));
+            //获取文件内容
+            while(fgets(szBuff, sizeof(szBuff) - 1, pFile))
+            {
+                strOut += szBuff;
+                memset(szBuff, 0, sizeof(szBuff));
+            }
+            fclose(pFile);
+            unlink(strTempOutFileName.c_str());
+        }
+        //system(FormatString("rm -rf %s", strTempOutFileName.c_str()).c_str());
+        if(strOut.length() > 0)
+        {
+            if(strOut[strOut.length() - 1] == '\n')
+            {
+                strOut[strOut.length() - 1] = 0x00;
+            }
+        }
+        //重新构造一下这个字符串
+        strOut = strOut.c_str();
+    }
+
+    // LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "exec shell end:%s![ret:%d, background:%s, errno:%d, errstring:%s, out:%s]",
+    //          	strCmd.c_str(), iRet, isBackGround ? "true" : "false", iRet == 0 ? 0 : errno, iRet == 0 ? "no error" : strerror(errno), strOut.c_str());
+    return iRet;
+}
+
+
+int32 ShellCmd(const aistring &rcStrCmd, aistring & rcStrResult) 
+{ 
+	int32 iMax = sysconf(_SC_OPEN_MAX); 
+	for(int32 i = 3; i <  iMax; ++i) 
+	{ 
+		fcntl(i, F_SETFD, FD_CLOEXEC); 
+	} 
+	return ExecShell(rcStrCmd, true, rcStrResult); 
+}
+

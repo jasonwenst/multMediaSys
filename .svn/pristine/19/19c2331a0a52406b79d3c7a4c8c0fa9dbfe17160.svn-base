@@ -1,0 +1,21 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_proc_mgr_cpp)
+{
+	//Fuction: ISrmProcMgr & ISrmProcMgr :: GetInstance ( )
+	TEST_FIXTURE(TestFixture,TestISrmProcMgr_GetInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void ISrmProcMgr :: UpdateProcState ( SBaseProcKey & rcProKey , int32 iExeType , int32 iExeResult , int32 iPid )
+	TEST_FIXTURE(TestFixture,TestISrmProcMgr_UpdateProcState)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

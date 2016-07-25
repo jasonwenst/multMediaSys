@@ -1,0 +1,101 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_flow_mgr_impl_cpp)
+{
+	//Fuction: CSrmFlowMgrImpl :: CSrmFlowMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_CSrmFlowMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CSrmFlowMgrImpl :: ForceStopFlow ( int32 iFlowId )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_ForceStopFlow)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmFlowMgrImpl :: GetStopFlowOperate ( CRdcFlow & rcFlow , CRdcProcTransOperateList & rlstProcOperate , int32 iStopType )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_GetStopFlowOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CSrmFlowMgrImpl :: StopFlow ( int32 iFlowId )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_StopFlow)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 MDbe :: CSrmFlowMgrImpl :: StartFlow ( int32 iFlowId , int32 iStartMsgType , char * szStartParam , int32 iStopMsgType , char * szStopParam )
+	TEST_FIXTURE(TestFixture,TestMDbe_CSrmFlowMgrImpl_StartFlow)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmFlowMgrImpl :: GetFlowOperate ( int32 iFlowId , int32 iOperateType , CRdcFlowOperate & rcFlowOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_GetFlowOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void FinishDbmOperate ( int32 iFlowId , int32 iExeType , int32 iExeResult , int32 iSequence )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_FinishDbmOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmFlowMgrImpl :: InsertFlowOperate ( SSrmFlowExe & rcExeFlow )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_InsertFlowOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmFlowMgrImpl :: GetFlowTsOrder ( int32 iFlowId , CRdcFlowTsSrvOrderList & rcTsSrvOrderList )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_GetFlowTsOrder)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmFlowMgrImpl :: GetFlowOperateByProcOperate ( SBaseExeProc & rcExeProc , int32 iVmId , CRdcFlowOperate & rcFlowOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_GetFlowOperateByProcOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmFlowMgrImpl :: GetFlowOperateByTrans ( int32 iFlowId , int32 iTransId , CRdcFlowOperate & rcFlowOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_GetFlowOperateByTrans)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmFlowMgrImpl :: InsertFlowOperateHis ( SSrmFlowExe & rcExeFlow , int32 iTransId , int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmFlowMgrImpl_InsertFlowOperateHis)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

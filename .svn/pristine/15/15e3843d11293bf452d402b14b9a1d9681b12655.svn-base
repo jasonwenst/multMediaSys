@@ -1,0 +1,74 @@
+
+#ifndef _CRON_STRUCT_H
+#define _CRON_STRUCT_H
+#include "cron_define.h"
+#include <time.h>
+#include <map>
+#include <vector>
+
+NAMESPACE_OD_CRON_BEGIN
+
+#define MAX_SEC 	60
+#define MAX_MIN 	60
+#define MAX_HOUR 	24
+#define MAX_DAY 	32
+#define MAX_MONTH 	12
+#define MAX_YEAR	3000
+#define MAX_WEEK	7
+
+#define CheckValue(p,v)		(((p)&(v))&(-1))
+#define AddValue(p,v)		(((p)|(v))&(-1))
+#define RemoveValue(p,v)	((p)&((~(v))&(-1)))
+
+typedef enum __VALUE_MASK
+{
+	EM_NORMAL_MASK = 0x00000000,	//normal
+
+	EM_LCHAR_MASK = 0x80000000,	//'L' stands for "last". 
+
+	EM_WCHAR_MASK = 0x40000000,	//The 'W' character is allowed for the day-of-month field.
+ 
+	EM_HASHCHAR_MASK = 0x20000000	//'#' is allowed for the day-of-week field, and must be followed by a number between one and five. 
+				//It allows you to specify constructs such as "the second Friday" of a given month	
+}VALUE_MASK;
+
+typedef enum __VALUE_TYPE
+{
+	EM_SEC_TYPE = 0,	//second
+	EM_MIN_TYPE,		//minute
+	EM_HOUR_TYPE,		//hour
+	EM_DAY_TYPE,		//day
+	EM_MONTH_TYPE,		//month
+	EM_YEAR_TYPE,		//year
+	EM_WEEK_TYPE		//week
+	
+}VALUE_TYPE;
+
+//#ifndef _TM_DEFINED
+//struct tm {
+//        int32 tm_sec;     /* 秒 – 取值区间为[0,59] */
+//        int32 tm_min;     /* 分 - 取值区间为[0,59] */
+//        int32 tm_hour;    /* 时 - 取值区间为[0,23] */
+//        int32 tm_mday;    /* 一个月中的日期 - 取值区间为[1,31] */
+//        int32 tm_mon;     /* 月份（从一月开始，0代表一月） - 取值区间为[0,11] */
+//        int32 tm_year;    /* 年份，其值等于实际年份减去1900 */
+//        int32 tm_wday;    /* 星期 – 取值区间为[0,6]，其中0代表星期天，1代表星期一，以此类推 */
+//        int32 tm_yday;    /* 从每年的1月1日开始的天数 – 取值区间为[0,365]，其中0代表1月1日，1代表1月2日，以此类推 */
+//        int32 tm_isdst;   /* 夏令时标识符，实行夏令时的时候，tm_isdst为正。不实行夏令时的进候，tm_isdst为0；不了解情况时，tm_isdst()为负。*/
+//        };
+//#define _TM_DEFINED
+//#endif
+
+//typedef struct __CCronTime
+//{
+//	struct tm m_tm;                 ///< 时间结构
+//	struct timeval m_tmVal;         ///< m_tmVal.tv_sec从1970年到当前时间的秒数
+//}CCronTime;
+
+typedef AISTD map< int32/*select time*/, int32/*VALUE_TYPE*/> ItemValueMap;
+
+extern int32 month_of_day[12];
+
+NAMESPACE_OD_CRON_END
+
+#endif

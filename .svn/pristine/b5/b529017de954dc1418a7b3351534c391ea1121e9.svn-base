@@ -1,0 +1,247 @@
+#include "pubtools.h"
+
+#include <sys/stat.h>
+
+#include <time.h>
+#ifdef _HWWIN_
+#include <windows.h>
+#include <io.h>
+#include <process.h>
+#include <direct.h>
+
+#else
+#include <unistd.h>
+#include <signal.h>
+#endif
+#include <string.h>
+#include <fstream>
+
+namespace HW_PUB_TOOLS
+{
+	int readMax(FILE* fd, char* buf, int len)
+	{
+		int hasRead = 0;
+		int nread = 0;
+		while (hasRead < len || nread == 0)
+		{
+			nread = fread(buf + hasRead, 1, len - hasRead, fd);
+
+			if (nread < 0)
+				return -1;
+			if (nread == 0)
+				break;
+
+			hasRead += nread;
+		}
+		return hasRead;
+	}
+
+	int writeMax(FILE* fd,const char* buf, int len)
+	{
+		int hasWrite = 0;
+		int nwrite = 0;
+		while (hasWrite < len || nwrite == 0)
+		{
+			nwrite = fwrite(buf + hasWrite, 1, len - hasWrite, fd);
+
+			if (nwrite < 0)
+				return -1;
+			if (nwrite == 0)
+				break;
+
+			hasWrite += nwrite;
+		}
+		return hasWrite;
+	}
+
+
+
+	bool isFileExist(const char* fileName)
+	{
+#ifdef _HWWIN_
+		return (_access(fileName, 0) == 0);
+#else
+		return (access(fileName, 0) == 0);
+#endif
+	}
+
+
+	bool is_file(const char *path)
+	{
+		struct stat statbuf;
+		if (stat(path, &statbuf) == 0)
+#ifndef _HWWIN_
+			return S_ISREG(statbuf.st_mode) != 0;//判断文件是否为常规文件
+#else
+			return true;
+#endif
+		return false;
+	}
+
+
+
+	
+	long long getFileSize(const char* fileName)
+	{
+		std::fstream file(fileName, std::ios_base::binary | std::ios_base::in
+			); 
+		if (file.is_open())
+		{
+		
+			file.seekg(0L, std::ios::end);
+			std::fstream::pos_type end_pos = file.tellg();
+			file.close();
+			return (long long)end_pos;
+		
+		} 
+	
+		return 0;
+	}
+
+
+
+
+
+
+	bool mkdir_fromFileName(const char *cszPathFile)
+	{
+		const char *cszPathSep = strrchr(cszPathFile, '/');
+		if (cszPathSep == NULL) return true;
+
+		int iLen = cszPathSep - cszPathFile;
+		char szPath[512];
+		strncpy(szPath, cszPathFile, iLen);
+		*(szPath + iLen) = '\0';
+
+		struct stat statBuf;
+		if (stat(szPath, &statBuf) == 0)
+		{
+			if (statBuf.st_mode&S_IFDIR)
+				return true;
+			return false;
+		}
+		cszPathSep = cszPathFile;
+		while ((cszPathSep = strchr(cszPathSep + 1, '/')) != NULL)
+		{
+			iLen = cszPathSep - cszPathFile;
+			strncpy(szPath, cszPathFile, iLen);
+			*(szPath + iLen) = '\0';
+
+			if (stat(szPath, &statBuf) == 0)
+			{
+				if (statBuf.st_mode&S_IFDIR)
+				{
+					continue;
+				}
+				return false;
+			}
+#ifdef _HWWIN_
+			if (_mkdir(szPath))
+#else
+			if (mkdir(szPath,0760))
+#endif
+			{
+				if (strchr(szPath, ':') != NULL && strchr(szPath, '/') == NULL)
+				{
+					continue;
+				}
+					
+				return false;
+				//return false;
+			}
+		}
+		return true;
+	}
+
+	static union { char c[4]; unsigned int l; } const _hw_system_endian_test = { { 'l', '?', '?', 'b' } };
+	static const char _hw_system_endian = (char)_hw_system_endian_test.l;
+	char system_endian()
+	{
+		return _hw_system_endian;
+	}
+
+	std::string number2String(long long num)
+	{
+		char tmp[21] = { 0 };
+		sprintf(tmp, "%lld", num);
+		return std::string(tmp);
+
+	}
+
+	std::string getTime()
+	{
+		time_t tt = time(NULL);//这句返回的只是一个时间cuo
+		tm* t = localtime(&tt);
+		char tmp[20] = { 0 };
+		sprintf(tmp,"%04d-%02d-%02d %02d:%02d:%02d",
+			t->tm_year + 1900,
+			t->tm_mon + 1,
+			t->tm_mday,
+			t->tm_hour,
+			t->tm_min,
+			t->tm_sec);
+		return std::string(tmp);
+	}
+
+
+
+	int getProcessId()
+	{
+#ifdef _HWWIN_
+
+		return _getpid();
+#else
+		return (int)getpid();
+#endif
+	}
+
+	bool createFile(const char* fileName)
+	{
+		CAutoCloseFile autofile(fileName, "wb");
+		return true;
+	}
+
+	bool deleteFile(const char* fileName)
+	{
+		if (is_file(fileName))
+		{
+			remove(fileName);
+		}
+		return true;
+	}
+
+	void mysleep(int n)
+	{
+#ifdef _HWWIN_
+		Sleep(n*1000);
+#else
+#include <unistd.h>
+		sleep(n);
+#endif
+
+	}
+	
+	bool isProcessExist(int pid)
+	{
+#ifndef _HWWIN_
+		if (kill(pid, 0) == -1)
+			return false;
+#else
+		HANDLE hwd =	OpenProcess(STANDARD_RIGHTS_READ, false, pid);
+		if (hwd == NULL)
+			return false;
+		CloseHandle(hwd);
+#endif
+		return true;
+	}
+
+};
+
+
+
+CAutoCloseFile::CAutoCloseFile(const char* fileName, const char* mode)
+{
+	m_fd = fopen(fileName, mode);
+	if (m_fd == NULL)
+		m_fd = fopen(fileName, mode);
+}

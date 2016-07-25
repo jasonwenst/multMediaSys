@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.ObjectUtils;
 
 import com.sysgroup.mediasys.converter.UserConverter;
 import com.sysgroup.mediasys.entity.UserEntity;
@@ -72,6 +73,10 @@ public class UserServiceImpl implements UserService{
 	
 	public void deleteAllUsers(){
 		userRepository.deleteAll();
+	}
+
+	public boolean findByNameAndPassword(User user) {
+		return ObjectUtils.isEmpty(userRepository.findUserEntityByUserNameAndPassword(user.getUsername(), user.getPassword())) ? false : true;
 	}
 
 }

@@ -13,4 +13,9 @@ App.factory('User', ['$resource', function ($resource) {
     			
     		}
     );
+}])
+.factory('Login', ['$resource', function($resource){
+    return function Login(){
+        
+    };
 }]);

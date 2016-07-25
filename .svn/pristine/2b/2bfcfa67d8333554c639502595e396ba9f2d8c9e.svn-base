@@ -1,0 +1,69 @@
+#include <unittest_cp_dbe2_ca_main.h>
+
+SUITE(SUITE_dbe_communicate_write_cpp)
+{
+	//Fuction: NAMESPACE_OD_CA CDbeCommunicateWrite :: ~ CDbeCommunicateWrite ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateWrite)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_CA CDbeCommunicateWrite :: CDbeCommunicateWrite ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateWrite_CDbeCommunicateWrite)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_FRAME CThread * create_dbeCommunicateWrite ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateWrite_create_dbeCommunicateWrite)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateWrite :: destroy ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateWrite_destroy)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_FRAME CConnectionElem * NAMESPACE_OD_CA CDbeCommunicateWrite :: find_validConn ( NAMESPACE_OD_FRAME CConnectionElem * pConn , bool & bContinue , NAMESPACE_OD_FRAME CCommData * pCommData )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateWrite_find_validConn)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateWrite :: init ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateWrite_init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateWrite :: run ( NAMESPACE_OD_FRAME CData * p )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateWrite_run)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void NAMESPACE_OD_CA CDbeCommunicateWrite :: send_commData ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateWrite_send_commData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

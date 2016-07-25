@@ -1,0 +1,15 @@
+#pragma once
+class IWarnGet
+{
+public:
+	IWarnGet();
+	virtual ~IWarnGet();
+	static IWarnGet* getInstance();
+	//初始化，启动时调用一次
+	virtual int init() = 0;
+	//反初始化， 退出时调用一次 如不确定是否其他线程还在使用则不调用
+	virtual int uninit() = 0;
+	//true 获得了，false 失败
+	virtual bool   getOneWarnRecord(char* cache, const int cacheLen, int & realLen) = 0;
+};
+

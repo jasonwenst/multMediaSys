@@ -1,0 +1,38 @@
+#ifndef _NGEPA_COMMON_TOOL_H_
+#define _NGEPA_COMMON_TOOL_H_
+
+#include <signal.h>
+#include <fcntl.h>
+
+#include "util.h"
+#include "nr_api.h"
+#include "aierror.h"
+
+#include "adapter_def.h"
+
+
+std::string FormatString(const char * format, ...);
+// 删除文件
+// 若文件不存在也返回0
+int32 ClearFile(const char* szFile);
+
+// 删除字符前后的空格
+int32 Trim(aistring& strSrc);
+
+// 根据分割字符来分割字符串
+int32 StrokLine(const char* szLine, const char* szSeparator, aistring& key, aistring& value);
+
+// 写入到文件
+int32 WriteToFile(const char *szFileName, const char *szFileContent);
+
+// 替换字符串
+void ReplaceString(aistring & strSource, const char * szTarget, const char * szSymbol);
+
+// 执行shell
+int32 ExecShell(const aistring& strShellCmd, bool isHaveOut, aistring & strOut);
+
+// 脚本命令fnctl置位  
+int32 ShellCmd(const aistring &rcStrCmd, aistring & rcStrResult);
+
+
+#endif

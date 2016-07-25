@@ -1,0 +1,23 @@
+#pragma once
+#include "IWarnGet.h"
+#include "hwmutex.h"
+class CQueForMutiProcRead;
+class CWarnGetFileQueImp :
+	public IWarnGet
+{
+public:
+	CWarnGetFileQueImp();
+	~CWarnGetFileQueImp();
+
+	//初始化，启动时调用一次
+	virtual int init() ;
+	//反初始化， 退出时调用一次 如不确定是否其他线程还在使用则不调用
+	virtual int uninit();
+	//true 获取一条报警记录
+	virtual bool   getOneWarnRecord(char* cache, const int cacheLen, int & realLen) ;
+protected:
+	CQueForMutiProcRead* m_pQue;
+	CHwMutex m_lock;
+
+};
+

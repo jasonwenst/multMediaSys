@@ -1,0 +1,87 @@
+#include <string>
+#include <map>
+#include <vector>
+
+namespace MDbe 
+{
+
+// java启动脚本中的参数替换
+#define CMD_CONFIG_SYMBOL	"$1"
+#define CMD_PROCKEY_SYMBOL	"$2"
+
+// logstat的告警目录
+#define NRM_RESTART_ALARM_PATH              "/system/nrm/restart"
+#define NRM_STOP_TIMEOUT_ALARM_PATH         "/system/nrm/normal_stop" 
+#define NRM_UPDATE_TIMEOUT_ALARM_PATH       "/system/nrm/in_softupdate_stop"
+
+// logstat的告警的类型
+#define RESTART_ALARM   0
+#define STOP_ALARM      1
+#define UPDATE_ALARM    2
+
+// 操作类型标志位（用于7001，7002）
+#define START_FLAG 1
+#define STOP_FLAG 0
+#define FORCE_STOP_FLAG 2
+
+// 启动成功失败的标志位（用于3008和3001消息）
+#define STOP_FAIL 0
+#define STOP_OK 1
+#define START_OK 1
+#define START_FAIL 0
+
+// NRM需要处理的消息号
+#define MSGID_TBTS_REPORT_STATUS 3001
+#define MSGID_SRM_START_PROCESS 7001
+#define MSGID_SRM_STOP_PROCESS 7002
+#define MSGID_NRM_REPORT_TBTS_STATUS_TO_SRM 3008
+#define MSGID_SRM_UPDATE_CPF 7121
+#define MSGID_SRM_REQUEST_UPDATE_PROCESS 7122
+#define MSGID_NRM_REPORT_UPDATE_PROCESS_TO_SRM 4122
+#define MSGID_NRM_REPORT_UPDATE_CPF_TO_SRM 5121
+#define MSGID_NRM_REPORT_WARNING_TO_SRM 5017
+
+// 5017告警类型ID
+#define WARNINGID_PROCESS_START_FAILED 501
+#define WARNINGID_PROCESS_EXIT_INVALID 502
+#define WARNINGID_CALL_SYSTEM_START_PROCESS_FAILED 503
+
+// definations in nrm_warn_mgr_impl
+
+#define WARNING_SEPERATE "|"
+#define WARNING_STR_LEN  12
+#define WARNING_DEF_STR_LEN 1024
+
+#define NULL_VALUE_ZJ_SCORE 0
+#define NULL_VALUE_ZJ_MONIID 0 
+
+#define DEF_WARNMSG_PATH "$HOME/data/sys_warning_que/"
+
+/* 	字段由| 分隔，依次为
+ *	解码类型，1001
+ *	时间
+ *	进程ID
+ *	@appId 获取不到则写0
+ *	@procId 获取不到则写0
+ *	@appName 用名字标识应用 当获取不到jobid等，此字段必填，否则可以为NULL
+ *	@warnSpace 报警的命名空间
+ *	@warnCode  报警的报警码，命名空间内唯一，必须在页面注册，否则为未定义报警
+ *	@warnInfo 报警信息 非空 不能包含| 字符
+ *	@warnRemark 报警 附言，可以为报警堆栈等信息 不能包含 | 字符
+	1001 | 2015 - 01 - 23 14:53 : 15 | 6300 | 1 | 2 | 3 | 4 | myapp | mywarn | -1 | big error | nothing to care |
+*/
+
+#define WARN_DECODE_TYPE   	0
+#define	WARN_TIME 		   	1
+#define WARN_PROCESS_ID    	2
+#define WARN_JOBSEQID		3
+#define WARN_APP_ID        	4
+#define WARN_PROC_ID  	   	5
+#define WARN_APP_NAME  	   	6
+#define WARN_SPACE 		   	7
+#define WARN_CODE 		   	8
+#define WARN_INFO  			9
+#define WARN_REMARK  		10
+
+}
+

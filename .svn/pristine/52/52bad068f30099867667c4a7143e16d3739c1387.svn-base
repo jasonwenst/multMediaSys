@@ -1,0 +1,169 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_util.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+///////////////////////////////////////////////////////////////////////
+
+#include "srm_util.h"
+#include "dbe2_common_struct.h"
+#include "msg_dispatch_mgr.h"
+
+namespace MDbe
+{
+
+CSendTarget GetDbmTarget(int32 iVmid)
+{
+    CSendTarget cTaget;
+    cTaget.m_iFlowId = -1;
+    cTaget.m_iSrvId = PROC_DBM;
+    cTaget.m_iProcId = 1;
+    cTaget.m_iVmId = iVmid;
+    return cTaget;
+}
+
+CSendTarget GetJobTarget(int32 iVmid)
+{
+	CSendTarget cTaget;
+	cTaget.m_iFlowId = -1;
+	cTaget.m_iSrvId = PROC_DBM;
+	cTaget.m_iProcId = 2;
+	cTaget.m_iVmId = iVmid;
+	return cTaget;
+}
+
+CSendTarget GetNrmTarget(int32 iVmid)
+{
+    CSendTarget cTaget;
+    cTaget.m_iFlowId = -1;
+    cTaget.m_iSrvId = PROC_NRM;
+    cTaget.m_iProcId = 1;
+    cTaget.m_iVmId = iVmid;
+    return cTaget;
+}
+
+bool CompareDateBE(CBSDateTime &baseDate, CBSDateTime &compareDate, int32 mode)
+{
+	if(2 == mode && baseDate.year() != compareDate.year())
+	{
+		return baseDate.year() >  compareDate.year();
+	}
+
+	if (baseDate.month() == compareDate.month())
+	{
+		return baseDate.day() >= compareDate.day();
+	}
+	return baseDate.month() > compareDate.month();
+	
+}
+
+int32 ModifyNrmTime(int32 iTimeoutSec)
+{
+	if(iTimeoutSec < 10) return iTimeoutSec;
+	return (0.1 * iTimeoutSec > 18) ? iTimeoutSec-18 : (int32)(0.9*iTimeoutSec);
+}
+
+void  WriteFile(const char *pzFileName,const char *pzFileContent)
+{
+	FILE *fp = fopen(pzFileName, "w+");
+	if ( !fp ) 
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_CANNOT_CREATE_DIR, "cannot create the file:?, either disk is full or the permission is deny would cause this")
+			<<pzFileName;
+	} 
+
+	int32 iLen = strlen(pzFileContent);
+	int32 iReal = fwrite(pzFileContent, 1, iLen, fp) ;
+	if (iReal != iLen ) 
+	{
+		fclose(fp);
+		THROW_CAIEXCEPTION(DBE2_SRM_CANNOT_WRITE_FILE, "cannot write the file, may be the disk is full");
+	}
+	fclose(fp);
+}
+int32 CheckDir(const char *pszDir)
+{
+	if ( pszDir == NULL || *pszDir == '\0' )
+	{
+		return 0;
+	}
+
+	struct stat statbuf;
+	if( stat(pszDir, &statbuf) < 0 )
+	{
+		return -1;
+	}
+	if( !S_ISDIR(statbuf.st_mode) )
+	{
+		return -1;
+	}
+	return 0;
+}
+
+int32 StartScript(aistring& strScriptName,aistring& strScriptContent,aistring& strScriptParams)
+{
+	if (strScriptName.size() == 0||strScriptContent.size()==0) return -1;
+
+	const char *pszScriptName = strScriptName.c_str();
+	const char *pszScriptContent = strScriptContent.c_str();
+	const char *pszScriptParams = strScriptParams.c_str();
+	
+	int32 iLen;
+	char szPathScript[1024]={0};
+	char szPathParams[1024]={0};
+	snprintf(szPathScript,sizeof(szPathScript) ,"%s/ipc/cpf/", getenv("CPF_HOME"));
+	strncpy(szPathParams,szPathScript,sizeof(szPathScript));
+	if ( CheckDir(szPathScript) < 0 )
+	{
+		if ( mkdir(szPathScript, 0776) < 0 ) 
+		{
+			THROW_CAIEXCEPTION(DBE2_SRM_CANNOT_CREATE_DIR, "cannot create dir to save the script, either disk is full or the permission is deny would cause this");
+			return -1;
+		}
+	}
+
+	iLen = strlen(szPathScript);
+	if ((sizeof(szPathScript) - iLen-1)< strlen(pszScriptName))
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_CANNOT_CREATE_DIR, "script name too long");
+		return -1;
+	}
+	char *pszPathName = strcat(szPathScript, pszScriptName);
+	WriteFile(pszPathName,pszScriptContent);
+	//加执行权限
+	chmod(pszPathName, 0755);
+
+	//落地参数
+	char *pszParamsName = strcat(szPathParams,"params");
+	WriteFile(pszParamsName,pszScriptParams);
+
+	iLen = strlen(pszPathName);
+	pszPathName[iLen] = ' ';
+	pszPathName[iLen + 1] = '\0';
+	
+	int32 iRet=system(strcat(pszPathName, "&"));
+	if(iRet < 0)
+	{
+		REPORT_TRACE("execute %s error, return %d, errno:%d",strcat(pszPathName, pszScriptParams),iRet,errno);
+		return -1;
+	}
+	return 0;
+}
+
+};
+

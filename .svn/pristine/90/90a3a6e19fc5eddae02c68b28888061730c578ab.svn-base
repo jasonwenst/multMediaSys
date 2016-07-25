@@ -1,0 +1,13 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_tstb_mgr_cpp)
+{
+	//Fuction: ISrmTsTbMgr & ISrmTsTbMgr :: GetInstance ( )
+	TEST_FIXTURE(TestFixture,TestISrmTsTbMgr_GetInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

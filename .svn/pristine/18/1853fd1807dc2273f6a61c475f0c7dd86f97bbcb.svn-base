@@ -1,0 +1,79 @@
+#include "dbe_base_def.sdl"
+
+module MDbe
+{
+    // 5006(MSG_RSP_DBM_HEART_BEAT)
+    // 向DBM发送心跳的回应
+    struct SDbmHeartRsp
+    {
+        MDbe::SBaseHead msg_head;		// 消息头
+    }
+    
+    // 5017(MSG_SYS_WARN_TO_DBM)
+    // DBE告警信息
+    struct SDbmWarnInfo
+    {
+        MDbe::SBaseHead msg_head;			// 消息头
+		int32 warn_id;						// 告警ID（由SRM生成）
+        int32 score;						// 严重程度
+        int32 moni_id;						// 警告事件的类型ID
+        MDbe::SBaseProcKey proc_key;		// 告警进程key
+        int32 vm_id;						// 虚拟机ID
+        string message;						// 消息内容
+        string description;					// 描述
+		int64 warn_time;					// 告警时间
+    }
+
+    // 5121(MSG_UPDATE_FEEDBACK)
+    // 软件升级反馈
+    struct SDbmUpdateFeedback
+    {
+        MDbe::SBaseHead msg_head;                       // 消息头
+        int32 op_id;                                    // 操作ID
+        int32 result;                                   // 更新结果
+        string err_info;                                // 错误描述
+    }
+    
+    // 5023
+    // 进程启停操作结果
+    struct SDbmProcExeResult
+    {
+        MDbe::SBaseHead msg_head;		// 消息头
+        MDbe::SBaseProcKey proc_key;    // 进程key
+        int32 result;				    // 执行结果	OPERATE_FAIL = 0，OPERATE_SUCCESS = 1,OPERATE_DOING = 2,OPERATE_TIME_OUT = 3,OPERATE_NO_DO = 4
+        string err_info;			    // 执行出错信息
+		int32 exe_type;					// 操作类型PROC_STOP = 0,PROC_START = 1,PROC_FORCE_STOP = 2
+    }
+
+    // 5037
+    // 应用启停时候，详细的进程操作信息
+    struct SDbmProcOperate
+    {
+        MDbe::SBaseHead msg_head;               // 消息头
+        MDbe::SBaseProcOperateList operte_list; // 操作列表
+		int32 operate_type;					    // 操作类型PROC_STOP = 0,PROC_START = 1,PROC_FORCE_STOP = 2
+    }
+    
+    // 6000(MSG_CONFIRM_TO_DBM)
+    // DBE回复DBM统一消息
+    struct SDbmConfirm
+    {
+        MDbe::SBaseHead msg_head;    // 消息头
+        int32 msg_type;				// 消息类型
+        int32 result;				// 执行结果
+        string err_info;			// 错误信息
+        string get_route_data;			// ？
+        string route_data;			// 路由信息
+        int32 app_id;              // 应用Id
+        int32 exe_type;             // 操作类型
+    }
+
+    //DBE出账自动化手动操作结果（5033::MSG_DBM_MANU_OPERATE_RESULT)
+    struct SDbmJobManuResult
+    {
+        MDbe::SBaseHead msg_head;
+        MDbe::SJobContrlInfoList job_contol_list;
+        //MDbe::SStepContrlInfoList step_control_list;
+    }
+}
+

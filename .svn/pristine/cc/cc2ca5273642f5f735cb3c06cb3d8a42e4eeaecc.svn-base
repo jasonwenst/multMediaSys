@@ -1,0 +1,616 @@
+#include <fstream>
+#include <utility>
+#include <sys/stat.h> 
+#include "external_proc_adapter.h"
+
+// 判断是否是.pl,.sh结尾的脚本
+int gIsShell= 0;
+
+int EpaKill(int pid, int sig, aistring & strErrMsg) 
+{ 
+	if ( pid == getpid() || pid <= 1 )  return -2;
+
+	int32 iRet = kill(pid, sig);	
+	if ( iRet < 0 )
+	{ 
+		if ( errno == ESRCH )
+		{  
+			strErrMsg = "The process specified by the pid parameter cannot be found.";
+			return -1; 
+		} 
+		else if ( errno == EPERM ) 
+		{  
+			strErrMsg = "no permission to send signal to any receiving process";
+			return -1; 
+		}
+		else if ( errno == EINVAL ) 
+		{ 
+			strErrMsg = "sig argument is an invalid or unsupported signal number.";
+			// abort(); 
+		} 
+	} 
+	return iRet; 
+} 
+
+int GetProcCountByPid(int iPid)
+{
+	char buffer[64] = {0};
+	aistring strCmd = FormatString("ps -ef|awk '{ print $2 }'|grep -w %d| wc -l", iPid);
+	FILE* fp = popen(strCmd.c_str(), "r");
+	fgets(buffer, sizeof(buffer), fp);
+	int iCount = atoi(buffer);
+	fclose(fp);
+	return iCount;
+}
+
+int GetProcCountByName(aistring& name)
+{
+	aistring strRet;
+	aistring strCmd = FormatString("ps -ef| grep '%s'| grep -v grep|awk '$3 == 1'|wc -l", name.c_str());
+	ShellCmd(strCmd, strRet);
+	return atoi(strRet.c_str());
+}
+
+int32 GetProcPidByName(aistring& name)
+{
+	aistring strRet;
+	aistring strCmd = FormatString("ps -ef| grep '%s'| grep -v grep|awk '$3 == 1' {print $2}", name.c_str());
+	ShellCmd(strCmd, strRet);
+	return atoi(strRet.c_str());
+}
+
+#define READ_COMPARE_INT(a,b) key = tmp.substr(0, pos); Trim(key);\
+							if(0 == strcmp(a, key.c_str()))	\
+						  	{	\
+								b = atoi((tmp.substr(pos+1)).c_str());	\
+							}
+
+#define READ_COMPARE_STR(a,b) key = tmp.substr(0, pos); Trim(key);\
+							if(0 == strcmp(a, (tmp.substr(0, pos-1)).c_str()))	\
+						  	{	\
+								b = tmp.substr(pos+1);	\
+							}
+
+int32 CExtProcFileInfo:: ReadFile(const char* filename)
+{
+	try
+	{
+		std::string tmp;
+		std::string key;
+		std::ifstream fs(filename);
+		if(fs.is_open())
+		{
+			while(fs.good())
+			{
+				getline(fs, tmp);
+				std::string::size_type pos = tmp.find("=");
+				if(std::string::npos != pos)
+				{
+					READ_COMPARE_INT("pid", m_iPid)
+					READ_COMPARE_INT("init_progress", m_iInitValue)
+					READ_COMPARE_STR("init_error_info", m_strInitErrorInfo)
+					READ_COMPARE_INT("stop_progress", m_iStopProgress)
+					READ_COMPARE_STR("stop_error_info", m_strStopErrorInfo)
+				}
+			}
+			fs.close();
+		}
+		else
+		{
+			return -1;
+		}
+	}
+	catch(...)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "read info file exception");
+	}
+	return 0;
+}
+
+int32 CExternalProcAdapter::init()
+{
+	int iRet = 0;
+	iRet = ReadXml();
+	if(0 != iRet)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "read xml error");
+		return -1;
+	}
+
+	iRet = InitFile();
+	if(0 != iRet)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "init info file error");
+		return -1;
+	}
+
+	cpf::CNrApi* pNrApi = cpf::CNrApi::CreateNr();  
+	cpf::CNrProcCmd rNrProcCmd; 
+	pNrApi->ReadProcCmd(m_procKey, rNrProcCmd, cpf::EM_NR_PROC_CMD_START);
+	m_iTimeOut =(int) (atoi(rNrProcCmd.m_szProcParameter)* 0.9);
+	if (0 == m_iTimeOut)
+	{
+		m_iTimeOut = TIME_OUT_VALUE;	
+	}
+
+	SetExternProcEnv();
+
+	ReplaceParameters();
+
+	iRet = WriteToFile(m_strCfgFile.c_str(), m_Config.m_strConfig.c_str());
+	if(0 != iRet)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "Write [%s] to %s failed.", 
+						m_Config.m_strConfig.c_str(), m_strCfgFile.c_str());
+		return -1;
+	}
+
+	m_Config.m_strRunCmd += m_Config.m_str3rdParam;
+
+
+	iRet = StartProc();
+	if(0 != iRet)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "Start %s failed. cmd: %s",
+								m_strProc.c_str(), m_Config.m_strRunCmd.c_str());
+		return -1;
+	}
+
+	while(m_iTimeOut)
+	{
+		if(m_Config.isNoFileProc)
+		{
+			if(1 == GetProcCountByName(m_strPsFlag))
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "No Infofile type start the proc OK");
+				return 0;
+			}
+			else if(0 == GetProcCountByName(m_strPsFlag))
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "proc on going...");
+				sleep(1);
+				continue;
+			}
+			else
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "error proc num ");
+				return -1;
+			}
+		}
+
+		if(0 == m_ProcInfo.ReadFile(m_strInfoFile.c_str()))
+		{
+			int32 iRetInit = m_ProcInfo.m_iInitValue;
+
+			if (EXT_PROC_START_FAILED == iRetInit)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, 
+						"external process error, info:%s", m_ProcInfo.m_strInitErrorInfo.c_str());
+				ForceStopProc(m_ProcInfo.m_iPid);
+				return -1;
+			}
+			else if (EXT_PROC_START_OK == iRetInit)
+			{
+				if (0 != m_ProcInfo.m_iPid)
+				{
+					LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "external process init successfully.");
+					break;
+				}
+				else
+				{
+					LogAppend(NAMESPACE_BILLING40_LOG WARN_LEVEL, "external process init error, pid is 0.");
+					return -1;
+				}
+			}
+			else if (EXT_PROC_START_ONGOING == iRetInit)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "external process init ongoing.");
+			}
+			else
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "illegal value %d, forceStopProc exec.", iRetInit);
+				ForceStopProc(m_ProcInfo.m_iPid);
+				return -1;
+			}
+		}
+		else
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "info file hasn't been written");
+		}
+
+		--m_iTimeOut;
+		sleep(1);
+	}
+
+	if(0 == m_iTimeOut)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "init time out. error stop.");
+		ForceStopProc(m_ProcInfo.m_iPid);
+		return -1;
+	}
+
+	return 0;
+}
+
+int32 CExternalProcAdapter::ReadXml()
+{
+	int32 iRet = read_config(m_Config);
+	if(0 != iRet)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "read xml info error");
+		return -1;
+	}
+
+	if(0 == strcmp("null", m_Config.m_strRunCmd.c_str()))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "cmd in xml is null");
+		return -1;
+	}
+
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, 
+		"Read xml: cmd [%s], cfg content [%s], 3rd_param[%s] ",
+						m_Config.m_strRunCmd.c_str(), 
+						m_Config.m_strConfig.c_str(),
+						m_Config.m_str3rdParam.c_str());
+
+	return 0;
+}
+
+int32 CExternalProcAdapter::InitFile()
+{
+	char bufferPath[512];
+
+	if(m_Config.m_strCfgPath != "")
+	{
+		if(access(m_Config.m_strCfgPath.c_str(), R_OK))
+		{
+			m_strCurrentDir = m_Config.m_strCfgPath;
+		}
+		else
+		{
+			mkdir(m_Config.m_strCfgPath.c_str(), 0770);
+			m_strCurrentDir = m_Config.m_strCfgPath;
+		}
+	}
+	else
+	{
+		if(getcwd( bufferPath, sizeof(bufferPath) ) == NULL)
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "get root path error");
+			return -1;
+		}
+		else
+	   	{
+			m_strCurrentDir = bufferPath;
+	   	}
+	}
+
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "root path is %s", m_strCurrentDir.c_str());
+	
+	m_procKey.m_objSKey.m_iFlowId 	= get_cpfFlowId();
+	m_procKey.m_objSKey.m_iSrvId  	= get_cpfServiceId();
+	m_procKey.m_iProcId 		    = get_cpfProcId();
+
+	m_strProc = FormatString("%d_%d_%d",
+						m_procKey.m_objSKey.m_iFlowId, 
+						m_procKey.m_objSKey.m_iSrvId, 
+						m_procKey.m_iProcId);
+
+	m_strCfgFile  = m_strCurrentDir + "/" + m_strProc + ".cfg";
+	m_strInfoFile = m_strCurrentDir + "/" + m_strProc + ".info";
+
+	// 若存在info文件，则判断info中的进程是否存在，并kill
+	if(0 == m_ProcInfo.ReadFile(m_strInfoFile.c_str()))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, 
+					"[%s] exist, check pid [%d]", m_strInfoFile.c_str(), m_ProcInfo.m_iPid);
+		
+		if(0 != GetProcCountByPid(m_ProcInfo.m_iPid))
+		{
+			ForceStopProc(m_ProcInfo.m_iPid);
+		}
+		
+		if(0 != remove(m_strInfoFile.c_str()))
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, 
+					"delete file [%s] failed", m_strInfoFile.c_str());
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+
+int32 CExternalProcAdapter::ReplaceParameters()
+{
+	char szFlowId[128];
+	snprintf(szFlowId, sizeof(szFlowId), "%d", m_procKey.m_objSKey.m_iFlowId);
+	char szSrvId[128];
+	snprintf(szSrvId, sizeof(szSrvId), "%d", m_procKey.m_objSKey.m_iSrvId);
+	char szProcId[128];
+	snprintf(szProcId, sizeof(szProcId), "%d", m_procKey.m_iProcId);
+
+	ReplaceString(m_Config.m_strRunCmd, m_strCfgFile.c_str(), "@(cfg_file)");
+	ReplaceString(m_Config.m_strRunCmd, m_strCurrentDir.c_str(), "@(path)");
+	ReplaceString(m_Config.m_strRunCmd, szFlowId, "@(flow_id)");
+	ReplaceString(m_Config.m_strRunCmd, szSrvId, "@(srv_id)");
+	ReplaceString(m_Config.m_strRunCmd, szProcId, "@(proc_id)");
+
+	ReplaceString(m_Config.m_strConfig, m_strCfgFile.c_str(), "@(cfg_file)");
+	ReplaceString(m_Config.m_strConfig, m_strCurrentDir.c_str(), "@(path)");
+	ReplaceString(m_Config.m_strConfig, szFlowId, "@(flow_id)");
+	ReplaceString(m_Config.m_strConfig, szSrvId, "@(srv_id)");
+	ReplaceString(m_Config.m_strConfig, szProcId, "@(proc_id)");
+	
+	return 0;
+}
+
+int32 CExternalProcAdapter::SetExternProcEnv()
+{
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "set external proc env "); 
+
+	char szFlowId[128];
+	snprintf(szFlowId, sizeof(szFlowId), "%d", m_procKey.m_objSKey.m_iFlowId);
+	char szSrvId[128];
+	snprintf(szSrvId, sizeof(szSrvId), "%d", m_procKey.m_objSKey.m_iSrvId);
+	char szProcId[128];
+	snprintf(szProcId, sizeof(szProcId), "%d", m_procKey.m_iProcId);
+
+	if (0 != setenv("CPF_FLOW_ID", szFlowId,1))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "epa setenv CPF_FLOW_ID fail.");
+	}
+	if (0 != setenv("CPF_SRV_ID", szSrvId, 1))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "epa setenv CPF_SRV_ID fail.");
+	} 
+	if (0 != setenv("CPF_PROC_ID", szProcId, 1))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "epa setenv CPF_PROC_ID fail.");
+		return -1;
+	} 
+	if (0 != setenv("CPF_WORK_DIR", m_strCurrentDir.c_str(), 1))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "epa setenv CPF_WORK_DIR fail.");
+		return -1;
+	} 
+	if (0 != setenv("CPF_CFG_FILE", m_strCfgFile.c_str(), 1))
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "epa setenv CPF_CFG_FILE fail.");
+		return -1;
+	}	
+
+	return 0;
+}
+
+int32 CExternalProcAdapter::ForceStopProc(int32 iPid)
+{
+	aistring strErrMsg;
+
+	int iRet = EpaKill(iPid, SIGKILL, strErrMsg);
+	if(0 == iRet)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "kill -9 %d", iPid);
+	}
+	else
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "kill error: %s", strErrMsg.c_str());
+		return -1;
+	}
+
+	return 0;
+}
+
+int32 CExternalProcAdapter:: StartProc()
+{
+	GetPsFlag();
+
+	int iCount = GetProcCountByName(m_strPsFlag);
+	if (iCount > 0)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "proc: %s, already started", m_strPsFlag.c_str());
+		return 0;
+	}
+	
+	aistring strCmd = "pwrapper" + m_strPsFlag + " " + m_Config.m_strRunCmd + "&";
+
+	int32 iRet = system(strCmd.c_str());
+
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "exec shell end:%s![ret:%d, errno:%d, errstring:%s]",
+			strCmd.c_str(), iRet, iRet == 0 ? 0:errno, iRet == 0 ? "no error" : strerror(errno));
+
+	if (0 != iRet)
+	{
+		return -1;
+	}
+
+	return 0;
+}
+
+
+void CExternalProcAdapter:: GetPsFlag()
+{
+	// pwrapper 的程序名字不能太长，前缀改为epa_flowId_procId_servId
+	m_strPsFlag =" epa_" + m_strProc ;
+
+	// 可能会在命令种配置路径，对pwrapper有影响
+	int step = m_Config.m_strRunCmd.find(" ");
+	aistring strTmp;
+	if (step != aistring::npos)
+	{
+		strTmp = m_Config.m_strRunCmd.substr(0, step);
+	}
+	else
+	{
+		strTmp = m_Config.m_strRunCmd;
+	}
+
+	step = strTmp.find_last_of('/');
+	if(step != aistring::npos)
+	{
+		strTmp = strTmp.substr(step+1, strTmp.size()-step);
+	}
+
+	// pwrapper对不是直接运行的程序无效，为*.sh文件主动加上sh
+	step = strTmp.find(".sh");
+	if(step != aistring::npos)
+	{
+		m_Config.m_strRunCmd = "sh " + m_Config.m_strRunCmd; 
+	}
+
+}
+
+int32 CExternalProcAdapter::run(NAMESPACE_BILLING40_FRAME CData *p)
+{
+	if(!m_Config.isNoFileProc)
+	{
+		if(0 == m_ProcInfo.ReadFile(m_strInfoFile.c_str()))
+		{
+
+			if(	(0 < m_ProcInfo.m_iStopProgress) 
+				&&(m_ProcInfo.m_iStopProgress < 100))
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "program is stoping %d ...", m_ProcInfo.m_iStopProgress);
+			}
+
+			if(100 == m_ProcInfo.m_iStopProgress)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "program [%s] stoped, pid in Infofile [%d]", 
+																m_strPsFlag.c_str(), m_ProcInfo.m_iPid);
+				return 1;
+			}
+		
+			if(999 == m_ProcInfo.m_iStopProgress)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "program [%d] error stop [999]", m_ProcInfo.m_iPid);
+				return -1;
+			}
+
+			// 不能用前缀判断进程数目，因为月账进程可以配置同名同proc子进程，需要同时考虑是不是父进程为1
+			// 不通用info文件中的pid，因为脚本会有嵌套执行，导致写入的pid不是父进程的pid
+			int iCount = GetProcCountByName(m_strPsFlag);
+
+			if( 1 == iCount)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "exist proc [%d] OK", m_ProcInfo.m_iPid);
+			}
+			else if(0 == iCount)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "proc num 0.");
+				if(0 == m_ProcInfo.ReadFile(m_strInfoFile.c_str()))
+				{
+					if(100 == m_ProcInfo.m_iStopProgress)
+					{
+						LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "proc [%d] has stoped.", m_ProcInfo.m_iPid);
+						return 1;
+					}
+				}
+
+				return -1;
+			}
+			else
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "error proc[%d] count %d, stopProgress [%d]", 
+															m_ProcInfo.m_iPid, iCount, m_ProcInfo.m_iStopProgress);
+				return -1;
+			}
+		}
+		else
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "lost [%s] file", m_strInfoFile.c_str());
+			return -1;
+		}
+	}
+	else
+	{
+		if(1 == GetProcCountByName(m_strPsFlag))
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "Proc run OK");
+		}
+		else if(0 == GetProcCountByName(m_strPsFlag))
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "epa Proc stop, count[0], return 1");
+			return 1;
+		}
+		else
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "error Proc count[%d]", GetProcCountByName(m_strPsFlag));
+			return -1;
+		}
+	}
+	
+	sleep(1);
+	return 0;
+}
+
+int32 CExternalProcAdapter::destroy()
+{
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, ">>> begin destroy epa...");
+	return 0;
+}
+
+int32 CExternalProcAdapter::stop()
+{
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, ">>> begin stop epa...");
+	aistring strErrMsg;
+	if(!m_Config.isNoFileProc)
+	{
+		// 正常退出时判断是否进程结束
+		if(0 == m_ProcInfo.ReadFile(m_strInfoFile.c_str()))
+		{
+			if(100 == m_ProcInfo.m_iStopProgress)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "stop proc [%d] successfully", m_ProcInfo.m_iPid);
+				return 0;
+			}
+		}
+
+		if(-1 == EpaKill(m_ProcInfo.m_iPid, SIGTERM, strErrMsg))
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "error kill : %s", strErrMsg.c_str());
+			return -1;
+		}
+
+		int stopTime = EXT_PROC_STOPTIME;
+		while(0 == m_ProcInfo.ReadFile(m_strInfoFile.c_str()))
+		{
+			if((0 < m_ProcInfo.m_iStopProgress)&&(m_ProcInfo.m_iStopProgress < 100))
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "stoping program [%d]", m_ProcInfo.m_iStopProgress);
+				sleep(1);
+				continue;
+			}
+			else if(100 == m_ProcInfo.m_iStopProgress)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "stop proc [%d] successfully", m_ProcInfo.m_iPid);
+				return 0;
+			}
+			else
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "other stop value [%d]", m_ProcInfo.m_iStopProgress);
+				return -1;
+			}
+		}
+	}
+	else
+	{
+		aistring strRet;
+		aistring strCmd = FormatString("ps -ef |grep %s |grep -v grep | awk '{print $2}'", m_strPsFlag.c_str());
+		ShellCmd(strCmd, strRet);
+		int32 pid = atol(strRet.c_str());
+		if(-1 == EpaKill(pid, SIGKILL, strErrMsg))
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "error kill : %s", strErrMsg.c_str());
+			return -1;
+		}
+		else
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "kill -9 proc [%d] %s OK", pid, m_strPsFlag.c_str());
+		}
+		
+	}
+	return 0;
+}
+
+

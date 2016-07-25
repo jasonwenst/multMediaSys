@@ -1,0 +1,13 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_queue_adjust_mgr_cpp)
+{
+	//Fuction: ISrmQueueAdjustMgr & ISrmQueueAdjustMgr :: GetInstance ( )
+	TEST_FIXTURE(TestFixture,TestISrmQueueAdjustMgr_GetInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

@@ -1,0 +1,594 @@
+
+#include"cron_tool.h"
+
+NAMESPACE_OD_CRON_BEGIN
+
+int32 month_of_day[12] = {
+	31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+};
+
+int32 CCronTool::GetValue(struct tm &tmInput, VALUE_TYPE em)
+{
+	int32 iRetValue = -1;
+	switch(em)
+	{
+	case EM_SEC_TYPE:
+		iRetValue = tmInput.tm_sec;
+		break;
+	case EM_MIN_TYPE:
+		iRetValue = tmInput.tm_min;
+		break;
+	case EM_HOUR_TYPE:
+		iRetValue = tmInput.tm_hour;
+		break;
+	case EM_DAY_TYPE:
+		iRetValue = tmInput.tm_mday;
+		break;
+	case EM_MONTH_TYPE:
+		iRetValue = tmInput.tm_mon;
+		break;
+	case EM_YEAR_TYPE:
+		iRetValue = tmInput.tm_year;
+		break;
+	case EM_WEEK_TYPE:
+		iRetValue = tmInput.tm_mday;
+		break;
+	default:
+		break;
+	}
+	return iRetValue;
+}
+
+int32 CCronTool::SetValue(struct tm &tmInput, int32 iValue, VALUE_TYPE em)
+{
+	switch(em)
+	{
+	case EM_SEC_TYPE:
+		if(iValue < MAX_SEC)
+		{
+			tmInput.tm_sec = iValue;
+			m_iCarry = 0;
+		}
+		else
+		{
+			if(m_mapItemValue.size() == 0)
+			{
+				tmInput.tm_sec = 0;
+			}
+			else
+			{
+				ItemValueMap::iterator it = m_mapItemValue.begin();
+				tmInput.tm_sec = it->first;
+			}
+			SetCarryValue(tmInput, em);
+		}
+		break;
+	case EM_MIN_TYPE:
+		if(iValue < MAX_MIN)
+		{
+			tmInput.tm_min = iValue;
+			m_iCarry = 0;
+		}
+		else
+		{
+			if(m_mapItemValue.size() == 0)
+			{
+				tmInput.tm_min = 0;
+			}
+			else
+			{
+				ItemValueMap::iterator it = m_mapItemValue.begin();
+				tmInput.tm_min = it->first;
+			}
+			SetCarryValue(tmInput, em);
+		}
+		break;
+	case EM_HOUR_TYPE:
+		if(iValue < MAX_HOUR)
+		{
+			tmInput.tm_hour = iValue;
+			m_iCarry = 0;
+		}
+		else
+		{
+			if(m_mapItemValue.size() == 0)
+			{
+				tmInput.tm_hour = 0;
+			}
+			else
+			{
+				ItemValueMap::iterator it = m_mapItemValue.begin();
+				tmInput.tm_hour = it->first;
+			}
+			SetCarryValue(tmInput, em);
+		}
+		break;
+	case EM_DAY_TYPE:
+	case EM_WEEK_TYPE:
+		if(iValue < MAX_DAY)
+		{
+			tmInput.tm_mday = iValue;
+			m_iCarry = 0;
+		}
+		else
+		{
+			if(m_mapItemValue.size() == 0)
+			{
+				tmInput.tm_mday = 0;
+			}
+			else
+			{
+				ItemValueMap::iterator it = m_mapItemValue.begin();
+				tmInput.tm_mday = it->first;
+			}
+			SetCarryValue(tmInput, em);
+		}
+		break;
+	case EM_MONTH_TYPE:
+		if(iValue < MAX_MONTH)
+		{
+			tmInput.tm_mon = iValue;
+			m_iCarry = 0;
+		}
+		else
+		{
+			if(m_mapItemValue.size() == 0)
+			{
+				tmInput.tm_mon = 0;
+			}
+			else
+			{
+				ItemValueMap::iterator it = m_mapItemValue.begin();
+				tmInput.tm_mon = it->first;
+			}
+			SetCarryValue(tmInput, em);
+		}
+		break;
+	case EM_YEAR_TYPE:
+		if(iValue < MAX_YEAR)
+		{
+			tmInput.tm_year = iValue;
+			m_iCarry = 0;
+		}
+		else
+		{
+			tmInput.tm_year = iValue+1;
+		}
+		break;
+	//case EM_WEEK_TYPE:
+		//todo
+		//tmInput.tm_wday = iValue;
+		//tmInput.tm_mday = iValue;
+		//m_iCarry = 0;
+		//break;
+	default:
+		m_iCarry = 0;
+		return -1;
+		break;
+	}
+	return 0;
+}
+
+int32 CCronTool::SetCarryValue(struct tm &tmInput, VALUE_TYPE em)
+{
+	m_iCarry = 1;
+	return 0;
+}
+
+bool CCronTool::DispatchCronExpression(const char* szExpress, VALUE_TYPE em, struct tm &tmInput)
+{
+	int32 iRet = -1;
+	if (em == EM_DAY_TYPE)
+	{	
+		 iRet =ParseDayPart(szExpress, m_mapItemValue, tmInput);
+	} 
+	else if (em == EM_WEEK_TYPE)
+	{
+		 iRet = ParseWeekPart(szExpress, m_mapItemValue, tmInput);
+	}
+	else
+	{
+		 iRet = ParseSimilarPart(szExpress, m_mapItemValue,em,tmInput);
+	}
+	return iRet >= 0;
+}
+
+int32 CCronTool::SubParseSimilar(const char* szExpress,int32 iBaseValue,int32 iMaxValue,VALUE_TYPE em,ItemValueMap &mapItemValue, struct tm &tmInput)
+{
+	const char* pBak = szExpress;
+	if (*szExpress < '0' || *szExpress > '9')
+	{
+		THROW_CAIEXCEPTION(E_BASE_CRON_EXPRESS_INVAILD, "common parse cron expression,part type:(?),invalid characters(?)")
+			<<em
+			<<szExpress;
+		return -1;
+	}
+	struct tm tmThisMonthBegin, tmThisMonthBeginOut;
+	memcpy(&tmThisMonthBegin, &tmInput, sizeof(struct tm));
+	tmThisMonthBegin.tm_mday = 1;
+	time_t toutBegin = ::mktime(&tmThisMonthBegin);
+	::localtime_r(&toutBegin, &tmThisMonthBeginOut);
+
+	struct tm tmThisMonthEnd, tmThisMonthEndOut;
+	memcpy(&tmThisMonthEnd, &tmInput, sizeof(struct tm));
+	tmThisMonthEnd.tm_mday = month_of_day[tmInput.tm_mon];
+	time_t toutEnd = ::mktime(&tmThisMonthEnd);
+	::localtime_r(&toutEnd, &tmThisMonthEndOut);
+
+	
+	while (*szExpress != 0)
+	{
+		int32 iNum = GetCurrentNum(&szExpress);
+		if (iNum != -1)
+		{
+			iNum -= iBaseValue;
+			//校验数值
+			if (iNum > (GetMaxValue(em)-1))
+			{
+				THROW_CAIEXCEPTION(E_BASE_CRON_EXPRESS_INVAILD, "parse cron expression out of limit,part type:(?),invalid characters(?)")
+					<<em
+					<<pBak;
+				return -1;
+			}
+		}
+
+		char cMark = GetCurrentChar(&szExpress);
+		if (cMark == ',')
+		{
+			mapItemValue.insert(ItemValueMap::value_type(iNum, em));
+			continue;
+		}
+		else if (cMark == '/')
+		{
+			int32 iRate = GetCurrentNum(&szExpress);
+			if (iRate == -1)
+			{
+				THROW_CAIEXCEPTION(E_BASE_CRON_EXPRESS_INVAILD, "parse cron expression error,part type:(?),invalid characters(?)")
+					<<em
+					<<pBak;
+				return -1;
+			}
+			
+			for(int32 i = iNum; i < iMaxValue; i += iRate)
+			{
+				mapItemValue.insert(ItemValueMap::value_type(i, em));
+			}
+
+		}
+		else if (cMark == '-')
+		{
+			int32 iRate = GetCurrentNum(&szExpress);
+			if (iRate == -1)
+			{
+				THROW_CAIEXCEPTION(E_BASE_CRON_EXPRESS_INVAILD, "parse cron expression error,part type:(?),invalid characters(?)")
+					<<em
+					<<pBak;
+				return -1;
+			}
+
+			for(int32 i = iNum; i <= iRate - iBaseValue; ++i)
+			{
+				mapItemValue.insert(ItemValueMap::value_type(i, em));
+			}
+		}
+		else if (cMark == 'L')
+		{
+			if(EM_DAY_TYPE == em)
+			{
+				if (JudgeLeapYear(tmInput.tm_year+1900) &&tmInput.tm_mon ==1)
+				{
+					iNum = month_of_day[tmInput.tm_mon] - iNum + 1 +1;
+				}
+				else
+				{
+					iNum = month_of_day[tmInput.tm_mon] - iNum + 1;
+				}
+				mapItemValue.insert(ItemValueMap::value_type(iNum, em));
+			}
+		}else if(cMark == 'W')
+		{
+			
+					if(JudgeLeapYear(1900+tmThisMonthEndOut.tm_year)&&(tmThisMonthEndOut.tm_mon==1))
+				{
+					tmThisMonthEndOut.tm_mday=29;
+				}
+				
+					if(tmThisMonthEndOut.tm_mday<iNum)
+					{
+						iNum=tmThisMonthEndOut.tm_mday;
+					}
+				
+			int iNum_wday=(iNum-tmThisMonthBeginOut.tm_mday+tmThisMonthBeginOut.tm_wday)%7;
+			if(iNum_wday<6&&0<iNum_wday)
+			{
+				mapItemValue.insert(ItemValueMap::value_type(iNum, em));
+			}
+			else
+			{
+				if(iNum_wday==6)
+				{
+					if(iNum!=1)
+					{
+						iNum--;
+						mapItemValue.insert(ItemValueMap::value_type(iNum, em));
+					}else
+					{
+						iNum+=2;
+						mapItemValue.insert(ItemValueMap::value_type(iNum, em));
+					}
+				}else if(iNum_wday==0)
+				{
+					if(iNum<tmThisMonthEndOut.tm_mday)
+					{
+						iNum++;
+						mapItemValue.insert(ItemValueMap::value_type(iNum, em));
+					
+					}else
+					{
+						iNum-=2;
+						mapItemValue.insert(ItemValueMap::value_type(iNum, em));
+					}
+				
+				
+				}
+			}
+		
+		}
+		else
+		{
+			mapItemValue.insert(ItemValueMap::value_type(iNum, em));
+		}
+	}
+
+	return 0;
+}
+
+int32 CCronTool::ParseSimilarPart(const char* szExpress, ItemValueMap &mapItemValue, VALUE_TYPE em,struct tm &tmInput)
+{
+	if(NULL == szExpress) return -1;
+	
+	int32 iMax = GetMaxValue(em);
+	
+	mapItemValue.clear();	
+	if(0 == strcmp(szExpress, "*"))
+	{
+		int32 i =0;
+		if (em == EM_YEAR_TYPE)
+		{
+			i = 1970;
+		}
+
+		for(i = 0; i < iMax; ++i)
+		{
+			mapItemValue.insert(ItemValueMap::value_type(i, em));
+		}
+		return 0;
+	}
+
+	int32 iBaseValue = 0;
+	if (em == EM_MONTH_TYPE)
+	{
+		iBaseValue =1;
+	}
+	else if (em == EM_YEAR_TYPE)
+	{
+		time_t tmZero = 0;
+		struct tm tmTempOut;
+		::localtime_r(&tmZero, &tmTempOut);
+		
+		int32 iLocaBaseYear = 0;
+		iLocaBaseYear = tmTempOut.tm_year;
+
+		iMax = iMax -iLocaBaseYear;
+		iBaseValue = 1970 - iLocaBaseYear;
+	}
+	
+	SubParseSimilar(szExpress, iBaseValue, iMax, em, mapItemValue,tmInput);
+	return 0;
+}
+
+int32 CCronTool::ParseDayPart(const char* szExpressDay, ItemValueMap &mapItemValue, struct tm &tmInput)
+{
+	if(NULL == szExpressDay) return -1;
+	
+	mapItemValue.clear();
+	if(0 == strcmp("?", szExpressDay))
+	{
+		return 0;
+	}
+	else if(0 == strcmp(szExpressDay, "*"))
+	{
+		for(int32 i = 1; i < month_of_day[tmInput.tm_mon] +1; ++i)
+		{
+			mapItemValue.insert(ItemValueMap::value_type(i, EM_DAY_TYPE));
+		}
+		
+		if(tmInput.tm_mon == 1 && JudgeLeapYear(tmInput.tm_year+1900))
+ 		{
+ 			mapItemValue.insert(ItemValueMap::value_type(29, EM_DAY_TYPE));
+		}
+
+		return 0;
+	}
+
+	SubParseSimilar(szExpressDay, 0,MAX_DAY ,EM_DAY_TYPE, mapItemValue,tmInput);
+	return 0;
+}
+
+int32 CCronTool::ParseWeekPart(const char* szExpressWeek, ItemValueMap &mapItemValue, struct tm &tmInput)
+{
+	if(NULL == szExpressWeek) return -1;
+
+	mapItemValue.clear();
+	char ch[2] = {0};
+	char *szExpress = (char *)szExpressWeek;
+	IsChar(&szExpress, ch);
+	if(0 == strcmp(IsChar(&szExpress, ch), "?"))
+	{
+		return 0;
+	}
+	else if(0 == strcmp(IsChar(&szExpress, ch), "*"))
+	{
+		for(int32 i = 0; i < MAX_WEEK; ++i)
+		{
+			mapItemValue.insert(ItemValueMap::value_type(i, EM_WEEK_TYPE));
+		}
+		return 0;
+	}
+	
+{
+	
+
+	//月开始
+	struct tm tmThisMonthBegin, tmThisMonthBeginOut;
+	memcpy(&tmThisMonthBegin, &tmInput, sizeof(struct tm));
+	tmThisMonthBegin.tm_mday = 1;
+	time_t toutBegin = ::mktime(&tmThisMonthBegin);
+	//struct tm tmTempIn1;
+	::localtime_r(&toutBegin, &tmThisMonthBeginOut);	
+	//memcpy(&tmThisMonthBeginOut, &tmTempIn1, sizeof(struct tm));
+
+	//月结束
+	struct tm tmThisMonthEnd, tmThisMonthEndOut;
+	memcpy(&tmThisMonthEnd, &tmInput, sizeof(struct tm));
+	tmThisMonthEnd.tm_mday = month_of_day[tmInput.tm_mon];
+
+	time_t toutEnd = ::mktime(&tmThisMonthEnd);
+	//struct tm tmTempIn2;
+	::localtime_r(&toutEnd, &tmThisMonthEndOut);	
+	//memcpy(&tmThisMonthEndOut, &tmTempIn2, sizeof(struct tm));
+	
+	AISTD vector<int32> rNumberVec;
+	int32 iNum = -1, iNextNum = -1;
+	char ch[2] = {0};
+
+
+	while(*szExpress != 0)
+	{
+		IsNumber(&szExpress, iNum);
+
+		IsChar(&szExpress, ch); //get char
+		if(0 == strcmp(ch, ","))
+		{
+			//循环求全体值
+			GetNextWeek(tmThisMonthBeginOut.tm_wday, iNum, 
+				month_of_day[tmInput.tm_mon], rNumberVec);
+		}
+		else if(0 == strcmp(ch, "/"))
+		{
+			if(!IsNumber(&szExpress, iNextNum))
+			{
+				continue;
+			}
+			//循环求全体值
+			GetNextWeek(tmThisMonthBeginOut.tm_wday, iNum, 
+				month_of_day[tmInput.tm_mon], rNumberVec, iNextNum);
+		}
+		else if(0 == strcmp(ch, "-"))
+		{
+			if(!IsNumber(&szExpress, iNextNum))
+			{
+				continue;
+			}
+			//循环求全体值
+			for(int32 i = iNum; i <= iNextNum; ++i)
+			{
+				GetNextWeek(tmThisMonthBeginOut.tm_wday, i, 
+					month_of_day[tmInput.tm_mon], rNumberVec);
+			}
+		}
+		else if(0 == strcmp(ch, "L"))
+		{
+			//计算周日 = 7 - 指定日 + 当前日
+
+			
+			//iNum = 7 + tmThisMonthEndOut.tm_wday - iNum;
+			//printf("%d\n",tmThisMonthEndOut.tm_wday);
+				if(JudgeLeapYear(1900+tmThisMonthEndOut.tm_year)&&(tmThisMonthEndOut.tm_mon==1))
+					{
+						if(tmThisMonthEndOut.tm_mday==28)
+							{
+								tmThisMonthEndOut.tm_mday++;
+								tmThisMonthEndOut.tm_wday++;
+								
+								}
+								
+								 iNum = (7+tmThisMonthEndOut.tm_wday - iNum)%7;
+								 iNum=29-iNum;
+								
+						}
+						else{
+							
+                        iNum = (7+tmThisMonthEndOut.tm_wday - iNum)%7;
+                        
+			iNum = month_of_day[tmInput.tm_mon] - iNum;
+		}
+			
+			rNumberVec.push_back(iNum);
+		}
+		else if(0 == strcmp(ch, "#"))
+		{	
+			iNum = (7 - tmThisMonthBeginOut.tm_wday + iNum)%7;
+			iNum = 8+ iNum;
+			rNumberVec.push_back(iNum);
+		}else
+		{	
+			if(JudgeLeapYear(tmInput.tm_year+1900)&&tmInput.tm_mon==1)
+			{
+				 GetNextWeek(tmThisMonthBeginOut.tm_wday, iNum,
+                                29, rNumberVec);
+			}else
+			{ 
+				GetNextWeek(tmThisMonthBeginOut.tm_wday, iNum,
+				month_of_day[tmInput.tm_mon], rNumberVec);
+			}
+        	}
+	}
+
+	for(AISTD vector<int32>::iterator it = rNumberVec.begin();
+		it != rNumberVec.end();
+		++it)
+	{
+		mapItemValue.insert(ItemValueMap::value_type(*it, EM_WEEK_TYPE));
+	}
+
+
+}
+	return 0;
+}
+
+int32 CCronTool::ChangeValueMapTool(ItemValueMap& rItemValueMap)
+{
+	m_mapItemValue.clear();
+	for(ItemValueMap::iterator it = rItemValueMap.begin();
+		it!= rItemValueMap.end();
+		++it)
+	{
+		m_mapItemValue.insert(ItemValueMap::value_type(it->first, it->second));
+	}
+	return 0;
+}
+
+int32 CCronTool::GetNextWeek(int32 iStartWDay, int32 iTargWDay, int32 iDayMax,
+	AISTD vector<int32> &rNumberVec, int32 iWeekInterval)
+{
+	int32 iStart = 0;
+
+	int32 iInterval = MAX_WEEK * iWeekInterval;
+	if(iTargWDay >= iStartWDay)
+	{
+		iStart = iTargWDay - iStartWDay;
+	}
+	else
+	{
+		iStart = iTargWDay + iInterval - iStartWDay;
+	}
+	for(int32 i = iStart + 1; i <= iDayMax; i += iInterval)
+	{
+		rNumberVec.push_back(i);
+
+	}
+	return 0;
+}
+
+NAMESPACE_OD_CRON_END

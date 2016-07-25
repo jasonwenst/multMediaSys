@@ -29,7 +29,7 @@
      <link href="<c:url value='/static/css/app.css' />" rel="stylesheet"></link>
   </head>
   <body ng-app="myApp" class="ng-cloak">
-      <div class="generic-container" ng-controller="UserController as ctrl">
+      <div class="generic-container" ng-controller="UserController as ctrl ">
           <div class="panel panel-default">
               <div class="panel-heading"><span class="lead">User Registration Form </span></div>
               <div class="formcontainer">
@@ -50,7 +50,6 @@
                           </div>
                       </div>
                         
-                      
                       <div class="row">
                           <div class="form-group col-md-12">
                               <label class="col-md-2 control-lable" for="address">Address</label>

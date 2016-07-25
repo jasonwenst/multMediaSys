@@ -1,0 +1,243 @@
+
+#include"cron_main.h"
+#include <string.h>
+#include <strings.h>
+
+NAMESPACE_OD_CRON_BEGIN
+
+int32 CCronMain::InitCron()
+{
+	m_cCronSec.setValueType(EM_SEC_TYPE);
+	m_cCronMin.setValueType(EM_MIN_TYPE);
+	m_cCronHour.setValueType(EM_HOUR_TYPE);
+	m_cCronDay.setValueType(EM_DAY_TYPE);
+	m_cCronMonth.setValueType(EM_MONTH_TYPE);
+	m_cCronYear.setValueType(EM_YEAR_TYPE);
+	m_cCronWeek.setValueType(EM_WEEK_TYPE);
+
+	m_cCronMin.SetChildItem(&m_cCronSec);
+	m_cCronHour.SetChildItem(&m_cCronMin);
+	m_cCronDay.SetChildItem(&m_cCronHour);
+	m_cCronMonth.SetChildItem(&m_cCronDay);
+	m_cCronMonth.SetChildItem(&m_cCronWeek);
+	m_cCronYear.SetChildItem(&m_cCronMonth);
+	m_cCronWeek.SetChildItem(&m_cCronHour);
+
+	m_cCronDay.m_iMonth = -1;
+	return 0;
+}
+
+int32 CCronMain::CheckExpress(const char* szExpress)
+{
+	return 0;
+}
+
+int32 CCronMain::ParseExpress(const char* szExpress)
+{
+	if(NULL == szExpress)
+	{
+		return -1;
+	}
+
+	//取当前时间
+	time_t tin = time(NULL);
+	struct tm tmTempIn;
+	::localtime_r(&tin, &tmTempIn);
+
+	//按空格分隔字符串
+	char *saveptr;
+	char szCmd[1024];
+	memset(szCmd, 0x00, sizeof(szCmd));
+	strncpy(szCmd, szExpress, strlen(szExpress));
+
+	try
+	{
+		char *szSec = strtok_r(szCmd, " ", &saveptr);
+		if(NULL == szSec)
+		{
+			return -1;
+		}
+		char szSecExp[1024];
+		strncpy(szSecExp, szSec,strlen(szSec)+1);
+		m_cCronSec.LoadCronExpression(szSecExp, tmTempIn);
+
+		char *szMin = strtok_r(NULL," ",&saveptr);
+		if(NULL == szMin)
+		{
+			return -1;
+		}
+		char szMinExp[1024];
+		strncpy(szMinExp, szMin,strlen(szMin)+1);
+		m_cCronMin.LoadCronExpression(szMinExp, tmTempIn);
+
+		char *szHour = strtok_r(NULL," ",&saveptr);
+		if(NULL == szHour)
+		{
+			return -1;
+		}
+		char szHourExp[1024];
+		strncpy(szHourExp, szHour,strlen(szHour)+1);
+		m_cCronHour.LoadCronExpression(szHourExp, tmTempIn);
+
+		char *szDay = strtok_r(NULL," ",&saveptr);
+		if(NULL == szDay)
+		{
+			return -1;
+		}
+		char szDayExp[1024];
+		strncpy(szDayExp, szDay,strlen(szDay)+1);
+		m_cCronDay.LoadCronExpression(szDayExp, tmTempIn);
+		
+		char *szMonth = strtok_r(NULL," ",&saveptr);
+		if(NULL == szMonth)
+		{
+			return -1;
+		}
+		char szMonthExp[1024];
+		strncpy(szMonthExp, szMonth,sizeof(szMonthExp));
+		m_cCronMonth.LoadCronExpression(szMonthExp, tmTempIn);
+
+		char *szWeek = strtok_r(NULL," ",&saveptr);
+		if(NULL == szWeek)
+		{
+			return -1;
+		}
+		char szWeekExp[1024];
+		strncpy(szWeekExp, szWeek,sizeof(szWeekExp));
+		m_cCronWeek.LoadCronExpression(szWeekExp, tmTempIn);
+
+		char *szYear = strtok_r(NULL," ",&saveptr);
+		if(NULL == szYear)
+		{   
+			return -1; 
+		}   
+		char szYearExp[1024];
+		strncpy(szYearExp, szYear,sizeof(szYearExp));
+		m_cCronYear.LoadCronExpression(szYearExp, tmTempIn);
+
+	} catch ( CAIException & e ) {
+		DBE2_LOG(ERROR_LOGGER, "cron parse error[%d:%s]", e.get_code(), e.get_message().c_str());
+		return -1;
+	} catch ( ... ) {
+		DBE2_LOG(ERROR_LOGGER, "cron parse error unknow exception");
+		return -1;
+	}
+
+	return 0;
+}
+
+bool CCronMain::CheckSpecialTimeErr(struct tm &tmInput)
+{
+	//闰年
+	if(JudgeLeapYear(tmInput.tm_year+1900) && tmInput.tm_mon == 1)
+	{
+		 if(tmInput.tm_mday > 29)
+        {
+                        tmInput.tm_sec = 0;
+                tmInput.tm_min = 0;
+                tmInput.tm_hour=0;
+                tmInput.tm_mon+=1;
+                if (tmInput.tm_mon==12)
+                {
+                        tmInput.tm_mon = 0;
+                        tmInput.tm_year += 1;
+                }
+                tmInput.tm_mday = 0;
+                        struct tm tmNextTime;
+						if (-1 == GetNearTime(tmInput, tmNextTime))
+						{
+							return false;
+						}
+                tmInput = tmNextTime;
+        }	
+	}else{
+
+	if(tmInput.tm_mday > month_of_day[tmInput.tm_mon])
+	{
+			tmInput.tm_sec = 0;
+		tmInput.tm_min = 0;
+		tmInput.tm_hour=0;
+		tmInput.tm_mon+=1;
+		if (tmInput.tm_mon==12)
+		{
+			tmInput.tm_mon = 0;
+			tmInput.tm_year += 1;
+		}
+		tmInput.tm_mday = 0;
+			struct tm tmNextTime;
+			if (-1 == GetNearTime(tmInput, tmNextTime))
+			{
+				return false;
+			}
+		tmInput = tmNextTime;
+	}
+}
+	return true;
+}
+
+int32 CCronMain::GetNearTime(struct tm &tmCurrentTime, struct tm &tmNextTime)
+{
+	memcpy(&tmNextTime, &tmCurrentTime, sizeof(struct tm));
+	
+	int32 iCarry = 0, iBalance = 0;
+	try
+	{	
+		m_cCronSec.GetNearTime(tmNextTime, iCarry, iBalance);
+		m_cCronMin.GetNearTime(tmNextTime, iCarry, iBalance);
+		m_cCronHour.GetNearTime(tmNextTime, iCarry, iBalance);
+		m_cCronDay.GetNearTime(tmNextTime, iCarry, iBalance);
+		m_cCronWeek.GetNearTime(tmNextTime, iCarry, iBalance);
+		m_cCronMonth.GetNearTime(tmNextTime, iCarry, iBalance);
+		m_cCronYear.GetNearTime(tmNextTime, iCarry, iBalance);
+	} catch ( CAIException & e ) {
+		DBE2_LOG(ERROR_LOGGER, "get near time error[%d:%s]", e.get_code(), e.get_message().c_str());
+		return -1;
+	} catch ( ... ) {
+		DBE2_LOG(ERROR_LOGGER, "get near time error unknow exception");
+		return -1;
+	}
+
+	if (tmNextTime.tm_year <= tmCurrentTime.tm_year&&tmNextTime.tm_mon < tmCurrentTime.tm_mon)
+	{
+		return -1;
+	}
+	//单元测死循环 add by kongll
+	if(!CheckSpecialTimeErr(tmNextTime)) return -1;
+	return 0;
+}
+
+int32 CCronMain::GetNearTime(time_t &tCurrentTime, time_t &tNextTime)
+{
+	struct tm tmTempOut ={};
+	struct tm tmTempIn = {};
+	::localtime_r(&tCurrentTime,&tmTempIn);
+
+	REPORT_TRACE(":localtime_r time: %d-%d-%d  %d:%d:%d  week:%d,tm_isdst:%d",
+		tmTempIn.tm_year + 1900,
+		tmTempIn.tm_mon +1,
+		tmTempIn.tm_mday,
+		tmTempIn.tm_hour,
+		tmTempIn.tm_min,
+		tmTempIn.tm_sec,
+		tmTempIn.tm_wday+1,
+		tmTempIn.tm_isdst
+		);
+	if(0 != GetNearTime(tmTempIn, tmTempOut))
+	{
+		tNextTime = tCurrentTime;
+		return -1;
+	}
+	else
+	{
+		time_t tTempTime=::mktime(&tmTempOut);
+		tNextTime = tTempTime < tCurrentTime ? tCurrentTime : tTempTime;
+		return -1;
+		
+	}
+
+	ModifyFormatTime(tmTempOut);
+	tNextTime = ::mktime(&tmTempOut);
+	return 0;
+}
+
+NAMESPACE_OD_CRON_END

@@ -1,0 +1,489 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_util.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+
+#include "dbe2_util.h"
+#include <sys/types.h>
+#include <dirent.h>
+#include <dlfcn.h>
+#include "dbe2_lock.h"
+#include <errno.h>
+#include "public/common/log/commlog/commlog_logger.h"
+#include "public/common/communicate/nwsock.h"
+
+using namespace common_base;
+
+namespace MDbe
+{
+
+static aistring g_strInitErrorInfo;
+
+void SetInitErrorInfo(aistring strErrorInfo)
+{
+	g_strInitErrorInfo = strErrorInfo;
+}
+
+aistring GetInitErrorInfo()
+{
+	return g_strInitErrorInfo;
+}
+
+class CMsgIdCounter
+{
+public:
+    CMsgIdCounter (int32 iStartNumber)
+    {
+        m_iMsgId = iStartNumber;
+    }
+    int32 GetMsgId(void)
+    {
+        CAutoLock cAutoLock(m_IdMutex);
+        return ++m_iMsgId;
+    }
+
+private :
+    CLock m_IdMutex;
+    int32 m_iMsgId ;
+};
+
+
+
+aistring FormatString(const char * format, ...)
+{
+    char buf[4096];
+    aistring strRet;
+    if ( format != 0 )
+    {
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buf, sizeof(buf), format, args);
+        buf[sizeof(buf) - 1] = 0;
+        va_end(args);
+        strRet = buf;
+    }
+    return strRet;
+}
+
+
+obb_stream Sdl2Obbstream(CSdlBasicStructObject & cSdlObject)
+{
+    obb_stream obs(OBB_CODEC_JSON);
+    obs.begin_stream("dbe");
+    obs << cSdlObject;
+    obs.end_stream();
+    return obs;
+}
+
+obb_stream Sdl2Obbstream(CSdlBasicListObject & cSdlObject)
+{
+    obb_stream obs(OBB_CODEC_JSON);
+    obs.begin_stream("dbe");
+    obs << cSdlObject;
+    obs.end_stream();
+    return obs;
+}
+
+
+bool OpenLib(aistring strLibName, void *& pHandle, CBSErrorMsg & cErrorMsg)
+{
+    aistring strSuffix = "";
+#if defined(DEBUG) || defined(DEBUG_TBTS)
+    strSuffix = "D";
+#endif
+#ifdef HPUX
+    strSuffix.append(".sl");
+#else
+    strSuffix.append(".so");
+#endif
+
+    strLibName = aistring("lib") + strLibName + strSuffix;
+
+    pHandle = dlopen(strLibName.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+    if ( pHandle == 0 )
+    {
+        cErrorMsg.set_errorMsg(FormatString("open dll fail![dllname:%s, error:%s]", strLibName.c_str(), dlerror()));
+        return false;
+    }
+    return true;
+}
+
+bool CloseLib(void * pHandle)
+{
+    if(pHandle == NULL)
+    {
+        return false;
+    }
+    if ( dlclose(pHandle) == 0 )
+    {
+        return true;
+    }
+    return false;
+}
+
+
+bool ResolveFunctionFromLib(void * pHandle, aistring strFunctionName,
+                            void *& pFunc, CBSErrorMsg & cErrorMsg)
+{
+    pFunc = (void *)(dlsym(pHandle, strFunctionName.c_str()));
+    if ( pFunc == 0 )
+    {
+        cErrorMsg.set_errorMsg(FormatString("resolve function from library fail![function_name:%s, error:%s]", strFunctionName.c_str(), dlerror()));
+        return false;
+    }
+    return true;
+}
+
+void GetCurrentTime(int64 & iTime)
+{
+	iTime = time(NULL);
+}
+
+void GetCurrentTime(CBSDateTime & rcTime)
+{
+	struct timeval tv; 
+	gettimeofday(&tv, NULL);
+	time_t ltime = tv.tv_sec;
+	struct tm tmCur;
+	localtime_r(&ltime, &tmCur);
+	rcTime.setYMDHMS(tmCur.tm_year + 1900, tmCur.tm_mon + 1, tmCur.tm_mday, tmCur.tm_hour, tmCur.tm_min, tmCur.tm_sec, tv.tv_usec/1000);
+}
+
+CBSDateTime GetCurrentTime(void)
+{
+	CBSDateTime cBST;
+	GetCurrentTime(cBST);
+	return cBST;
+}
+
+#define IP_ADDR_MASK_IN_DB 1000000000
+int32 GetIpAddr(const char * szIpAddr)
+{
+    const char * pNrmVmId = getenv("NRM_VM_ID");
+    if(pNrmVmId)
+    {
+        //有这个环境变量时,说明指定VM_ID
+        int32 iVmid = atoi(pNrmVmId);
+        DBE2_LOG(DEBUG_LOGGER, "get vm id from env![vm_id:%d]", iVmid);
+        return iVmid;
+    }
+    if(NULL == szIpAddr) return 0;
+    in_addr_t in = inet_addr(szIpAddr);
+    if(system_endian() == 'l')//小字节序
+    {
+        in = htonl(in);
+    }
+    int32 iVmid = (int32)(in % IP_ADDR_MASK_IN_DB);
+    DBE2_LOG(DEBUG_LOGGER, "get vm id from ip addr![vm_id:%d, ip:%s]", iVmid, szIpAddr);
+    return iVmid;
+}
+
+SBaseHead GetMsgHead(int32 iCommandId, int64 iSequence)
+{
+    static CMsgIdCounter cMsgId(0);
+    SBaseHead cMsgHead;
+    cMsgHead.set_command(iCommandId);
+    cMsgHead.set_id(cMsgId.GetMsgId());
+    cMsgHead.set_sequence(iSequence);
+    if (0 == iSequence)
+    {
+        cMsgHead.set_sequence(cMsgHead.get_id());
+    }
+    return cMsgHead;
+}
+
+int64 GetMicroSecTime()
+{
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
+int64 GetMilliSecTime()
+{
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+
+aistring GetTFileName()
+{
+    char szTemp[200];
+    sprintf(szTemp, "/tmp/%d-%d-%lld.dbe2t", getpid(), pthread_self(), GetMicroSecTime());
+    return szTemp;
+}
+
+int32 ExecShell(aistring strShellCmd, bool isHaveOut, aistring & strOut)
+{
+    //	static CLock cLock;
+    //	CAutoLock cAutoLock(cLock);
+    //设置一下系统信号量
+    static bool isSetChildSig = false;
+    if(!isSetChildSig)
+    {
+        isSetChildSig = true;
+        signal(SIGCHLD,SIG_DFL);
+        DBE2_LOG(INFO_LOGGER, "set child signal to default process!");
+    }
+    aistring strTOutFileName = GetTFileName();
+    aistring strCmd = strShellCmd;
+    bool isBackGround = false;
+    if(isHaveOut)
+    {
+        strCmd = FormatString(" %s > %s", strCmd.c_str(), strTOutFileName.c_str());
+    }
+    else
+    {
+        if(strShellCmd.length() > 0 && strShellCmd[strShellCmd.length() - 1] == '&')
+        {
+            isBackGround = true;
+        }
+    }
+    if(isBackGround)
+    {
+        //后台运行的,那么使用pwrapper封装一下,保证端口的释放
+        strCmd = "pwrapper @ " + strCmd;
+    }
+    DBE2_LOG(INFO_LOGGER, "exec shell start:%s![have_out:%s, background:%s]",
+             strCmd.c_str(), isHaveOut ? "true" : "false", isBackGround ? "true" : "false");
+    int32 iRet = 0;
+
+    iRet = system(strCmd.c_str());
+
+    if(isHaveOut)
+    {
+        //从文件中获取输出
+        FILE * pFile = fopen(strTOutFileName.c_str(), "r");
+        if(pFile)
+        {
+            char szBuff[1024 * 10];
+            memset(szBuff, 0, sizeof(szBuff));
+            //获取文件内容
+            while(fgets(szBuff, sizeof(szBuff) - 1, pFile))
+            {
+                strOut += szBuff;
+                memset(szBuff, 0, sizeof(szBuff));
+            }
+            fclose(pFile);
+            unlink(strTOutFileName.c_str());
+        }
+        //system(FormatString("rm -rf %s", strTempOutFileName.c_str()).c_str());
+        if(strOut.length() > 0)
+        {
+            if(strOut[strOut.length() - 1] == '\n')
+            {
+                strOut[strOut.length() - 1] = 0x00;
+            }
+        }
+        //重新构造一下这个字符串
+        strOut = strOut.c_str();
+    }
+    DBE2_LOG(INFO_LOGGER, "exec shell end:%s![ret:%d, background:%s, errno:%d, errstring:%s, out:%s]",
+             strCmd.c_str(), iRet, isBackGround ? "true" : "false", iRet == 0 ? 0 : errno, iRet == 0 ? "no error" : strerror(errno), strOut.c_str());
+    return iRet;
+}
+
+
+
+aistring GetHostIp()
+{
+    //使用hostname返回ip地址
+    aistring strIp = "UNKNOWN";
+    array_t<CSocket::IPBUF> ipadd;
+    if (CSocket::get_ip(ipadd))
+    {
+        if(ipadd.dim() > 0)
+        {
+            strIp = ipadd[0];
+        }
+    }
+    DBE2_LOG(DEBUG_LOGGER, "host ip:%s", strIp.c_str());
+    return strIp;
+}
+
+
+
+aistring ReplaceString(aistring strSrc, aistring strOld, aistring strNew)
+{
+    aistring strRet = strSrc;
+    aistring::size_type iPos = 0;
+    for (; (iPos = strRet.find(strOld, iPos)) != aistring::npos;)
+    {
+        strRet.erase(iPos, strOld.length());
+        strRet.insert(iPos, strNew);
+        iPos += strNew.length();
+    }
+    return strRet;
+}
+aistring ReplaceStringExe(aistring strSrc, aistring strKey, aistring strFlag, aistring strValue)
+{
+    aistring strRet = strSrc;
+    CStringList	out_list;
+    base_divide_str(strSrc, strFlag, out_list);
+
+    CStringList::iterator it = out_list.begin();
+    while (it != out_list.end())
+    {
+        if(it->find(strKey) != aistring::npos)
+            break;
+        it++;
+    }
+
+    if(it != out_list.end())
+    {
+        strRet = ReplaceString(strRet, *it, strKey + strValue);
+    }
+    return strRet;
+}
+
+void MyTrim(aistring & strInput)
+{
+    aistring::iterator itStr = strInput.begin();
+    int iStart = 0;
+    for (; itStr != strInput.end(); itStr++)
+    {
+        if ('\n' == *itStr || '\t' == *itStr || ' ' == *itStr || '\r' == *itStr)
+        {
+            ++iStart;
+        }
+        else break;
+    }
+    aistring::reverse_iterator reitStr = strInput.rbegin();
+    int iEnd = strInput.size();
+    for (; reitStr != strInput.rend(); reitStr++)
+    {
+        if ('\n' == *reitStr || '\t' == *reitStr || ' ' == *reitStr || '\r' == *reitStr)
+        {
+            --iEnd;
+        }
+        else break;
+    }
+    int32 iLength = iEnd - iStart > 0 ? iEnd - iStart : 0;
+    strInput = strInput.substr(iStart, iLength);
+}
+
+bool DetectHost(CHost& rcHost)
+{
+	CSockApi cClientSkt;
+	cClientSkt.init_client(rcHost);
+	
+	int32 iRet = cClientSkt.connect() ;
+	cClientSkt.close();
+	DBE2_LOG(INFO_LOGGER,"detect host %s:%d ,result:%s",rcHost.m_szIp,rcHost.m_usPort,(iRet==0)?"true":"false"); 
+	return iRet == 0;
+}
+
+
+void InitVmInfo()
+{
+    static CLock cLock;
+    static bool isInit = false;
+    //保证一个进程只初始化一次
+    CAutoLock cAutoLock(cLock);
+    if(!isInit)
+    {
+        //设置IP
+        aistring strIp = GetHostIp();
+        //设置虚拟机id
+        //取得机器名
+        AISTD string strGetString;
+        MDbe::ExecShell("uname -a | awk '{ print $2 }'", true, strGetString);
+        strGetString = ReplaceString(strGetString, "\n", "");
+        int32 iVmId = GetIpAddr(strIp.c_str());
+        DBE2_LOG(INFO_LOGGER, "init vm info[vm_id:%d, hostname:%s]", iVmId, strIp.c_str());
+        NAMESPACE_OD_SYSTEM set_vmInfo(iVmId, strGetString.c_str());
+        isInit = true;
+    }
+}
+
+int32 GetWeekDate(int32 year, int32 month, int32 day)
+{
+	if (month < 3)
+	{
+		year--;
+		month += 12;
+	}
+	int week = (day + 2*month + 3*(month+1)/5 + year + year/4 - year/100 + year/400) % 7;
+	// 算出的结果星期1是0
+	return week + 1;
+}
+
+bool JudgeCmdExist(aistring& strCmd)
+{
+	//获得路径
+	std::vector<aistring> vecEnvPath;
+	aistring strEnvPath = getenv("PATH");
+	char *saveptr;
+	char * strPath = strtok_r((char*)strEnvPath.c_str(), ":", &saveptr);
+	vecEnvPath.push_back(aistring(strPath));
+	for(;;)
+	{
+		strPath = strtok_r(NULL, ":", &saveptr);
+		if(NULL != strPath)
+		{
+			vecEnvPath.push_back(aistring(strPath));
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	char szGetCmd[1024];
+	for(std::vector<aistring>::iterator it = vecEnvPath.begin();
+		it != vecEnvPath.end();
+		++it)
+	{
+		memset(szGetCmd, 0x00, sizeof(szGetCmd));
+		snprintf(szGetCmd, sizeof(szGetCmd) -1,"%s/%s", (*it).c_str(), strCmd.c_str());
+		if(access(szGetCmd, X_OK) == 0)
+		{
+			return true;
+		}
+	}
+	DBE2_LOG(ERROR_LOGGER, "command %s not exists please check!",strCmd.c_str());
+	return false;
+}
+
+int32 GetKeyValueInLine(char* szLine,const char* szSeparator,AISTD string& key, AISTD string& value)
+{
+	if(NULL == szLine||NULL == szSeparator)
+	{
+		key = "";
+		value = "";
+		return -1;
+	}
+
+	AISTD string line = szLine;
+
+	int32 iPos = line.find(szSeparator);
+	if(AISTD string::npos == iPos)
+	{
+		key = "";
+		value = line;
+		return -1;
+	}
+	key = line.substr(0, iPos);
+	value = line.substr(iPos + 1);
+	MyTrim(value);
+	return 0;
+}
+
+};
+

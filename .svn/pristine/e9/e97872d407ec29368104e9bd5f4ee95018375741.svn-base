@@ -1,0 +1,128 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_auto_db.h）
+/// brief	 
+///			自动数据库链接管理
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_AUTO_DB_H___
+#define __DBE2_AUTO_DB_H___
+
+#include "dbe2_base_def.h"
+#include "public/common/dbapi/dbapi.h"
+#include "dbe2_base_error_code.h"
+#include "dbe2_util.h"
+
+namespace MDbe
+{
+extern dbapi *g_pDbApi;
+//应用程序里面需要定义这个变量
+class CAutoDb
+{
+public:
+	/**
+	 * 通过数据库链接池获取一个数据库链接
+	 * @param strDbName			 链接名
+	 */
+	CAutoDb(aistring strDbName):m_pDb(NULL)
+    {
+		if(NULL == g_pDbApi) g_pDbApi = new dbapi();
+		if(NULL == g_pDbApi)
+		{
+			THROW_CAIEXCEPTION(E_BASE_GET_DB_CONN_FAIL, "create dbapi failed");
+		}
+	    int64 llStartTime = GetMilliSecTime();
+		m_pDb = g_pDbApi->get_connect(strDbName.c_str());
+	    int64 llEndTime = GetMilliSecTime();
+	    if(m_pDb != NULL && llEndTime - llStartTime > 10)
+	    {
+	        //如果获取数据库链接超过10豪秒,就打异常日志出来
+	        DBE2_LOG(WARN_LOGGER, "get db connect from dbapi time too long![db_cost_time:%lld]", llEndTime-llStartTime);
+	    }
+		if(m_pDb == NULL)
+		{
+			THROW_CAIEXCEPTION(E_BASE_GET_DB_CONN_FAIL, "alloc db connection from dbapi fail![db_name:?]") << strDbName;
+		}
+    }
+
+	/**
+	 * 用完自动释放
+	 */
+    ~CAutoDb()
+    {
+    	if(m_pDb != NULL)
+    	{
+    		try
+    		{
+    			m_pDb->rollback();
+    		}
+    		catch(...)
+    		{
+
+    		}
+			if (NULL != g_pDbApi) g_pDbApi->release_connect(m_pDb);
+			else{
+				dbapi cDbApi;
+				cDbApi.release_connect(m_pDb);
+			}
+    		m_pDb = NULL;
+    	}
+    }
+    void commit()
+    {
+    	if(m_pDb != NULL)
+    	{
+    		try
+    		{
+    			m_pDb->commit();
+    		}
+    		catch(otl_exception& e)
+    		{
+    			THROW_CAIEXCEPTION(E_BASE_DB_COMMIT_FAIL, "db_commit fail![msg:?, text:?, info:?]!")
+    					<< (const char *)e.msg<< (const char *)e.stm_text<< (const char *)e.var_info;
+
+    		}
+
+    	}
+    }
+
+    otl_connect & operator*() const
+    {
+        return *m_pDb;
+    }
+
+    otl_connect * operator->() const
+    {
+        return m_pDb;
+    }
+private:
+    //不支持拷贝构造
+    CAutoDb(const CAutoDb & rhs)
+    {
+
+    }
+
+    CAutoDb & operator=(const CAutoDb & rhs)
+    {
+        return *this;
+    }
+private:
+    otl_connect * m_pDb;
+
+};
+
+} // namespace MDbe
+
+
+#endif /* __DBE2_AUTO_DB_H___ */

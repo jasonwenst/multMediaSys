@@ -1,0 +1,59 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_typedef.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_TYPEDEF_H___
+#define __DBE2_TYPEDEF_H___
+
+#include <map>
+#include <set>
+#include "dbe2_base_def.h"
+#include "dbe2_base_hash_multimap.h"
+#include "dbe2_base_hash_map.h"
+#include "public/common/base/datetime.h"
+namespace MDbe
+{
+
+template<typename _Key, typename _Value >
+class hash_multimap : public base_hash_multimap<_Key, _Value>
+{}
+;
+
+template<typename _Key, typename _Value >
+class hash_map : public base_hash_map<_Key, _Value>
+{}
+;
+
+typedef hash_map<aistring, aistring> CStrStrHashMap;
+typedef hash_multimap<aistring, aistring> CStrStrHashMultiMap;
+
+typedef hash_map<int32, aistring> CInt32StrHashMap;
+typedef hash_multimap<int32, aistring> CInt32StrHashMultiMap;
+typedef AISTD map<int32,int32> CInt32Int32Map;
+typedef AISTD map<int32,int64> CInt32Int64Map;
+typedef AISTD vector<int32> CInt32Vec;
+typedef AISTD set<int32> CInt32Set;
+typedef AISTD set<aistring> CStringSet;
+typedef AISTD map<aistring, aistring> CStringStringMap;
+typedef AISTD map<int32, aistring> CInt32StringlMap;
+typedef AISTD map<int32, aistring *> CInt32PstringlMap;
+typedef AISTD map<int32, CInt32StringlMap> CInt32Int32StringMap;
+typedef AISTD map<aistring, time_t> CStringTimeMap;
+typedef AISTD map<int32, CBSDateTime> CIntTimeMap;
+} // namespace dbe2
+
+#endif /* __DBE2_TYPEDEF_H___ */

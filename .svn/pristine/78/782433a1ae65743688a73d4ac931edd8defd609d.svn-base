@@ -1,0 +1,57 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：msg_dispatch_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-14）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __MSG_DISPATCH_MGR_IMPL_H___
+#define __MSG_DISPATCH_MGR_IMPL_H___
+
+#include "msg_dispatch_mgr.h"
+#include "dbe2_lock.h"
+
+namespace MDbe
+{
+
+class CMsgDispatchMgr :public IMsgDispatchMgr
+{
+public:
+	virtual ~CMsgDispatchMgr();
+
+
+
+	virtual void Destroy();
+
+	virtual void BindLib(aistring& strLibNamee, CMgrInitHelper & cMgrInitHelpeer);
+
+	virtual void Dispatch(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+			int32 iMsgType, obb_stream & cInObbStream);
+
+protected:
+	CMsgDispatchMgr();
+	friend class IMsgDispatchMgr;
+	void Init(CMgrInitHelper & cMgrInitHelper);
+
+protected:
+	void * m_pGetMsgProcessFunc;
+	void * m_pAllMgrFunc;
+    void * m_pDllHandle;
+    CLock m_cLock;
+};
+
+} // namespace MDbe
+
+
+#endif /* __MSG_DISPATCH_MGR_IMPL_H___ */

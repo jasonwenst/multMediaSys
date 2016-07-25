@@ -1,0 +1,134 @@
+#ifndef _SRM_MSG_INTERFACE_H_
+#define _SRM_MSG_INTERFACE_H_
+
+#include <compile.h>
+#include "public/common/communicate/communicate.h"
+
+namespace MDbe
+{
+
+typedef enum {
+    //DBE内部特殊消息
+    MSG_DBE_TO_DBE = 102,
+    MSG_DBM_TO_DBE = 103,
+    MSG_PROC_INTER = 104,
+    MSG_DBM_CUT = 105,
+    MSG_DBE_COMM_REG = 150, //srm->nrm
+    MSG_RSP_DBE_COMM_REG = 151, // nrm->srm
+    MSG_CLOSE_BY_NRM_REG = 152, // 因为有同样进程的链接上来了老的链接被NRM关闭前发消息通知老的客户端
+    MSG_SRM_COMM_SERVER_INFO = 203,
+    MSG_REQ_COMM_SERVER_INFO = 204,
+    MSG_DBE_CONFIRM_RECV = 207,
+    MSG_SWITCH_DYNAMIC_DATA = 208,
+    MSG_SWITCH_STATIC_DATA = 209,
+    //NRM广播段消息
+    //CAC判断和CAS连接异常断开超时发送停止该虚拟机上进程运行
+    MSG_REQ_STOP_VM_PROC = 801,
+    
+    //SRM通知DBE进程调整日志级别
+    MSG_TO_DBE_ADJUST_LOG_LEVEL = 8117,
+    
+    //来自DBE，SRM接收的消息
+    MSG_REQ_VM_IP_INFO = 1001,
+    MSG_NOTIFY_VM_CONN_INFO = 1011,
+    MSG_REQ_ONE_VM_IP_INFO = 1012,
+    //预留消息
+    MSG_DBE_TO_DBM = 1015,
+    MSG_REQ_MONI_ID = 1018,
+    MSG_RSP_COMM_SERVER_INFO = 1019,
+    //需要向两个SRM发送的消息
+    MSG_NOTIFY_PROC_START = 3001,
+    MSG_RSP_VM_STATIC = 3002,
+    MSG_SUBSCRIBE = 3003,
+    MSG_SUPPLY = 3004,
+    MSG_TS_HANDLE_RATE = 3005,
+    MSG_VM_PROC_STATUS = 3006,
+    MSG_QUE_STATUS = 3007,
+    MSG_NRM_EXE_PROC_RSP = 3008,
+    //预留消息
+    MSG_REG_DBE_FLAG = 3009,
+    MSG_VM_PROC_NEED_MIGRATE = 3010,
+    //软件升级相关消息
+    //通知SRM重启进程列表
+    MSG_NRM_SOFT_UPD_RESTART = 3011,
+    MSG_NRM_SOFT_UPD_SHELL = 3012,
+    //重启完成
+    MSG_PT_TO_SRM_QueryVmList = 3013,
+    MSG_PT_TO_SRM_SoftwareUpdateLock = 3014,
+    MSG_PT_TO_SRM_SoftwareUpdateUnlock = 3015,
+    MSG_TB_REQ_RELY_INFO = 3016,
+    //更新srm主机的srm软件
+    MSG_UPD_SRM_SOFT_REQ = 3017,
+    //DBE进程查询DB信息
+    MSG_REQ_DBE_DB_INFO = 3018,
+    //NRM向SRM返回进程参数/回退结果
+    MSG_RSP_SRV_PARAM_SYNC = 3019,
+    //NRM向SRM返回存储挂载结果
+    MSG_RSP_SRV_MOUNT_STORAGE = 3020,
+    //通知流程停止准备就绪
+    MSG_NOTIFY_CAN_STOP_FLOW = 3021,
+    //重启框架完成
+    MSG_NRM_SOFT_UPD_RESTART_FRAME = 3022,
+    //出账自动化手动操作JOB
+    MSG_DBM_MANU_OPERATE_JOB = 3023,
+    //请求出账自动化进度报告 
+    MSG_REQ_JOB_PROGRESS = 3024,
+    //DBE进程向ＳＲＭ请求退出
+    MSG_DBE_TO_SRM_EXIT_REQ = 3025,
+    //进程回滚消息
+    MSG_NRM_TO_SRM_SOFT_ROLLBACK_PROC = 3026,
+    //来自DBM，SRM接收的消息
+    MSG_NOTIFY_SRM_RELOAD_DB = 4110,
+    MSG_DBM_EXE_FLOW = 4111,
+    MSG_DBM_VM_DOMIAN_MODIFY = 4112,
+    MSG_DBM_DOMIAN_REL_SRV_REDUCE = 4113,
+    //预留消息
+    MSG_DBM_EXE_NPROC = 4114,
+    MSG_DBM_HEART_BEAT = 4116,
+    //预留消息
+    MSG_ADJUST_LOG_LEVEL = 4117,
+    //预留消息
+    MSG_DBM_MIGRATE_PROC = 4118,
+    MSG_DBM_COMM_REG = 4119,
+    //强制停止流程
+    MSG_FORCE_STOP_FLOW = 4200,
+    //预留消息
+    MSG_DBM_UPD_DBE_FLAG = 4203,
+    MSG_DBM_EXE_SYS_OPERATE = 4204,
+    //DBM返回SRM的DB信息
+    MSG_RSP_SRM_DB_INFO = 4205,
+    //DBM通知SRM Site故障处理状态
+    MSG_SITE_FAULT_STATUS_TO_SRM = 4206,
+	//xc定时刷新配置信息
+	MSG_DBM_XC_REFRESH_SCHEDULE = 4300,
+    //接收者是DBE非特殊进程
+    MSG_MATCH = 8001,
+    MSG_RSP_MONI_ID = 8002,
+    MSG_SEND_UPD_DBE_FLAG = 8003,
+    MSG_REQ_PROC_STATIC = 8004,
+    MSG_NOTIFY_SEND_REG = 8005,
+    //通知目标进程准备停止
+    MSG_STOP_PREPARE = 8006,
+    //目标进程回应进程准备停止
+    MSG_SOPP_PREPARE_AC = 8007,
+    //DBM下行消息分发到DBE进程的消息
+    MSG_DBM_TRANSFER_DBE = 8201,
+    // DBM 发送任务给 DBE处理
+    MSG_DBM_INPUT_DBE = 8009,
+    MSG_RSP_TB_RELY_INFO = 8010,
+    //SRM返回DBE进程查询DB信息
+    MSG_RSP_DBE_DB_INFO = 8011,
+    //通知流程准备停止
+    MSG_NOTIFY_WILL_STOP_FLOW = 8012,
+    //询问启动配置（tbts -> nrm）
+    MSG_QUERY_PROCESS_CONFIG_PATH = 8015
+
+}DBE_MSG_TYPE;
+
+typedef enum {
+    //定时消息
+    MSG_PROC_INTER_TIMER    = 0x01,
+}MSG_PROC_INTER_DATA_TYPE;
+} //end namespace
+
+#endif

@@ -1,0 +1,100 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_nr_mgr_impl.h）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-7）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __NRM_NR_MGR_IMPL_H___
+#define __NRM_NR_MGR_IMPL_H___
+
+
+#include "nrm_nr_mgr.h"
+#include "dbe2_lock.h"
+#include "../../nr/nr_api.h"
+
+namespace MDbe
+{
+
+class CNrmNrMgrImpl : public INrmNrMgr
+{
+protected:
+    CNrmNrMgrImpl();
+    friend class INrmNrMgr;
+public:
+    ~CNrmNrMgrImpl();
+private:
+    //virtual MDbe::Nr_ProcInfo * GetProcInNr(SBaseProcKey & rcProcKey);
+
+
+public:
+
+    virtual void SetProcPid(SBaseProcKey & rcProcKey, int32 iPid);
+    virtual void GetVmProcListInfo(SBaseProcUpdStatusList &rcVmInfo);
+    virtual void CreateProcInfo(SBaseProcKey &rcProcKey, const aistring & strCmd);
+    virtual void SetProcStopStatus(SBaseProcKey &, bool bFalse);
+    virtual void DeleteProcInfo(SBaseProcKey &rcProcKey);
+    virtual void UpdateProcInfo(SBaseProcKey &rcProcKey, SBaseProcUpdStatus & rcProcUpdateInfo);
+    virtual void UpdateProcAttr(SBaseProcKey &rcProcKey, CProcAttr & rcProcAttr);
+    virtual void SetProcStatus(SBaseProcKey &rcProcKey, EmNrProcStatus iStatus);
+    virtual int32 IsProcContain(SBaseProcKey &rcProcKey);
+    virtual int32 GetProcPid(SBaseProcKey &rcProcKey);
+    int GetProcStopTimeout(SBaseProcKey &rcProcKey);
+    int GetProcStartTimeout(SBaseProcKey &rcProcKey);
+    virtual int64 GetLastUpdateTime(SBaseProcKey & rcProcKey);
+
+	virtual void GetBaseProcKeyListInNr(std::list<SBaseProcKey> &rcProcKeyList);
+
+    virtual aistring GetProcStopCmd(SBaseProcKey & rcProcKey);
+    virtual aistring GetProcForceStopCmd(SBaseProcKey & rcProcKey);
+    virtual aistring GetProcCheckCmd(SBaseProcKey & rcProcKey);
+    virtual aistring GetProcRestartCmd(SBaseProcKey & rcProcKey);
+    virtual int32 GetProcRestartCount(SBaseProcKey & rcProcKey);
+
+//    virtual void SetDataType(SBaseProcKey & rcProcKey, int32 iDataType);
+
+    virtual void SetStopProgress(SBaseProcKey & rcProcKey, int32 iStopProgress);
+
+    virtual void SetLastOperateTime(SBaseProcKey & rcProcKey, int64 lluLastStartOperateTime);
+
+    virtual void SetProcStartStatus(SBaseProcKey & rcProcKey);
+    virtual void SetProcStopStatus(SBaseProcKey & rcProcKey);
+    virtual void SetProcRestartStatus(SBaseProcKey & rcProcKey);
+    virtual void SetProcTransportStatus(SBaseProcKey & rcProcKey);
+//    virtual void CleanProcStartStatus(SBaseProcKey & rcProcKey);
+//    virtual void AddProcRestartTimes(SBaseProcKey & rcProcKey);
+//    virtual bool IsSpecialProc(SBaseProcKey & rcProcKey);
+//    virtual bool IsSrmProc(SBaseProcKey & rcProcKey);
+	virtual int64 GetLastOperateTime(SBaseProcKey & rcProcKey);
+
+//    virtual bool CheckProcStatus(SBaseProcKey & rcProcKey, EmNrProcStatus emProcStatus);
+    virtual int GetProcStatus(SBaseProcKey & rcProcKey);
+    virtual int32 GetProcMsgType(SBaseProcKey & rcProcKey);
+    virtual void SetProcMsgType(SBaseProcKey & rcProcKey, int32);
+//    virtual void SetProcInfo(SBaseProcKey & rcProcKey, SNrmJavaThreadWriteNr & rcNrmJavaThreadWriteNr);
+    virtual aistring GetProcStartCmd(SBaseProcKey & rcProcKey);
+
+private:
+//	virtual void AddProcRestartTimes(MDbe::Nr_ProcInfo *pNr_ProcInfo);
+//	virtual bool IsSpecialProc(MDbe::Nr_ProcInfo *pNr_ProcInfo);
+
+private:
+	CLock m_cLock;
+};
+
+} // namespace MDbe
+
+
+#endif /* __NRM_NR_MGR_IMPL_H___ */
+

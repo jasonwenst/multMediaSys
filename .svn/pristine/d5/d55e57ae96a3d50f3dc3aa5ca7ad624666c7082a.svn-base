@@ -1,0 +1,68 @@
+############################################################################################
+# 	A template Makefile for OpenBoss ,just simply replace or modify the following items to 
+# meet your own requirement.
+############################################################################################
+DB=1
+DEBUG=1
+OB_TIER=
+CORBA=
+#
+# define your destination
+PRODDEST=libJobCollimation$(DLLTAIL) 
+
+# define your db connection
+#OBD_CONN=XXX
+
+# define your idl path
+PRODIDLPATH=$(OB_REL)/_your_subsystem_name/idl ../kernel
+
+# define your message path
+PRODMSGPATH=$(OB_REL)/message
+
+# PRODIDLPATH and PRODDEST must set before this include
+include $(OB_REL)/etc/Cmake
+
+# define your definition when build debug
+#PRODDEBUGDEFS=-DDEBUG
+#PRODDEBUGDEFS=-DDEBUG -DTEST_OUTPUT
+
+# define your temp file. when you make clean it will be clean.
+PRODTMPOBJ=aa/a.o test.tmp
+
+# define your lib path
+PRODLIBPATH=. $(OB_REL)/lib
+
+# define your lib
+PRODLIBS= BaseCls$(BUILDTYPE) CbsSysClass$(BUILDTYPE) Frame$(BUILDTYPE) xdrThread$(BUILDTYPE)	\
+  xerces-c FrameFile$(BUILDTYPE)	\
+	BsXmlConfig$(BUILDTYPE) BsLog$(BUILDTYPE)	\
+	
+#	mdb$(BUILDTYPE)
+#	ExprEngineComplie$(BUILDTYPE)
+
+# define your include path
+PRODINCS= .	\
+	$(OB_REL)/include	\
+	$(OB_REL)/include/billing40 \
+	$(OB_REL)/include/$(SUBSYSTEM)	\
+	$(OB_REL)/include/common	\
+
+# define your CC option
+PRODOPTS=-DTEST -DNEED_NET_TRANS
+
+# define rules for compiling an excutable or a share lib,alternatively
+
+OBJ_ADDUP_LIB = job_collimation.o
+
+libJobCollimation$(DLLTAIL):$(OBJ_ADDUP_LIB)
+	$(SHLD) $^ $(SHLDFLAGS) $(LDOPTS) -o $@
+
+# define install rules
+install:$(PRODDEST)
+	cp -rf libJobCollimation$(DLLTAIL)		$(OB_REL)/lib
+
+install_headers:
+#	cp -rf *.h  $(OB_REL)/include/$(SUBSYSTEM)
+
+install_idl:
+

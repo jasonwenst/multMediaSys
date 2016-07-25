@@ -1,0 +1,414 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_deploy_mgr_impl.cpp）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+#include "dbe2_util.h"
+#include "3rd/lua/lua.h"
+#include "3rd/lua/lualib.h"
+#include "srm_error_code.h"
+#include "3rd/lua/lauxlib.h"
+
+#include "srm_deploy_mgr_impl.h"
+#include "srm_proc_mgr.h"
+#include "srm_rdc_mgr.h"
+#include "srm_vm_mgr.h"
+
+
+#include "public/common/express/aiexpress.h"
+#include <fstream>
+
+
+namespace MDbe
+{
+
+CSrmDeployMgrImpl::CSrmDeployMgrImpl()
+{
+
+}
+
+void CSrmDeployMgrImpl::Init(CMgrInitHelper & cMgrInitHelper)
+{
+
+}
+
+void  CSrmDeployMgrImpl::DeployApp(const int32& iAppId,CRdcProcTransOperateList& rcProcTransOperateList)
+{
+	//查找应用
+	CRdcApp rcApp;
+	ISrmRdcMgr::GetInstance().QueryApp(iAppId,rcApp);
+	
+	//获得部署策略
+	int32 iPolicy = AcquireDeployPolicy(rcApp);
+	DBE2_LOG(TRACE_LOGGER, "deploy App[%s][%d] policy %d", rcApp.get_appName().c_str(),rcApp.get_appId(),iPolicy);
+
+	SLuaReturnProcInfoList rLuaReturnProcInfoList;
+	if (2==iPolicy)
+	{
+		SToLuaVmInfoList cToLuaVmInfoList;
+		BuildToLuaVmInfo(rcApp.clusterId(),cToLuaVmInfoList);
+		LogSdl(cToLuaVmInfoList);
+
+		SDeployToLuaSrvInfo cToLuaAppInfo;
+		BuildToLuaAppInfo(rcApp,cToLuaAppInfo);
+		LogSdl(cToLuaAppInfo);
+		//按集群部署
+		CallLuaDeploy(cToLuaVmInfoList,cToLuaAppInfo,rLuaReturnProcInfoList);
+	}
+	PackTrans(rcApp,rLuaReturnProcInfoList,rcProcTransOperateList);
+}
+
+//1 按主机 2 按集群
+int32  CSrmDeployMgrImpl::AcquireDeployPolicy(CRdcApp &rRdcApp)
+{
+	ISrmVmMgr &rcVmMgr  = ISrmVmMgr::GetInstance();
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+
+	int32 iAppId     = rRdcApp.get_appId();
+	int32 iFirstVmId = rRdcApp.get_vmId();
+	int32 iBakVmId   = rRdcApp.get_bakVmId();
+	aistring strAppInfo  = FormatString("App[%s][%d]",rRdcApp.get_appName().c_str(),iAppId);
+
+	//处理指定主机的服务
+	if (iFirstVmId !=0 && iFirstVmId!=-999)
+	{
+		aistring strFirstVm,strBakVm;
+		bool bFirst = rcVmMgr.CheckVmAvailable(iFirstVmId);
+		bool bBak   = rcVmMgr.CheckVmAvailable(iBakVmId);
+
+		if(!bFirst && !bBak)
+		{
+			CPdcVm cFirstVm,cBakVm;
+			bool bGetFirst = rcRdcMgr.GetPdcVm(iFirstVmId,cFirstVm);
+			if (bGetFirst)
+			{
+				strFirstVm = FormatString("vm unavailable id:[%d],name:[%s],ip:[%s],nrm connect state:[%d],vm usable state:[%d].",
+					iFirstVmId,cFirstVm.get_vmName().c_str(),cFirstVm.get_vmIp().c_str(),cFirstVm.get_vmConnectState(),cFirstVm.get_vmState());
+			}
+			else
+			{
+				strFirstVm = FormatString("vm id:[%d] not exist in the platformt,please check app configuration",iFirstVmId);
+			}
+
+			bool bGetBak = rcRdcMgr.GetPdcVm(iBakVmId,cBakVm);
+			if (bGetBak)
+			{
+				strBakVm = FormatString("bak vm unavailable id:[%d],name:[%s],ip:[%s],nrm connect state:[%d],vm usable state:[%d].",
+					iBakVmId,cBakVm.get_vmName().c_str(),cBakVm.get_vmIp().c_str(),cBakVm.get_vmConnectState(),cBakVm.get_vmState());
+			}
+			else
+			{
+				if (0 == iBakVmId)
+				{
+					strBakVm="";
+				}
+				else
+				{
+					strBakVm = FormatString("bak vm id:[%d] not exist in the platformt,please check app configuration",iBakVmId);
+				}
+			}
+
+			THROW_CAIEXCEPTION(DBE2_SRM_DEPLOY_APP_FAILED,"?,??")
+				<< strAppInfo.c_str()
+				<< strFirstVm.c_str()
+				<< strBakVm.c_str();
+		}
+		//这里至少有一个可用
+		int32 iRelVmId = (bFirst? iFirstVmId : iBakVmId);
+		//内存中的 vm id 设置成实际要部署的id
+		rRdcApp.set_vmId(iRelVmId);
+		return 1;
+	}
+
+	if (-999 == rRdcApp.get_domainId())
+	{
+		//all the host,one vm deploy one proc
+	}
+
+	//处理指集群的服务
+	if(!rcVmMgr.CheckClusterAvailable(rRdcApp.get_clusterId()))
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_DEPLOY_APP_FAILED,"?, cluster id:[?] has no available vm.")
+			<< strAppInfo.c_str()
+			<< rRdcApp.get_clusterId();
+		return -1;
+	}
+
+	if (-999 == iFirstVmId)
+	{
+		//all vm of domain,one vm deploy one proc
+	}
+	return 2;
+}
+
+void CSrmDeployMgrImpl::BuildToLuaAppInfo(CRdcApp &rRdcApp,SDeployToLuaSrvInfo& cToLuaAppInfo)
+{
+	cToLuaAppInfo.set_appId(rRdcApp.appId());
+	cToLuaAppInfo.set_clusterId(rRdcApp.clusterId());
+	cToLuaAppInfo.set_procNum(rRdcApp.procNumMin());
+}
+
+void CSrmDeployMgrImpl::CallLuaDeploy(SToLuaVmInfoList& rToLuaVmInfoList,SDeployToLuaSrvInfo& cToLuaAppInfo,
+									  SLuaReturnProcInfoList& rLuaReturnProcInfoList)
+{	
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	aistring strContent;
+	aistring strLuaName = "lua_deploy";
+	if(!rcRdcMgr.GetLuaScript(strLuaName,strContent))
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_DEPLOY_APP_FAILED,"can not get lua_deploy script in pdc_scritps!");
+	}
+
+	SDeployToLuaSrvInfoList cDeployAppInfoList;
+	cDeployAppInfoList.push_back(cToLuaAppInfo);
+
+	//调用lua脚本
+	SToLuaVmInfoList * pToLuaVmInfoList=&rToLuaVmInfoList;
+	SDeployToLuaSrvInfoList* pDeploySrvInfoList=&cDeployAppInfoList;
+	SLuaReturnProcInfoList* pLuaReturnProcInfoList =&rLuaReturnProcInfoList;
+
+	aiexpress_interface * p_expr = create_aiexpress_interface(NULL);
+	p_expr->initialize(NULL);
+
+	lua_State *L = (lua_State *)p_expr->get_env();
+
+	if(!p_expr->load_string(strContent.c_str()))
+	{   
+		destroy_aiexpress_interface(p_expr);
+		THROW_CAIEXCEPTION(DBE2_SRM_DEPLOY_APP_FAILED,"load_string for deploy lua error!");
+	}
+
+	lua_getglobal(L, "Interface_GetFitableVm");
+	lua_pushlightuserdata(L, (void *)pToLuaVmInfoList);
+	lua_pushlightuserdata(L, (void *)pDeploySrvInfoList);
+	lua_pushlightuserdata(L, (void *)pLuaReturnProcInfoList);
+	lua_pcall(L, 3, 1, 0);
+
+	if (rLuaReturnProcInfoList.size()==0)
+	{
+		destroy_aiexpress_interface(p_expr);
+		THROW_CAIEXCEPTION(DBE2_SRM_DEPLOY_APP_FAILED,"Deply by lua return error!");
+	}
+
+	destroy_aiexpress_interface(p_expr);
+}
+
+void CSrmDeployMgrImpl::BuildToLuaVmInfo(int32 iClusterId,SToLuaVmInfoList &rVmInfoList,int32 iExcluded)
+{
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+
+	CIntSet cVmSet;
+	CPdcVmList cVmList;
+	ISrmVmMgr::GetInstance().RequestAvailableVm(cVmList);
+	CPdcVmList::iterator itVm = cVmList.begin();
+	for (;itVm!=cVmList.end();++itVm)
+	{
+		if (itVm->get_vmId()!=iExcluded)
+		{
+			cVmSet.insert(itVm->get_vmId());
+		}
+	}
+
+	CRdcVmStateRecord cVmState;
+	CRdcVmStateRecordList cVmStateList;
+
+	CPdcClusterVmRelationList cClusterVmRelationList;
+	rcRdcMgr.GetClusterVmRelation(iClusterId,cClusterVmRelationList);
+	CPdcClusterVmRelationList::iterator it= cClusterVmRelationList.begin();
+	for (;it!=cClusterVmRelationList.end();++it)
+	{
+		if(!cVmSet.count(it->get_vmId()))
+			continue;
+		//取有效的虚拟机的信息
+		bool bVmState=ISrmRdcMgr::GetInstance().GetVmStateRecord(it->get_vmId(),cVmState);
+		if (bVmState)
+		{
+			cVmStateList.push_back(cVmState);
+		}
+	}
+
+	//如果该集群下取不到可用的虚拟机信息
+	if (cVmStateList.size()==0)
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_DEPLOY_APP_FAILED,"there is no vm state record of cluster:(?)")
+			<< iClusterId;
+	}
+	
+	SToLuaVmInfo cToLuaVmInfo;
+	cToLuaVmInfo.set_clusterId(iClusterId);
+	cToLuaVmInfo.set_vmStateRecordList(cVmStateList);
+	
+	rVmInfoList.push_back(cToLuaVmInfo);
+}
+void CSrmDeployMgrImpl::PackTrans(CRdcApp &rRdcApp,SLuaReturnProcInfoList& rLuaReturnProcInfoList,CRdcProcTransOperateList& rcProcTransOperateList)
+{
+	if (rLuaReturnProcInfoList.get_size()>0)
+	{
+		SLuaReturnProcInfoList::iterator itLRS=rLuaReturnProcInfoList.begin();
+		for (;itLRS!=rLuaReturnProcInfoList.end();++itLRS)
+		{
+			DBE2_LOG(DEBUG_LOGGER, "lua deploy return:appId:%d ,prcoId:%d,vmId %d ",
+				itLRS->get_appId(),itLRS->get_procId(),itLRS->get_vmId());
+
+			CRdcProcTransOperate cProcTransOperate;
+			cProcTransOperate.set_procId(itLRS->get_procId());
+			cProcTransOperate.set_appId(itLRS->get_appId());
+			cProcTransOperate.set_vmId(itLRS->get_vmId());
+			cProcTransOperate.set_operateSecLimit(rRdcApp.get_timeOutSecond());
+			cProcTransOperate.set_operateType(PROC_START);
+			cProcTransOperate.set_operateLevel(1);
+			cProcTransOperate.set_needRollback(NO_ROLLBACK);
+			cProcTransOperate.set_operateRetryCount(NO_RETRY);	
+			rcProcTransOperateList.push_back(cProcTransOperate);
+		}
+	}
+	else
+	{
+		CRdcProcTransOperate cProcTransOperate;
+		cProcTransOperate.set_appId(rRdcApp.get_appId());
+		cProcTransOperate.set_vmId(rRdcApp.get_vmId());
+		cProcTransOperate.set_operateSecLimit(rRdcApp.get_timeOutSecond());
+		cProcTransOperate.set_operateType(PROC_START);
+		cProcTransOperate.set_operateLevel(1);
+		cProcTransOperate.set_needRollback(NO_ROLLBACK);
+		cProcTransOperate.set_operateRetryCount(NO_RETRY);	
+		for (int32 iCount =0;iCount!=rRdcApp.get_procNumMin();++iCount)
+		{
+			cProcTransOperate.set_procId(iCount+1);
+			rcProcTransOperateList.push_back(cProcTransOperate);
+		}
+	}
+}
+
+void CSrmDeployMgrImpl::DeployIncreaseProc(const int32& iAppId,int32 iProcNum,CRdcProcTransOperateList& rcProcTransOperateList)
+{
+	CRdcApp rcApp;
+	ISrmRdcMgr::GetInstance().QueryApp(iAppId,rcApp);
+
+	CRdcProcList cProcList;
+	//获取当前进程数目
+	ISrmRdcMgr::GetInstance().QueryProcByApp(iAppId,cProcList);
+	if (cProcList.size()>= (rcApp.get_procNumMax()-iProcNum))
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_DEPLOY_APP_FAILED,"app(?)id(?) increase proc num upper limit,running num(?),proc num max(?),increase proc num(?)")
+			<< rcApp.get_appName().c_str()
+			<< rcApp.get_appId()
+			<< cProcList.size()
+			<< rcApp.get_procNumMax()
+			<< iProcNum;
+	}
+
+	//设置进程数
+	rcApp.set_procNumMin(iProcNum);
+	
+	//获得部署的策略
+	int32 iPolicy = AcquireDeployPolicy(rcApp);
+	DBE2_LOG(TRACE_LOGGER, "deploy increase proc,app[%s][%d] policy %d", rcApp.get_appName().c_str(),rcApp.get_appId(),iPolicy);
+	
+	SLuaReturnProcInfoList rLuaReturnProcInfoList;
+	if (2==iPolicy)
+	{
+		SToLuaVmInfoList cToLuaVmInfoList;
+		BuildToLuaVmInfo(rcApp.clusterId(),cToLuaVmInfoList);
+		LogSdl(cToLuaVmInfoList);
+
+		SDeployToLuaSrvInfo cToLuaAppInfo;
+		BuildToLuaAppInfo(rcApp,cToLuaAppInfo);
+		LogSdl(cToLuaAppInfo);
+		//按集群部署
+		CallLuaDeploy(cToLuaVmInfoList,cToLuaAppInfo,rLuaReturnProcInfoList);
+	}
+	PackTrans(rcApp,rLuaReturnProcInfoList,rcProcTransOperateList);
+	
+	if (rcProcTransOperateList.size()!=iProcNum)
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_DEPLOY_APP_FAILED,"app(?)id(?) increase proc deploy error,trans list is not equal to increase num")
+			<< rcApp.get_appName().c_str()
+			<< rcApp.get_appId();
+	}
+	
+	//调整进程号
+	CRdcProcTransOperateList::iterator itPTO= rcProcTransOperateList.begin();
+	for (;itPTO!=rcProcTransOperateList.end();++itPTO)
+	{
+		itPTO->set_procId(cProcList.size()+iProcNum);
+		iProcNum --;
+	}	
+}
+
+//部署迁移的进程
+//iFlowId  流程id
+//rProcList 对应流程下所有要迁移的进程 入参时就是rdc_proc表按vmid 查的原始记录
+//rcProcTransOperateList 部署后的进程操作事务列表
+void CSrmDeployMgrImpl::DeployMigrateProc(int32 iAppId,CRdcProcList& rProcList,CRdcProcTransOperateList& rcProcTransOperateList)
+{
+	if (rProcList.size()==0) return;
+
+	//部署时需要排除的虚拟机
+	int32 iOldVmId = rProcList.begin()->get_vmId();
+
+	//保存进程对应的原始迁移进程号
+	AISTD set<int32> setProcId;	
+	CRdcProcList::iterator itPL = rProcList.begin();
+	for (;itPL!= rProcList.end();++itPL)
+	{
+		setProcId.insert(itPL->get_procId());
+	}
+	
+	CRdcApp rcApp;
+	ISrmRdcMgr::GetInstance().QueryApp(iAppId,rcApp);
+	//获得部署的策略
+	int32 iPolicy = AcquireDeployPolicy(rcApp);
+	DBE2_LOG(TRACE_LOGGER, "deploy migration App[%s][%d] policy %d", rcApp.get_appName().c_str(),rcApp.get_appId(),iPolicy);
+
+	SLuaReturnProcInfoList rLuaReturnProcInfoList;
+	if (2==iPolicy)
+	{
+		SToLuaVmInfoList cToLuaVmInfoList;
+		BuildToLuaVmInfo(rcApp.clusterId(),cToLuaVmInfoList,iOldVmId);
+		LogSdl(cToLuaVmInfoList);
+		
+		SDeployToLuaSrvInfo cToLuaAppInfo;
+		BuildToLuaAppInfo(rcApp,cToLuaAppInfo);
+		cToLuaAppInfo.set_procNum(rProcList.size());
+		LogSdl(cToLuaAppInfo);
+		//按集群部署
+		CallLuaDeploy(cToLuaVmInfoList,cToLuaAppInfo,rLuaReturnProcInfoList);
+	}
+	PackTrans(rcApp,rLuaReturnProcInfoList,rcProcTransOperateList);
+	SetMigProcId(rcProcTransOperateList,setProcId);
+}
+
+void  CSrmDeployMgrImpl::SetMigProcId(CRdcProcTransOperateList& rcProcTransOperateList,AISTD set<int32>& rsetProcId)
+{	
+	//恢复部署的那些进程号
+	CRdcProcTransOperateList::iterator it=rcProcTransOperateList.begin();
+	for (;it!=rcProcTransOperateList.end();++it)
+	{
+		if (rsetProcId.size()>0)
+		{
+			AISTD set<int32>::iterator itSet= rsetProcId.end();
+			-- itSet;
+			int32 iProcId=*itSet;
+			rsetProcId.erase(itSet);
+			it->set_procId(iProcId);
+		}
+	}
+	DBE2_LOG(TRACE_LOGGER, "set migration procId");
+	LogSdl(rcProcTransOperateList);
+}
+
+} // namespace MDbe
+

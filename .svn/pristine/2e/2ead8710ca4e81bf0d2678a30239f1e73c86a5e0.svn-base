@@ -1,0 +1,34 @@
+/* $Id: srm_app_mgr.cpp 233725 2012-11-06 03:21:08Z hupj $  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_flow_mgr.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "srm_app_mgr_impl.h"
+
+namespace MDbe
+{
+
+ISrmAppMgr & ISrmAppMgr::GetInstance()
+{
+	static CSrmAppMgrImpl cMgr;
+	return cMgr;
+}
+
+} // namespace MDbe
+
+

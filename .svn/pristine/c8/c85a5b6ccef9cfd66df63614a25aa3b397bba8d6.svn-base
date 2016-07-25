@@ -1,0 +1,69 @@
+#include <unittest_cp_dbe2_msg_dispatch_main.h>
+
+SUITE(SUITE_msg_dispatch_mgr_impl_cpp)
+{
+	//Fuction: CMsgDispatchMgr :: ~ CMsgDispatchMgr ( )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchMgr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgDispatchMgr :: BindLib ( aistring & strLibName , CMgrInitHelper & cMgrInitHelpeer )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchMgr_BindLib)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgDispatchMgr :: CMsgDispatchMgr ( ) : m_pGetMsgProcessFunc ( 0 ) , m_pDllHandle ( 0 ) , m_pAllMgrFunc ( 0 )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchMgr_CMsgDispatchMgr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgDispatchMgr :: Destroy ( )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchMgr_Destroy)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgDispatchMgr :: Dispatch ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , CSendTarget & cSendTarget , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchMgr_Dispatch)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgDispatchMgr :: Init ( CMgrInitHelper & cMgrInitHelper )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchMgr_Init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CAutoSetTlsNull ( )
+	TEST_FIXTURE(TestFixture,TestCAutoSetTlsNull_CAutoSetTlsNull)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CAutoClearTlsValue ( )
+	TEST_FIXTURE(TestFixture,TestCAutoClearTlsValue_CAutoClearTlsValue)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

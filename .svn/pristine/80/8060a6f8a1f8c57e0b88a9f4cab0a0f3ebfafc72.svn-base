@@ -1,0 +1,180 @@
+/* $Id: srm_app_mgr.h 238237 2012-11-12 13:05:12Z hupj $  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_app_mgr.h）
+/// brief	 
+///				APP管理类接口
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_APP_MGR_H___
+#define __SRM_APP_MGR_H___
+
+#include "dbe2_base_mgr.h"
+
+// 包含的sdl
+#include "dbe_base_def_sdl_c.h"
+#include "rdc_table_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include "srm_proc_trans_mgr.h"
+
+namespace MDbe
+{
+
+enum APP_STATE
+{
+	APP_NOT_START = 0,
+	APP_STATING = 1,
+	APP_START_SUCCESS = 2,
+	APP_START_FAIL = 3,
+	APP_STOPPING =4,
+	APP_STOP_SUCCESS = 5,
+	APP_STOP_FAIL = 6,
+	APP_FORCE_STOPPING = 7,
+};
+
+enum APP_EXE_RESULT
+{
+	APP_EXE_FAIL = 0,
+    APP_EXE_SUCCESS = 1,
+    APP_EXE_CANCEL = 2,
+    APP_EXE_NOT = 3,
+};
+
+/**
+ * 流程管理类接口
+ */
+class ISrmAppMgr : public IBaseMgr
+{
+public:
+
+	/**
+	 * 获取管理类的实例
+	 * @return 返回实例
+	 */
+	static ISrmAppMgr & GetInstance();
+
+	/**
+	 * 启动APP
+	 * @param iAppId 
+	 * @param iStartMsgType 启动回调消息类型
+	 * @param szStartParam 启动回调参数
+	 * @param iStopMsgType 停止回调消息类型
+	 * @param szStopParam 停止回调参数
+	 * @param iTransType 要创建的事务类型 对应枚举TRANS_TYPE
+     * @param pcProcOperateList 进程详细操作列表
+	 * @return 流程启动时，创建是的事务ID
+	 */
+	virtual int32 StartApp(int32 iAppId, int32 iStartMsgType, aistring szStartParam,
+			int32 iStopMsgType, aistring szStopParam, int32 iTransType,
+			SBaseProcOperateList *pcProcOperateList) = 0;
+
+	/**
+	 * 停止APP
+	 * @param iAppId 
+     * @param iTransType 要创建的事务类型 对应枚举TRANS_TYPE
+     * @param pcProcOperateList 进程详细操作列表
+	 * @return 停止操作进程数
+	 */
+	virtual int32 StopApp(int32 iAppId, int32 iTransType,
+        SBaseProcOperateList *pcProcOperateList) = 0;
+
+	/**
+	 * 强制停止APP
+	 * @param iAppId 
+     * @param iTransType 要创建的事务类型 对应枚举TRANS_TYPE
+     * @param pcProcOperateList 进程详细操作列表
+	 * @return 停止操作进程数
+	 */
+	virtual int32 ForceStopApp(int32 iAppId, int32 iTransType,
+        SBaseProcOperateList *pcProcOperateList) = 0;
+
+	/**
+	 * 修复APP 将APP中运行异常的进程修复
+     * @param iAppId 
+     * @param iTransType 要创建的事务类型 对应枚举TRANS_TYPE
+     * @param pcProcOperateList 进程详细操作列表
+	 * @return 停止操作进程数
+	 */
+	virtual int32 RepairApp(int32 iAppId, int32 iTransType, aistring szRepairParam,
+        SBaseProcOperateList *pcProcOperateList) = 0;
+
+	/**
+	 * 插入APP操作，APP启动时候，需要显示进程
+	 * @param rcExeApp 流程操作信息
+	 * @param iTransId 事务ID
+	 * @param iVmId 虚拟机ID
+	 */
+	virtual void InsertAppOperate(SSrmAppExe &rcExeApp,
+        int32 iTransId, int32 iVmId) = 0;
+
+    /**
+	 * 操作是失败的记录直接插入流程操作历史表
+	 * @param rcExeApp 流程操作信息
+	 * @param iTransId 事务ID
+	 * @param iVmId 虚拟机ID
+	 */
+	virtual void InsertAppOperateHis(SSrmAppExe &rcExeApp,
+        int32 iTransId, int32 iVmId) = 0;
+
+	/**
+	 * 获得APP的操作信息
+	 * @param iAppId APP编号
+	 * @param iTransId 事务ID
+	 * @param rcAppOperate 出参：流程操作详细信息
+	 * @return 查询结果
+	 */
+	virtual bool GetAppOperateByTrans(int32 iAppId, int32 iTransId,
+			CRdcAppOperate &rcAppOperate) = 0;
+
+    /**
+	 * 获得APP的操作信息
+	 * @param rcExeProc 进程操作
+	 * @param iVmId 虚拟机编号
+	 * @param rcAppOperate APP操作
+	 * @return 查询结果
+	 */
+	virtual bool GetAppOperateByProcOperate(SBaseExeProc &rcExeProc, int32 iVmId,
+        CRdcAppOperate &rcAppOperate) = 0;
+
+	/**
+	 * 完成APP启动操作
+	 * @param iAppId
+	 * @param iExeType 操作类型
+	 * @param iExeResult 操作结果
+	 * @param iTransId 事务编号
+	 */
+	virtual void FinishDbmOperate(int32 iAppId, int32 iExeType, int32 iExeResult,
+			int32 iTransId) = 0;
+
+    /**
+	 * 判断APP状态
+	 * @param iAppId 
+	 * @param iState 判断的APP状态
+	 */
+    virtual bool CheckAppState(int32 iAppId, int32 iState) = 0;
+
+    /**
+	 * 更新流程停止回调参数
+	 * @param iAppId
+     * @param iStopMsgType 流程停止回调消息类型
+	 * @param szStopParam 流程停止回调参数
+	 * @return 更新成功或失败
+	 */
+    virtual bool UpdateAppCbParam(int32 iAppId, int32 iStopMsgType, aistring szStopParam) = 0;
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_APP_MGR_H___ */

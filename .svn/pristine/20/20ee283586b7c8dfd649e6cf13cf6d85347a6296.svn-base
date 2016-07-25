@@ -1,0 +1,146 @@
+#include <iostream>
+using namespace std;
+#include "IlocalQue.h"
+#include "pubtools.h"
+#include "HwBuffer.h"
+using namespace HW_PUB_TOOLS;
+#include <thread>
+IlocalQue *que;
+void testLocalQueue()
+{
+
+
+
+	CHwBuffer buf("hello ni hao ,hu wei,what are you do ying , you are not do the big thing ,i lo ve you ");
+	CAutoPrintCostTime t;
+	int i = 0;
+	//for (int j = 0; j< 2000000; ++j)
+	int st = 0;
+	while (true)
+	{
+		if (0 != que->push(buf.data(), buf.size()))
+		{
+			if (st != 1)
+			{
+				printf("write full!\n");
+				st = 1;
+				HW_PUB_TOOLS::mysleep(2);
+			}
+			
+
+
+			
+		}
+		else
+		{
+			if (st != 2)
+			{
+				printf("continue write...\n");
+				st = 2;
+			}
+			++i;
+			if (i % 500000 == 0)
+				t("push 500000");
+		}
+	
+	
+
+		
+	}
+	t("10000000 push ");
+	
+}
+
+void testLocalQueueRead()
+{
+	
+	//que->setRootDir("E:/localque2");
+	//que->init();
+	char tmp[1024];
+	int len = 1024;
+//	CLocalQueue::SMsgHead head;
+	//
+	int flag = 0;
+	int i = 0;
+	CAutoPrintCostTime t;
+	while (true)
+	//for (int i = 0; i < 2000000; ++i)
+	{
+		len = 1024;
+		if (0 != que->fetch( tmp, len))
+		{
+			if (flag != 1)
+			std::cout << "fetch error " << std::endl;
+			flag = 1;
+			HW_PUB_TOOLS::mysleep(1);
+			
+			continue;
+		}
+		tmp[len] = 0;
+		//printf("%s\n", tmp);
+		if (0 != que->commit())
+		{
+			if (flag != 1)
+			std::cout << "commit error " << std::endl;
+			flag = 1;
+			HW_PUB_TOOLS::mysleep(1);
+			break;
+		}
+		flag = 2;
+		++i;
+		if (i % 500000 == 0)
+			t("read 500000");
+		if (i % 500000 == 0)
+			HW_PUB_TOOLS::mysleep(1);
+	}
+	printf("finish read \n");
+	//que->printcontrol();
+	len = 1024;
+//	if (0 != que->fetch(head, tmp, len))
+//	{
+//		if (flag != 1)
+//			std::cout << "fetch error " << std::endl;
+//		flag = 1;
+//		HW_PUB_TOOLS::mysleep(1);
+//	}
+}
+
+void testCreateDir()
+{
+	mkdir_fromFileName("C:/huwei2/test/2s4/afds/adsf//");
+}
+
+
+void testMutiThread()
+{
+	//CLocalQueue que;
+	//que->setRootDir("E:/localque2");
+	//que->setMaxFileNum(10);
+	//que->setMaxFileSize(1024 * 1024);//1M
+	//que->init();
+	std::thread * t2 = new std::thread(std::bind(&testLocalQueue));
+	std::thread * t1 = new std::thread(std::bind(&testLocalQueueRead));
+
+	t1->join();
+	t2->join();
+	delete t1;
+	delete t2;
+}
+
+int main(int argc, char* argv[])
+{
+	que = IlocalQue::getInstance();
+	std::string home = getenv("HOME");
+	home += "/hwwork/data/localque";
+	que->setRootDir(home.c_str());
+	que->setMaxFileSize(1024 * 1024 * 100);//100M
+	que->destroy();
+   que->init();
+  // testLocalQueue();
+	//testLocalQueueRead();
+	//testCreateDir();
+	testMutiThread();
+	int i;
+	std::cin >> i;
+	return 0;
+}

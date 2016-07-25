@@ -1,0 +1,15 @@
+all:
+	chmod +x dbm_console
+	@-echo "please execute:\"gmake install\""
+
+install:
+	cp -rf  dbm_console  $(OB_REL)/bin/dbm_console.2.5.1
+	ln -s  -f  $(OB_REL)/bin/dbm_console.2.5.1  $(OB_REL)/bin/dbm_console
+	mkdir -p $(OB_REL)/lib/cpf_console_common
+	cp -rf ./common/*.pm  $(OB_REL)/lib/cpf_console_common
+clean:
+
+clean_all:
+
+install_all:
+

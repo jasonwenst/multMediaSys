@@ -1,0 +1,448 @@
+/* $Id: */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：socket_base.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Jun 14, 2013）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+#include <netdb.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
+
+#include "socket_base.h"
+
+#ifndef AF_LOCAL
+#define AF_LOCAL        AF_UNIX
+#endif
+
+namespace cpf
+{
+
+enum
+{
+    EM_SOCKET_OPT_FAIL = CPF_ERROR_CODE_NET_START
+};
+
+#define NET_OK      0
+
+int NetNonBlock(int fd)
+{
+    int flags;
+
+    /* Set the socket non-blocking.
+     * Note that fcntl(2) for F_GETFL and F_SETFL can't be
+     * interrupted by a signal. */
+    if ((flags = fcntl(fd, F_GETFL)) == -1)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "fcntl(F_GETFL): ?") << strerror(errno);
+    }
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "fcntl(F_SETFL,O_NONBLOCK): ?") << strerror(errno);
+    }
+    return NET_OK;
+}
+
+/* Set TCP keep alive option to detect dead peers. The interval option
+ * is only used for Linux as we are using Linux-specific APIs to set
+ * the probe send time, interval, and count. */
+int NetKeepAlive(int fd, int interval)
+{
+    int val = 1;
+
+    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "setsockopt SO_KEEPALIVE: ?") << strerror(errno);
+    }
+
+#ifdef LINUX
+    /* Default settings are more or less garbage, with the keepalive time
+     * set to 7200 by default on Linux. Modify settings to make the feature
+     * actually useful. */
+
+    /* Send first probe after interval. */
+    val = interval;
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "setsockopt TCP_KEEPIDLE: ?") << strerror(errno);
+    }
+
+    /* Send next probes after the specified interval. Note that we set the
+     * delay as interval / 3, as we send three probes before detecting
+     * an error (see the next setsockopt call). */
+    val = interval / 3;
+    if (val == 0) val = 1;
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "setsockopt TCP_KEEPINTVL: ?") << strerror(errno);
+    }
+
+    /* Consider the socket in error state after three we send three ACK
+     * probes without getting a reply. */
+    val = 3;
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "setsockopt TCP_KEEPCNT: ?") << strerror(errno);
+    }
+#endif
+
+    return NET_OK;
+}
+
+static int NetSetTcpNoDelay(int fd, int val)
+{
+    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) == -1)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "setsockopt TCP_NODELAY: ?") << strerror(errno);
+    }
+    return NET_OK;
+}
+
+int NetEnableTcpNoDelay(int fd)
+{
+    return NetSetTcpNoDelay(fd, 1);
+}
+
+int NetDisableTcpNoDelay(int fd)
+{
+    return NetSetTcpNoDelay(fd, 0);
+}
+
+
+int NetSetSendBuffer(int fd, int buffsize)
+{
+    if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &buffsize, sizeof(buffsize)) == -1)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "setsockopt SO_SNDBUF: ?") << strerror(errno);
+    }
+    return NET_OK;
+}
+
+int NetTcpKeepAlive(int fd)
+{
+    int yes = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &yes, sizeof(yes)) == -1)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "setsockopt SO_KEEPALIVE: ?") << strerror(errno);
+    }
+    return NET_OK;
+}
+
+int NetResolve(char * host, char * ipbuf)
+{
+    struct sockaddr_in sa;
+
+    sa.sin_family = AF_INET;
+    if (inet_aton(host, &sa.sin_addr) == 0)
+    {
+        struct hostent * he;
+
+        he = gethostbyname(host);
+        if (he == NULL)
+        {
+            CPF_THROW(EM_SOCKET_OPT_FAIL, "can't resolve: ?") << host;
+        }
+        memcpy(&sa.sin_addr, he->h_addr, sizeof(struct in_addr));
+    }
+    strcpy(ipbuf, inet_ntoa(sa.sin_addr));
+    return NET_OK;
+}
+
+static int NetCreateSocket(int domain)
+{
+    int s, on = 1;
+    if ((s = socket(domain, SOCK_STREAM, 0)) == -1)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "creating socket: ?") << strerror(errno);
+    }
+
+    /* Make sure connection-intensive things like the redis benchmark
+     * will be able to close/open sockets a zillion of times */
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1)
+    {
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "setsockopt SO_REUSEADDR: ?") << strerror(errno);
+    }
+    return s;
+}
+
+#define Net_CONNECT_NONE 0
+#define Net_CONNECT_NONBLOCK 1
+static int NetTcpGenericConnect(char * addr, int port, int flags)
+{
+    int s;
+    struct sockaddr_in sa;
+
+    s = NetCreateSocket(AF_INET);
+
+    sa.sin_family = AF_INET;
+    sa.sin_port = htons(port);
+    if (inet_aton(addr, &sa.sin_addr) == 0)
+    {
+        struct hostent * he;
+
+        he = gethostbyname(addr);
+        if (he == NULL)
+        {
+            close(s);
+            CPF_THROW(EM_SOCKET_OPT_FAIL, "can't resolve: ?") << addr;
+        }
+        memcpy(&sa.sin_addr, he->h_addr, sizeof(struct in_addr));
+    }
+    if (flags & Net_CONNECT_NONBLOCK)
+    {
+        NetNonBlock(s);
+    }
+    if (connect(s, (struct sockaddr *)&sa, sizeof(sa)) == -1)
+    {
+        if (errno == EINPROGRESS &&
+                flags & Net_CONNECT_NONBLOCK)
+            return s;
+
+        close(s);
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "connect: ?") << strerror(errno);
+    }
+    return s;
+}
+
+void NetClose(int s)
+{
+    close(s);
+}
+
+int NetTcpConnect(char * addr, int port)
+{
+    return NetTcpGenericConnect(addr, port, Net_CONNECT_NONE);
+}
+
+int NetTcpNonBlockConnect(char * addr, int port)
+{
+    return NetTcpGenericConnect(addr, port, Net_CONNECT_NONBLOCK);
+}
+
+int NetUnixGenericConnect(char * path, int flags)
+{
+    int s;
+    struct sockaddr_un sa;
+
+    s = NetCreateSocket(AF_LOCAL);
+
+    sa.sun_family = AF_LOCAL;
+    strncpy(sa.sun_path, path, sizeof(sa.sun_path) - 1);
+    if (flags & Net_CONNECT_NONBLOCK)
+    {
+        NetNonBlock(s);
+    }
+    if (connect(s, (struct sockaddr *)&sa, sizeof(sa)) == -1)
+    {
+        if (errno == EINPROGRESS &&
+                flags & Net_CONNECT_NONBLOCK)
+            return s;
+
+        close(s);
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "connect: ?") << strerror(errno);
+    }
+    return s;
+}
+
+int NetUnixConnect(char * path)
+{
+    return NetUnixGenericConnect(path, Net_CONNECT_NONE);
+}
+
+int NetUnixNonBlockConnect(char * path)
+{
+    return NetUnixGenericConnect(path, Net_CONNECT_NONBLOCK);
+}
+
+/* Like read(2) but make sure 'count' is read before to return
+ * (unless error or EOF condition is encountered) */
+int NetRead(int fd, char * buf, int count)
+{
+    int nread, totlen = 0;
+    while(totlen != count)
+    {
+        nread = read(fd, buf, count - totlen);
+        if (nread == 0) return totlen;
+        if (nread == -1) return -1;
+        totlen += nread;
+        buf += nread;
+    }
+    return totlen;
+}
+
+/* Like write(2) but make sure 'count' is read before to return
+ * (unless error is encountered) */
+int NetWrite(int fd, char * buf, int count)
+{
+    int nwritten, totlen = 0;
+    while(totlen != count)
+    {
+        nwritten = write(fd, buf, count - totlen);
+        if (nwritten == 0) return totlen;
+        if (nwritten == -1) return -1;
+        totlen += nwritten;
+        buf += nwritten;
+    }
+    return totlen;
+}
+
+static int NetListen(int s, struct sockaddr * sa, socklen_t len)
+{
+    if (bind(s, sa, len) == -1)
+    {
+        close(s);
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "bind: ?") << strerror(errno);
+    }
+
+    /* Use a backlog of 512 entries. We pass 511 to the listen() call because
+     * the kernel does: backlogsize = roundup_pow_of_two(backlogsize + 1);
+     * which will thus give us a backlog of 512 entries */
+    if (listen(s, 511) == -1)
+    {
+        close(s);
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "listen: ?") << strerror(errno);
+    }
+    return NET_OK;
+}
+
+int NetTcpServer(int port, const char * bindaddr)
+{
+    int s;
+    struct sockaddr_in sa;
+
+    s = NetCreateSocket(AF_INET);
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sin_family = AF_INET;
+    sa.sin_port = htons(port);
+    sa.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (bindaddr && inet_aton(bindaddr, &sa.sin_addr) == 0)
+    {
+        close(s);
+        CPF_THROW(EM_SOCKET_OPT_FAIL, "invalid bind address");
+    }
+    NetListen(s, (struct sockaddr *)&sa, sizeof(sa));
+
+    return s;
+}
+
+int NetUnixServer(const char * path, mode_t perm)
+{
+    int s;
+    struct sockaddr_un sa;
+
+    s = NetCreateSocket(AF_LOCAL);
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sun_family = AF_LOCAL;
+    strncpy(sa.sun_path, path, sizeof(sa.sun_path) - 1);
+    NetListen(s, (struct sockaddr *)&sa, sizeof(sa));
+    if (perm)
+        chmod(sa.sun_path, perm);
+    return s;
+}
+
+static int NetGenericAccept(int s, struct sockaddr * sa, socklen_t * len)
+{
+    int fd;
+    while(1)
+    {
+        fd = accept(s, sa, len);
+        if (fd == -1)
+        {
+            if (errno == EINTR)
+                continue;
+            else
+            {
+                CPF_THROW(EM_SOCKET_OPT_FAIL, "accept: ?") << strerror(errno);
+            }
+        }
+        break;
+    }
+    return fd;
+}
+
+int NetTcpAccept(int s, char * ip, int * port)
+{
+    int fd;
+    struct sockaddr_in sa;
+    socklen_t salen = sizeof(sa);
+    fd = NetGenericAccept(s, (struct sockaddr *)&sa, &salen);
+
+    if (ip) strcpy(ip, inet_ntoa(sa.sin_addr));
+    if (port) *port = ntohs(sa.sin_port);
+    return fd;
+}
+
+int NetUnixAccept(int s)
+{
+    int fd;
+    struct sockaddr_un sa;
+    socklen_t salen = sizeof(sa);
+    fd = NetGenericAccept(s, (struct sockaddr *)&sa, &salen);
+
+    return fd;
+}
+
+int NetPeerToString(int fd, char * ip, int * port)
+{
+    struct sockaddr_in sa;
+    socklen_t salen = sizeof(sa);
+
+    if (getpeername(fd, (struct sockaddr *)&sa, &salen) == -1)
+    {
+        *port = 0;
+        ip[0] = '?';
+        ip[1] = '\0';
+        return -1;
+    }
+    if (ip) strcpy(ip, inet_ntoa(sa.sin_addr));
+    if (port) *port = ntohs(sa.sin_port);
+    return 0;
+}
+
+int NetSockName(int fd, char * ip, int * port)
+{
+    struct sockaddr_in sa;
+    socklen_t salen = sizeof(sa);
+
+    if (getsockname(fd, (struct sockaddr *)&sa, &salen) == -1)
+    {
+        *port = 0;
+        ip[0] = '?';
+        ip[1] = '\0';
+        return -1;
+    }
+    if (ip) strcpy(ip, inet_ntoa(sa.sin_addr));
+    if (port) *port = ntohs(sa.sin_port);
+    return 0;
+}
+
+}

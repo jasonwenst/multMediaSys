@@ -1,0 +1,85 @@
+#ifndef _JOB_COLLIMATION_H_ 
+#define _JOB_COLLIMATION_H_
+
+#include <time.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <string>
+#include <vector>
+#include <fstream>
+#include <iostream>
+#include <fcntl.h>
+
+#include "xdr.h"
+#include "sockapi.h"
+#include "compile.h"
+
+#include "frame_file_interface.h"
+#include "base_func.h"
+#include "base_class.h"
+
+
+using namespace std;
+
+class CExitCode
+{
+
+public:
+	int32 m_iExitCode;
+
+READ_CONFIG_BEGIN
+	READ_VALUE(m_iExitCode, "exit_value", 0, NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+READ_CONFIG_END
+
+};
+
+class CConfig
+{
+
+public:
+	std::string m_strParams;
+
+READ_CONFIG_BEGIN
+	char m_szParams[256];
+	char szBuf[512];
+	
+	szBuf[511] = 0;
+	m_szParams[255] = 0;
+
+	// READ_VALUE(szBuf, "run_command", "", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+	// m_strParams = std::string(szBuf);
+READ_CONFIG_END
+	
+};
+
+class CJobCollimationThread : public bs_frame_file::CProcessFileThread
+{
+public:
+	CJobCollimationThread();
+	~CJobCollimationThread();
+
+	int32 init();
+	int32 destroy();
+	int32 run(bs_frame_file::CFrameFile *pFrameFile);
+	
+private:
+	time_t m_lLastCheckTime;
+	CConfig m_objConfig;
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_BILLING40_FRAME CThread* create_instanceJobCollimation()
+{
+        return new CJobCollimationThread();
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

@@ -1,0 +1,197 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dispatch_frame.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：jinxin）
+/// date		（文件创建日期，eg：2012-4-24）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#ifndef _DISPATCH_FRAME_H
+#define _DISPATCH_FRAME_H
+
+#include "common/base/od_system_interface.h"
+#include "public/app_intf/app_config/app_config.h"
+#include "public/common/communicate/communicate.h"
+#include "msg_dispatch_mgr.h"
+
+namespace MDbe {
+
+class CCommunicateApiExpirePool
+{
+public:
+    CCommunicateApiExpirePool();
+
+    void SetExpireSec(int32 iExpireSec);
+
+    void Add(CCommunicateApi * pCommunicateApi);
+
+protected:
+    void Close(CCommunicateApi * pCommunicateApi);
+
+    void ReleaseExpire();
+private:
+    CLock m_cLock;
+    int32 m_iExpireSec;             //失效时长(单位秒)
+    aimap<int64, CCommunicateApi *> m_mapCommunicateApi;
+};
+
+/**
+ * @brief
+ * 配置文件读取类
+ * 用于读取配置xml文件中func_config的结构
+ */
+class CMyDispatchConfig : public NAMESPACE_OD_APP_CFG CAppConfigBase
+{
+public:
+    char m_szDispatchLib[256];
+    int32 m_iDumpNotifyFile;
+    int32 m_iDumpSendObbstream;
+    int32 m_iDumpRecvObbstream;
+    int32 m_iCheckNrmSyncTime;	//是否校验NRM时间同步
+    int32 m_iCommunicateApiPoolExpireSec;
+APP_READ_CONFIG_BEGIN
+    //读取一个列表用APP_READ_OBJ
+    APP_READ_VALUE(m_szDispatchLib, "dispatch_lib", "", NAMESPACE_OD_APP_CFG emValueRequire)
+    APP_READ_VALUE(m_iDumpNotifyFile, "dump_notify_file", 0, NAMESPACE_OD_APP_CFG emValueOptional)
+    APP_READ_VALUE(m_iDumpSendObbstream, "dump_send_obbstream", 0, NAMESPACE_OD_APP_CFG emValueOptional)
+    APP_READ_VALUE(m_iDumpRecvObbstream, "dump_recv_obbstream", 0, NAMESPACE_OD_APP_CFG emValueOptional)
+    APP_READ_VALUE(m_iCheckNrmSyncTime, "check_nrm_sync_time", 0, NAMESPACE_OD_APP_CFG emValueOptional)
+    APP_READ_VALUE(m_iCommunicateApiPoolExpireSec, "communicate_api_pool_expire_sec", 20*60, NAMESPACE_OD_APP_CFG emValueOptional)
+
+APP_READ_CONFIG_END
+};
+
+/**
+ * @brief
+ * 消息派发类
+ * 用于消息派发调用Dispatch接口
+ */
+class CMsgDispatchThread
+    : public od_frame:: CThread
+{
+public:
+    CMsgDispatchThread();
+    ~CMsgDispatchThread();
+
+    /**
+     * 框架初始化
+     * @param NULL
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+    virtual int32 init();
+
+    /**
+     * 框架销毁
+     * @param NULL
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+    virtual int32 destroy();
+
+    /**
+     * 框架定时调用
+     * @param p		od_frame:: CData类型，框架在接收到数据时立即调用，
+     *              或者每2秒没数据时触发一个p=NULL的调用
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+    virtual int32 run(od_frame:: CData *p);
+
+    /*
+    ** 线程停止时调用
+    */
+    virtual int32 stop();
+
+private:
+    CMsgDispatchThread(const CMsgDispatchThread& rh);
+    CMsgDispatchThread& operator=(const CMsgDispatchThread& rh);
+
+    /**
+     * 解析Notify结构
+     * @param pCommData od_frame:: pCommData类型，框架在接收到数据时立即调用，
+     *              或者每2秒没数据时触发一个p=NULL的调用
+     * @param rRouteData MDbe:: CRouteData 路由信息
+     * @param cInObbStream obb_stream& cInObbStream obb_stream结构
+     * @return true:成功，false：失败
+     */
+    bool ParserNotify(od_frame:: CCommData* pCommData,
+        MDbe:: CRouteData& rRouteData,
+        obb_stream& cInObbStream);
+
+    int32 ProcDisconnect(od_frame:: CCommData* pCommData);
+
+    /**
+     * 注册
+     * @param pCommData od_frame:: pCommData类型，注册消息
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+    int32 ProcLogin(od_frame:: CCommData* pCommData);
+    /**
+     * 注册回复
+     * @param pCommData od_frame:: pCommData类型，回复注册消息
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+    int32 ResponseProcLogin(od_frame:: CCommData* pCommData);
+
+    /**
+     * 内部消息处理
+     * @param CSendSource & cSendSource 发送端信息
+     * @param CSendTarget & cSendTarget 接收端信息
+     * @param iMsgType int32 消息类型
+     * @param cInObbStream obb_stream& cInObbStream obb_stream结构
+     */
+    void DealInsideMsg(CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream& cInObbStream);
+
+    /**
+     * 开始处理定时消息
+     * @param iMsgType int32 消息类型
+     * @return true:可以处理此消息，false：此消息之前的处理还没有结束，本次触发被忽略
+     */
+    bool InsertRecvTimerMsg(int32 iMsg);
+
+    /**
+     * 结束处理定时消息
+     * @param iMsgType int32 消息类型
+     * @return true:正常结束，false:正常结束失败
+     */
+    bool RemoveRecvTimerMsg(int32 iMsg);
+
+    /**
+     * 创建发送端结构
+     * @param IN rRouteData CRouteData 路由信息，用以提取发送端信息
+     * @param OUT CSendSource & cSendSource 发送端信息
+     * @param OUT CSendTarget & cSendTarget 接收端信息
+     * @return NULL
+     */
+    void SetSourceMsgAddr(CRouteData &rRouteData, CSendSource & cSendSource, CSendTarget & cSendTarget);
+
+
+private:
+    CMyDispatchConfig m_cMyDispatchConfig;
+    static CInt32Vec  m_cInt32Vec;
+    CMsgHelper* m_pcMsgHelper;
+    //锁
+    static CLock m_cLock;
+    static CCommunicateApiExpirePool m_cCommunicateApiExpirePool;   //失效通讯指针链接池
+    //本进程号
+    MDbe:: CProcKey m_objPKey;
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+od_frame:: CThread *create_dispatchInstance();
+#ifdef __cplusplus
+}
+#endif
+
+}//end namespace
+
+#endif

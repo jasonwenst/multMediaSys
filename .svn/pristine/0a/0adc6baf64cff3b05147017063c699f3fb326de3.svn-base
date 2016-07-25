@@ -1,0 +1,659 @@
+
+#include "frame_communicate.h"
+//#include "module_pcc_def.h"
+#include "dbe2_srm_msg_interface.h"
+#include "dbe2_nrm_msg_interface.h"
+#include "public/odframe/dbe_log_init.h"
+#include "public/common/base/parseenv.h"
+#include "public/common/base/virtual_time.h"
+#include "nrm_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include <fstream>
+#include <sys/wait.h>
+#include <errno.h>
+#include "dbe2_log.h"
+#include "dbe2_util.h"
+
+using namespace common_base;
+using namespace MDbe;
+
+struct rusage NAMESPACE_DBE_PCC g_st3rdRUsage;
+
+int64 GetVirtualTimeSec()
+{
+    struct timespec cTmpTime;
+    get_vtTimeOfDay(&cTmpTime);
+    return cTmpTime.tv_sec;
+}
+
+void GetVirtualTime(NAMESPACE_OD_FRAME CTime & rTime)
+{
+    struct timespec cTmpTime;
+    get_vtTimeOfDay(&cTmpTime);
+
+    rTime.m_tmVal.tv_sec = cTmpTime.tv_sec;
+    rTime.m_tmVal.tv_usec = cTmpTime.tv_nsec / 1000;
+    rTime.m_iSecModify = get_vtSecModify();
+}
+
+void NAMESPACE_DBE_PCC CPccRecv::on_connected(CCommunicateApi *pCommunicateApi)
+{
+	CNotify objNotify;
+
+//	objNotify.TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+	MDbe:: CRouteData *pRouteData = objNotify.TEMPLATE_MEMBER(CNotify) alloc_object<MDbe:: CRouteData>();
+	((MDbe:: CSourceData*)pRouteData)->set_sourceProcKey(m_objProcUpdStatus, NAMESPACE_OD_SYSTEM get_vmId());
+
+    {
+        int32 iGetVmId = NAMESPACE_OD_SYSTEM get_vmId();
+        if(iGetVmId == -1) iGetVmId = 0;
+        pRouteData->m_iSVmId = iGetVmId;
+    }
+	MDbe:: CDbeCommApi *pDbeCommApi = objNotify.TEMPLATE_MEMBER(CNotify) alloc_object<MDbe:: CDbeCommApi>();
+
+	pDbeCommApi->m_objPKey = m_objProcUpdStatus;
+	pDbeCommApi->m_iProcType = MDbe:: PROC_DBE;
+
+	int64 iTime;
+	GetCurrentTime(iTime);
+	pDbeCommApi->m_tmRegTime = iTime;
+	objNotify.set_type(MDbe:: MSG_DBE_COMM_REG);
+	int32 iRet = pCommunicateApi->send_notify(objNotify);
+	DBE2_LOG(TRACE_LOGGER, "send to %s use %s register type %d, time %ld return %d",
+	                pCommunicateApi->get_peer(),
+	                pCommunicateApi->get_local(),
+	                objNotify.get_type(), pDbeCommApi->m_tmRegTime,iRet);
+
+    // 考虑到消息阻塞时候，要等待的时间需要加到120秒
+	iRet = pCommunicateApi->wait_recv(120);
+	if(iRet <= 0)
+	{
+        DBE2_LOG(ERROR_LOGGER, "wait recive returned %d, socket will be closed!", iRet);
+		pCommunicateApi->close();
+		return;
+	}
+
+	while((iRet = pCommunicateApi->recv_notify(objNotify))==0
+		&& objNotify.get_type() != MDbe:: MSG_RSP_DBE_COMM_REG)
+	{
+		DBE2_LOG(ERROR_LOGGER, "receive an error login response, type %d", objNotify.get_type());
+	}
+	if(iRet != 0)
+	{
+		DBE2_LOG(WARN_LOGGER, "error when receive login response, errno %d", errno);
+		return;
+	}
+	DBE2_LOG(TRACE_LOGGER, 		"recv login response type %d",		objNotify.get_type());
+}
+
+int32 NAMESPACE_DBE_PCC CPccRecv::init()
+{
+	this->m_bDbInfoGot	= false;
+
+	//for test
+
+	m_objProcUpdStatus.m_objSKey.m_iFlowId = NAMESPACE_OD_FRAME CThread::get_flowId();
+	m_objProcUpdStatus.m_objSKey.m_iSrvId = get_serviceId();
+	m_objProcUpdStatus.m_iProcId = get_procId();
+	m_objProcUpdStatus.m_iPid = get_processId();
+	DBE2_LOG(TRACE_LOGGER, "get pid in init %d", m_objProcUpdStatus.m_iPid);
+	get_pidInfo(m_objProcUpdStatus.m_iPid, m_objPidInfo);
+	m_iPageSize = getpagesize();
+	getrusage(RUSAGE_SELF, m_pLastUsage);
+	memset(&m_stLastTime, 0, sizeof(m_stLastTime));
+
+	int32 iRet = 0;
+
+	//init nr here
+	//NAMESPACE_OD_NR CNrApi *pNrApi = NAMESPACE_OD_NR CNrApi::create_nr();
+    MDbe::CNrApi *pNrApi = MDbe:: CNrApi::CreateNr();
+	if(pNrApi == NULL)
+	{
+		DBE2_LOG(ERROR_LOGGER, "create nr object error, errno:%d", errno);
+		return -1;
+	}
+
+	iRet = pNrApi->NrInit(this);
+	if(iRet != 0)
+	{
+		DBE2_LOG(FATAL_LOGGER, "init nr error, errno:%d", errno);
+		return -1;
+	}
+
+	// 进程为nrm检测nr路径是否已经创建
+	if (-1 == get_flowId() && 1 == get_serviceId() && 1 == get_procId())
+	{
+		pNrApi->CheckNrRootPath();
+	}
+
+	int32 argc = get_argc();
+	const char *const * argv = get_argv();
+	CStr strCommand(argv[0]);
+	for(int32 i=1; i < argc; ++i)
+	{
+		strCommand += " \"";
+		strCommand += argv[i];
+		strCommand += "\"";
+	}
+	m_objProcUpdStatus.m_iPid = getpid();
+	DBE2_LOG(TRACE_LOGGER, "get pid %d", m_objProcUpdStatus.m_iPid);
+	iRet = pNrApi->HoldNr(m_objProcUpdStatus, strCommand.c_str());
+	if(iRet != 0)
+	{
+		DBE2_LOG(FATAL_LOGGER, "hold nr error with flow id %d service id %d proc id %d, command %s, errno:%d %s",
+		    m_objProcUpdStatus.m_objSKey.m_iFlowId,
+		    m_objProcUpdStatus.m_objSKey.m_iSrvId,
+		    m_objProcUpdStatus.m_iProcId,
+		    strCommand.c_str(),
+		    errno,strerror(errno));
+		//delete pNrApi;
+		return 0;
+	}
+	else
+	{
+		DBE2_LOG(INFO_LOGGER, "hold nr success with flow id %d service id %d proc id %d, command %s",
+		    m_objProcUpdStatus.m_objSKey.m_iFlowId,
+		    m_objProcUpdStatus.m_objSKey.m_iSrvId,
+		    m_objProcUpdStatus.m_iProcId,
+		    strCommand.c_str());
+	}
+	//--------------
+	int32 iPid = getpid();
+    if( 0 != pNrApi->WritePid(m_objProcUpdStatus, iPid))
+    {
+    	DBE2_LOG(FATAL_LOGGER, "save pid in nr/cmd_line error with flow id %d service id %d proc id %d, command %s, errno:%d %s",
+    	    m_objProcUpdStatus.m_objSKey.m_iFlowId,
+    	    m_objProcUpdStatus.m_objSKey.m_iSrvId,
+    	    m_objProcUpdStatus.m_iProcId,
+    	    strCommand.c_str(),
+    	    errno,strerror(errno));
+    }
+	//--------------
+	m_pNrApi = pNrApi;
+	
+
+	const char *cszConfig = "socket_client:server_ip:127.0.0.1,server_port:%d,"
+		"check_connection_time_step:0,"
+		"select_time_out:20,"
+		"send_time_out:20,"
+		"recv_time_out:20,";
+	uint16 usPort = 0;
+	{
+		AISTD string strPort;
+		iRet = ConvertEnvPath("$NRM_PORT", strPort);
+		if(iRet == 0)
+		{
+			usPort = atoi(strPort.c_str());
+			if(usPort <= 1024) usPort = 8701;
+		}
+		else
+		{
+			usPort = 8701;
+		}
+	}
+	char szBuf[512];
+	snprintf(szBuf,sizeof(szBuf),cszConfig, usPort);
+	iRet = m_objCommunicateClientConfig.create_config(szBuf);
+	if(iRet == 0)
+	{
+		m_pCommunicateApi
+			= CCommunicateApi::create_client(m_objCommunicateClientConfig.m_pCommunicateConfig);
+		m_pCommunicateApi->set_eventSink(this);
+		m_pCommunicateApi->connect();
+	}
+
+	set_messageObj(this);
+	memset(&g_st3rdRUsage, 0, sizeof(struct rusage));
+
+	// SRM特殊处理
+	if (-1 == get_flowId() && 5 == get_serviceId() && 1 == get_procId())
+	{
+	    //result = 0为成功
+		send_startProcess(iPid, 0);
+	}
+	
+	return 0;
+}
+
+int32 NAMESPACE_DBE_PCC CPccRecv::destroy()
+{
+	DBE2_LOG(TRACE_LOGGER,  "CPccRecv::destroy clear_messageObj");
+	clear_messageObj(this);
+	if(m_pNrApi != NULL)
+	{
+		//退出进度完成后，由nr自动unhold
+		//m_pNrApi->unhold_nr();
+		//delete m_pNrApi;
+		m_pNrApi = NULL;
+	}
+	if(m_pCommunicateApi != NULL)
+	{
+		delete m_pCommunicateApi;
+		m_pCommunicateApi = NULL;
+	}
+	return 0;
+}
+
+int32 NAMESPACE_DBE_PCC CPccRecv::run(NAMESPACE_OD_FRAME CData *p)
+{
+	m_bRunWithThread = true;
+	sleep(2);
+	write_procRes();
+	return 0;
+}
+
+int32 NAMESPACE_DBE_PCC CPccRecv::on_sendMessage(NAMESPACE_OD_FRAME CControlData *pControlData)
+{
+	USE_CHECK_TIME_OUT( this )
+	if(m_pCommunicateApi != NULL)
+	{
+		int32 iRet = 0;
+		CHECK_TIME_OUT_BEGIN( 20 )
+//		m_sktLock.lock();
+		iRet = m_pCommunicateApi->send_notify(*pControlData);
+//		m_sktLock.unlock();
+		CHECK_TIME_OUT_END( )
+#ifdef DEBUG_NOTIFY
+		pControlData->TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+		MDbe:: CRouteData *pRouteData
+			= pControlData->TEMPLATE_MEMBER(CNotify) get_object<MDbe:: CRouteData>();
+		DBE2_LOG(TRACE_LOGGER, 			"send notify %d, flow id %d, service id %d, proc id %d, return %d, local %s, peer %s",			pControlData->get_type(),			pRouteData->m_iSFlowId,			pRouteData->m_iSSrvId,			pRouteData->m_iSProcId,			iRet,			m_pCommunicateApi->get_local(),			m_pCommunicateApi->get_peer());
+#endif
+	}
+	NAMESPACE_OD_FRAME CControlData::dealloc(pControlData);
+	return 0;
+}
+
+NAMESPACE_OD_FRAME CControlData *
+NAMESPACE_DBE_PCC CPccRecv::receive_message()
+{
+	USE_CHECK_TIME_OUT( this )
+	if(!m_bRunWithThread)
+	{
+		write_procRes();
+	}
+
+	int32 iRet = 0;
+	NAMESPACE_OD_FRAME CControlData *pControlData = NULL;
+	if(m_pCommunicateApi != NULL)
+	{
+		int64 iTime;
+		GetCurrentTime(iTime);
+		NAMESPACE_OD_SYSTEM CTimeCmp cBebin(iTime);
+		if(m_pCommunicateApi->get_socket() < 0)
+		{
+//			m_sktLock.lock();
+			iRet = m_pCommunicateApi->connect();
+//			m_sktLock.unlock();
+			if(iRet != 0)
+			{
+				sleep(2);
+				return pControlData;
+			}
+		}
+		CHECK_TIME_OUT_BEGIN( 3000 )
+//		m_sktLock.lock();
+		iRet = m_pCommunicateApi->wait_recv(2);
+//		m_sktLock.unlock();
+		CHECK_TIME_OUT_END()
+		if(iRet > 0)
+		{
+			pControlData = NAMESPACE_OD_FRAME CControlData::alloc();
+
+			CHECK_TIME_OUT_BEGIN( 20 )
+//			m_sktLock.lock();
+			iRet = m_pCommunicateApi->recv_notify(*pControlData);
+//			m_sktLock.unlock();
+			CHECK_TIME_OUT_END( )
+			if(iRet == 0)
+			{
+			    if(pControlData->get_type() == MSG_CLOSE_BY_NRM_REG)
+			    {
+			        //退出本进程
+			        DBE2_LOG(FATAL_LOGGER, "receive 152 msg from nrm,program will exit!");
+			        kill(0, SIGTERM);
+			    }
+				/*
+				//动态调整日志级别
+				if (pControlData->get_type() == 8124)
+				{
+					pControlData->TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+					MDbe:: CRouteData *pRouteData 
+						= pControlData->TEMPLATE_MEMBER(CNotify) get_object<MDbe:: CRouteData>();
+					DBE2_LOG(DEBUG_LOGGER, "recieve msg:8124");
+					if(get_flowId() == pRouteData->m_iTFlowId
+						&& get_serviceId() == pRouteData->m_iTSrvId
+						&& get_procId() == pRouteData->m_iTProcId)
+					{
+						int32 iLength = 0;
+						aistring strData;
+						char * pReciveStream = pControlData->TEMPLATE_MEMBER(CNotify) get_object(iLength);
+						strData.assign(pReciveStream, iLength);
+						obb_stream cStream;
+						cStream.import_data(strData);//导入，注意，该方法必须在begin_stream之前调用
+						cStream.begin_stream(NULL);
+						STbtsAdjustLog cAdjustLog;
+						cStream >> cAdjustLog; 
+						cStream.end_stream();
+
+						adjustLogLevel(cAdjustLog.level());
+						DBE2_LOG(INFO_LOGGER, "set proc log level to %s", cAdjustLog.level().c_str());
+						return 0;
+					}
+				}
+				*/
+
+				if(pControlData->get_type() != MDbe:: MSG_REQ_PROC_STATIC)
+				{
+
+                    DBE2_LOG(TRACE_LOGGER, "recv notify msg_type %d from %s, local %s, return %d",
+                                pControlData->get_type(),
+								m_pCommunicateApi->get_peer(),
+								m_pCommunicateApi->get_local(),
+								iRet);
+					return pControlData;
+				}
+
+				pControlData->TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+				MDbe:: CRouteData *pRouteData
+					= pControlData->TEMPLATE_MEMBER(CNotify) alloc_object<MDbe:: CRouteData>();
+				((MDbe:: CSourceData*)pRouteData)->set_sourceProcKey(m_objProcUpdStatus, NAMESPACE_OD_SYSTEM get_vmId());
+				pRouteData->m_iDataType = 1;
+				send_startProcess(pControlData, getpid(), 0);
+				return NULL;
+			}
+			else
+            {
+                DBE2_LOG(TRACE_LOGGER, "pcc recv notify %d from %s fail, local %s, return %d",
+                        pControlData->get_type(),
+            			m_pCommunicateApi->get_peer(),
+            			m_pCommunicateApi->get_local(),
+            			iRet);
+            }
+			NAMESPACE_OD_FRAME CControlData::dealloc(pControlData);
+			pControlData = NULL;
+		}
+//		else if(iRet < 0 && errno != EINTR)
+//		{
+//			sleep(2);
+//		}
+	}
+	return pControlData;
+}
+
+NAMESPACE_OD_FRAME CControlData* NAMESPACE_DBE_PCC CPccRecv::alloc_controlData()
+{
+	NAMESPACE_OD_FRAME CControlData *pControlData = NAMESPACE_OD_FRAME CControlData::alloc();
+//	pControlData->TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+	MDbe:: CRouteData *pRouteData
+		= pControlData->TEMPLATE_MEMBER(CNotify) alloc_object<MDbe:: CRouteData>();
+	pRouteData->m_iSFlowId = NAMESPACE_OD_SYSTEM get_flowId();
+	pRouteData->m_iSSrvId = NAMESPACE_OD_SYSTEM get_serviceId();
+	pRouteData->m_iSProcId = NAMESPACE_OD_SYSTEM get_procId();
+	pRouteData->m_iSSrvType = MDbe:: PROC_DBE;
+	return pControlData;
+}
+
+void NAMESPACE_DBE_PCC CPccRecv::get_sysinfo(int32 uid, void* pdbinfo)
+{
+	if (this->m_bDbInfoGot)
+	{
+		*((MDbe:: CDbInfo*)pdbinfo)	= this->m_objDbInfo;
+		return;
+	}
+
+	NAMESPACE_OD_FRAME CControlData* pcd = alloc_controlData();
+	MDbe:: CIntObj *pi = pcd->TEMPLATE_MEMBER(CNotify)alloc_object<MDbe:: CIntObj>();
+	pi->set_value(uid);
+	pcd->set_type(MDbe:: MSG_REQ_DBE_DB_INFO);
+	send_message(pcd);
+
+	while ( ! this->m_bDbInfoGot)
+	{
+		this->receive_message();
+		::usleep(10000);
+	}
+
+	*((MDbe:: CDbInfo*)pdbinfo)	= this->m_objDbInfo;
+}
+
+int32 NAMESPACE_DBE_PCC CPccRecv::send_stopProgress(int32 iProgress)
+{
+	if (1 == get_serviceId()) return 0;
+
+	NAMESPACE_OD_FRAME CCommData *pCommData = alloc_controlData();
+	pCommData->set_type(7112);
+	SNrmStopProcProg cStopProgress;
+	cStopProgress.set_msgHead(GetMsgHead(7112));
+	cStopProgress.baseProcKey().set_appId(get_serviceId());
+	cStopProgress.baseProcKey().set_procId(get_procId());
+
+	cStopProgress.stopProcessProgress().set_stopProgress(iProgress);
+
+	obb_stream cStream = Sdl2Obbstream(cStopProgress);
+	AISTD string strData = "";
+	cStream.export_data(strData);
+	char * pObbBuf = pCommData->TEMPLATE_MEMBER(CNotify) alloc_object<char>(strData.size());
+	memcpy(pObbBuf, strData.c_str(), strData.size());
+
+    if(iProgress >= 1000000)
+    {//停止完成后最后写入一次nr
+        write_procRes();
+        m_bStopFinish = true;
+    }
+
+	send_message(pCommData);
+
+	return 0;
+}
+
+int32 NAMESPACE_DBE_PCC CPccRecv::send_startProcess(NAMESPACE_OD_FRAME CCommData *pCommData, int32 iPid, int32 iResult)
+{
+	if (1 == get_serviceId()) return 0;
+	
+	pCommData->set_type(7111);
+
+	int64 llCurTime;
+	GetCurrentTime(llCurTime);
+	SSrmNotifyProc cStartResult;
+	cStartResult.set_msgHead(GetMsgHead(7111));
+	cStartResult.procInfo().baseProcKey().set_appId(get_serviceId());
+	cStartResult.procInfo().baseProcKey().set_procId(get_procId());
+	cStartResult.procInfo().set_updateTime(llCurTime);
+	cStartResult.procInfo().set_pid(iPid);
+	cStartResult.procInfo().set_vmId(NAMESPACE_OD_SYSTEM get_vmId());
+	if(iResult == 0)
+	{
+		cStartResult.procExeResult().set_result(MDbe:: EXE_SUCCESS);
+	}
+	else
+	{
+		cStartResult.procExeResult().set_result(MDbe:: EXE_FAIL);
+		cStartResult.procExeResult().set_failReason(GetInitErrorInfo());
+	}
+	DBE2_LOG(TRACE_LOGGER,  "CPccRecv startProcess %d, result %d,FailReason:%s",
+		iPid, iResult,cStartResult.procExeResult().failReason().c_str());
+
+	obb_stream cStream = Sdl2Obbstream(cStartResult);
+	AISTD string strData = "";
+	cStream.export_data(strData);
+	char * pObbBuf = pCommData->TEMPLATE_MEMBER(CNotify) alloc_object<char>(strData.size());
+	memcpy(pObbBuf, strData.c_str(), strData.size());
+
+	send_message(pCommData);
+	return 0;
+}
+int32 NAMESPACE_DBE_PCC CPccRecv::send_startProcess(int32 iPid, int32 iResult)
+{
+	NAMESPACE_OD_FRAME CCommData *pCommData = alloc_controlData();
+
+	send_startProcess(pCommData, iPid, iResult);
+
+	return 0;
+}
+
+void NAMESPACE_DBE_PCC CPccRecv::on_pipelineStopped()
+{
+	NAMESPACE_OD_FRAME CCommData *pCommData = alloc_controlData();
+
+	MDbe:: CProcKey *pProcKey
+		= pCommData->TEMPLATE_MEMBER(CNotify) alloc_object<MDbe:: CProcKey>();
+	pProcKey->m_objSKey.m_iFlowId = NAMESPACE_OD_SYSTEM get_flowId();
+	pProcKey->m_objSKey.m_iSrvId = NAMESPACE_OD_SYSTEM get_serviceId();
+	pProcKey->m_iProcId = NAMESPACE_OD_SYSTEM get_procId();
+	MDbe:: CRouteData *pRouteData
+		= pCommData->TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+	pRouteData->m_iDataType = 1;
+	pCommData->set_type(MDbe:: MSG_DBE_TO_SRM_EXIT_REQ);
+	send_message(pCommData);
+}
+
+void NAMESPACE_DBE_PCC CPccRecv::write_procRes()
+{
+	if(m_bStopFinish) return;
+	USE_CHECK_TIME_OUT( this )
+	if(m_cLastWriteTime.compare(GetVirtualTimeSec()) < TIME_STEP)
+		return;
+	NAMESPACE_OD_FRAME CTime cTime;
+	GetVirtualTime(cTime);
+	//time_t lNow = rTime.m_tmVal.tv_sec;
+	time_t lTempNow = cTime.m_tmVal.tv_sec;
+	int64 llTempSecModify = cTime.m_iSecModify;
+	NAMESPACE_OD_SYSTEM CTimeCmp cNow(lTempNow, llTempSecModify);
+	//time_t lTimeEsc = lNow - m_lLastWriteTime;
+	time_t lTimeEsc = m_cLastWriteTime.compare(cNow);
+	//m_lLastWriteTime = lNow;
+	m_cLastWriteTime = cNow;
+	if(m_pNrApi == NULL) return;
+
+	int32 iRet = 0;
+	CHECK_TIME_OUT_BEGIN( 20 )
+	iRet = getrusage(RUSAGE_SELF, m_pCurrUsage);
+	CHECK_TIME_OUT_END( )
+	if(iRet != 0) return;
+	time_t lUse = (m_pCurrUsage->ru_utime.tv_sec - m_pLastUsage->ru_utime.tv_sec
+			+ m_pCurrUsage->ru_stime.tv_sec - m_pLastUsage->ru_stime.tv_sec) * 1000000
+			+ m_pCurrUsage->ru_utime.tv_usec - m_pLastUsage->ru_utime.tv_usec
+			+ m_pCurrUsage->ru_stime.tv_usec - m_pLastUsage->ru_stime.tv_usec;
+	//time_t lTime = (rTime.m_tmVal.tv_sec - m_stLastTime.tv_sec) * 100
+	//		+ (rTime.m_tmVal.tv_usec - m_stLastTime.tv_usec)/10000;
+	time_t lTime = (cTime.m_tmVal.tv_sec - cTime.m_iSecModify - m_stLastTime.tv_sec) * 100
+			+ (cTime.m_tmVal.tv_usec - cTime.m_iSecModify - m_stLastTime.tv_usec)/10000;
+	time_t lUsage = (0==lTime)? 0 : lUse / lTime;
+	m_objProcUpdStatus.m_dbCpuUse = lUsage;
+	m_objProcUpdStatus.m_dbCpuUse /= 100;
+#ifdef LINUX
+	char szPidFile[128];
+	sprintf(szPidFile, "/proc/%d/statm", m_objProcUpdStatus.m_iPid);
+	AISTD ifstream objMemInfo(szPidFile);
+	objMemInfo >> m_objProcUpdStatus.m_dbMemUse;
+	objMemInfo >> m_objProcUpdStatus.m_dbMemUse;
+	// chang by jinxin 2011/04/29 MemUse need * 4kb
+	//m_objProcUpdStatus.m_dbMemUse /= (1024 *1024);
+    // 单位M
+	m_objProcUpdStatus.m_dbMemUse /= 256;
+#else
+	m_objProcUpdStatus.m_dbMemUse = (m_pCurrUsage->ru_maxrss * m_iPageSize)/1024;
+#endif
+	m_objProcUpdStatus.m_dbHandleRate = 0;
+	GetCurrentTime(m_objProcUpdStatus.m_llUpdateTime);
+	m_objProcUpdStatus.m_iSecModify = cTime.m_iSecModify;
+
+	m_stLastTime = cTime.m_tmVal;
+	//求的真实时间
+	m_stLastTime.tv_sec = cTime.m_tmVal.tv_sec - cTime.m_iSecModify;
+
+	struct rusage *pTmp = m_pCurrUsage;
+	m_pCurrUsage = m_pLastUsage;
+	m_pLastUsage = pTmp;
+
+	uint64 ullInVolume = 0ULL;
+	uint64 ullOutVolume = 0ULL;
+	const CNetstat *pHead = CNetstat::head();
+	while(pHead != NULL)
+	{
+		ullInVolume += pHead->m_ullInVolume;
+		ullOutVolume += pHead->m_ullOutVolume;
+		pHead = pHead->m_pNext;
+	}
+	ullInVolume -= m_ullLastInVolume;
+	ullOutVolume -= m_ullLastOutVolume;
+	if(lTimeEsc >0 ) 
+		m_objProcUpdStatus.m_fNetUse = (ullInVolume > ullOutVolume ? ullInVolume : ullOutVolume) * 8 / lTimeEsc;
+	m_ullLastInVolume += ullInVolume;
+	m_ullLastOutVolume += ullOutVolume;
+
+	CHECK_TIME_OUT_BEGIN( 30 )
+	//iRet = m_pNrApi->write_nr((char *)&m_objProcUpdStatus, sizeof(m_objProcUpdStatus));
+	iRet = m_pNrApi->WriteProcResoure(m_objProcUpdStatus, m_objProcUpdStatus);
+	CHECK_TIME_OUT_END( )
+	if(iRet != 0)
+	{
+		DBE2_LOG(WARN_LOGGER,"write nr error, ret:%d, errno:%d", iRet, errno);
+	}
+
+	return;
+}
+
+NAMESPACE_DBE_PCC CPccRecv::CPccRecv()
+ : m_pCommunicateApi(NULL)
+ , m_pNrApi(NULL)
+// , m_lLastWriteTime(0L)
+ , m_ullLastInVolume(0ULL)
+ , m_ullLastOutVolume(0ULL)
+ , m_bRunWithThread(false)
+ , m_bStopFinish(false)
+ , m_objPidInfo()
+ , m_bDbInfoGot(false)
+{
+	int64 llCurTime;
+	GetCurrentTime(llCurTime);
+	m_cLastWriteTime.update(llCurTime);
+	m_pLastUsage = &m_stUsage1;
+	m_pCurrUsage = &m_stUsage2;
+}
+
+NAMESPACE_DBE_PCC CPccRecv::~CPccRecv()
+{ }
+
+void NAMESPACE_DBE_PCC CPccRecv::adjustLogLevel(std::string &rstrLevel)
+{
+	if ("trace" == rstrLevel) 
+	{
+		commlog_logger::Logger::getRootLogger()->setLevel(commlog_logger::Level::getTrace());
+	}
+	else if ("debug" == rstrLevel) 
+	{
+		commlog_logger::Logger::getRootLogger()->setLevel(commlog_logger::Level::getDebug());
+	}
+	else if ("info" == rstrLevel) 
+	{
+		commlog_logger::Logger::getRootLogger()->setLevel(commlog_logger::Level::getInfo());
+	}
+	else if ("warn" == rstrLevel) 
+	{
+		commlog_logger::Logger::getRootLogger()->setLevel(commlog_logger::Level::getWarn());
+	}
+	else if ("error" == rstrLevel) 
+	{
+		commlog_logger::Logger::getRootLogger()->setLevel(commlog_logger::Level::getError());
+	}
+	else if ("fatal" == rstrLevel) 
+	{
+		commlog_logger::Logger::getRootLogger()->setLevel(commlog_logger::Level::getFatal());
+	}
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_OD_FRAME CThread * create_pccRecvInstance()
+{
+	return new NAMESPACE_DBE_PCC CPccRecv();
+}
+
+#ifdef __cplusplus
+}
+#endif
+

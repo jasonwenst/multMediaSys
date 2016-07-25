@@ -1,0 +1,83 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_define.h）
+/// brief
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_DEFINE_H___
+#define __SRM_DEFINE_H___
+
+#include "srm_util.h"
+#include "dbe2_lock.h"
+
+namespace MDbe
+{
+typedef enum
+{
+	NRM_NO_CONNET  = 0,		//NRM未连接
+	NRM_CONNECTED  = 1,		//NRM已连接	
+}NRM_CONNET_STATE;
+
+typedef enum
+{
+	VM_DISABLED               =0,		
+	VM_USABLE                 =1,		
+	VM_RELY_APP_LOADDING      =2,
+	VM_WAIT_MIGRATE           =3,
+	VM_MIGRATING              =4,
+}VM_USABLE_STATE;
+
+typedef AISTD set<int32> CIntSet;
+
+
+template<typename Key,typename RecordMap,typename Record>
+class CObjCache
+{
+public:
+	bool GetRecord(Key objKey,Record& rRecord)
+	{
+		CAutoLock cAutoLock(m_Lock);
+
+		void* pTmp=m_RecordMap.Find(&objKey);
+		if(0!=pTmp)
+		{
+			rRecord=*((Record*)pTmp);
+			return true;
+		}
+		return false;
+	}
+	void SetRecord(Key objKey,Record& rRecord)
+	{
+		CAutoLock cAutoLock(m_Lock);
+		m_RecordMap[objKey]=rRecord;
+	}
+	void DelRecord(Key objKey)
+	{
+		CAutoLock cAutoLock(m_Lock);
+		m_RecordMap.erase(objKey);
+	}
+	void ReturnRecordMap(RecordMap& rRecordMap)
+	{
+		CAutoLock cAutoLock(m_Lock);
+		rRecordMap=m_RecordMap;
+	}
+private:
+	CLock m_Lock;
+	RecordMap m_RecordMap;
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_DEFINE_H___ */

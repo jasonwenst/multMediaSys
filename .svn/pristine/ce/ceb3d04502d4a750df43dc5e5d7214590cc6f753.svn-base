@@ -1,0 +1,253 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_vm_mgr_impl_cpp)
+{
+	//Fuction: CSrmVmMgrImpl :: CSrmVmMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_CSrmVmMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmVmMgrImpl :: CheckDomainAvailable ( int32 iDomainId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_CheckDomainAvailable)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmVmMgrImpl :: CheckVmAvailable ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_CheckVmAvailable)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: RequestAvailableVmList ( CPdcVmList & rVmList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_RequestAvailableVmList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: UpdateVmstate ( int32 iVmId , int32 iVmConnectState , int32 iVmState )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_UpdateVmstate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmVmMgrImpl :: VmConnected ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_VmConnected)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: VmUnconnected ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_VmUnconnected)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: VmUpdateStaticInfo ( int32 iVmId , CPdcVm & rcPdcVm )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_VmUpdateStaticInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: CheckVmHeart ( )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_CheckVmHeart)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: Init ( CMgrInitHelper & cMgrInitHelper )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_Init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: RequestCanUseVmList ( CPdcVmList & rVmList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_RequestCanUseVmList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: VmUnuse ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_VmUnuse)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: DealMigrateProcList ( CRdcProcList & rProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_DealMigrateProcList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: DealWaitVmProclist ( CRdcProcList & rVmProclist )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_DealWaitVmProclist)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: SiftProcList ( CRdcProcList & rMigrateProcList , CRdcProcList & rWaitVmProclist )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_SiftProcList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: SiftStartProcList ( CRdcProcList & rProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_SiftStartProcList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: StartMigrateProc ( int32 iFlowId , CRdcProcList & rProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_StartMigrateProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmVmMgrImpl :: VmMigrate ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_VmMigrate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool EqualProc ( CRdcProc & rcProc , CRdcProcStateRecord & rcProcState )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_EqualProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: GetVmProcByStatus ( CRdcProcList & rProcList , int32 iStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_GetVmProcByStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: GetWaitVmProc ( int32 iVmId , CRdcProcList & rProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_GetWaitVmProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool ProcIsAlive ( int32 iProcState )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_ProcIsAlive)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: ReStartProc ( int32 iFlowId , CRdcProcList & rProcList , int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_ReStartProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: ReStartProcList ( int32 iVmId , CRdcProcList & rProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_ReStartProcList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool SetOperateBaseInfo ( CRdcProcTransOperate & rcProcOperate , int32 iFlowId , int32 iSrvId , int32 iProcId , int32 iVmId , int32 iOperateType )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_SetOperateBaseInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool SmallerProc ( CRdcProc & rcProc , CRdcProcStateRecord & rcProcState )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_SmallerProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void SortProcStateAsc ( CRdcProcStateRecordList & rcProcStateList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_SortProcStateAsc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void SortVmAsc ( CPdcVmList & rcVmList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_SortVmAsc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmMgrImpl :: SyncProcState ( )
+	TEST_FIXTURE(TestFixture,TestCSrmVmMgrImpl_SyncProcState)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: operator() ( const first_argument_type & arg1 , const second_argument_type & arg2 ) const
+	TEST_FIXTURE(TestFixture,TestProcStateSortS2b_operatorOpenParenCloseParen)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: operator() ( const first_argument_type & arg1 , const second_argument_type & arg2 ) const
+	TEST_FIXTURE(TestFixture,TestVmSortS2b_operatorOpenParenCloseParen)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

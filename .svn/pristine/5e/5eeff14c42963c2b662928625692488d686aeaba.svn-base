@@ -1,0 +1,46 @@
+#ifndef _CRON_UTIL_H
+#define _CRON_UTIL_H
+#include "cron_define.h"
+#include "cron_struct.h"
+
+NAMESPACE_OD_CRON_BEGIN
+
+/**
+ * 获取对应类型的最大值
+ */
+int32 GetMaxValue(VALUE_TYPE em);
+
+/**
+ * 整理tmInput
+ */
+void ModifyFormatTime(struct tm &tmInput);
+
+/**
+ * 判断闰年
+ */
+bool JudgeLeapYear(int32 iYear);
+
+/**
+ * 校验第一个字符合法性
+ */
+bool CheckExpressValidity(const char* szExpress);
+
+/**
+ * 获取当前字符,并且指针后移
+ * @return 获取字符，否则返回0
+ */
+char GetCurrentChar(const char** szExpress);
+
+/**
+ * 获取当前数字,并且指针后移
+ * @return 获取数字，否则返回-1
+ */
+int32 GetCurrentNum(const char** szExpress);
+
+//检查源字符，0-9之外字符拷贝到ch中
+char* IsChar(char **pszExpress, char* ch);
+bool IsNumber(char **pszExpress, int32& iNextNum);
+bool IsSpecifiedChar(char **pszExpress, struct tm &tmInput, int32& iNextNum, VALUE_TYPE em);
+
+NAMESPACE_OD_CRON_END
+#endif

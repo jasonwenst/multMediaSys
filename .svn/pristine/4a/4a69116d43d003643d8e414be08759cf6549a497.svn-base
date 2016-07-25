@@ -1,0 +1,195 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_vm_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_VM_MGR_IMPL_H___
+#define __SRM_VM_MGR_IMPL_H___
+
+#define SRM_VM_ID_LOCK_SIZE 100
+
+#include "dbe2_common_struct.h"
+#include "dbe2_typedef.h"
+
+#include "srm_vm_mgr.h"
+#include "msg_dispatch_mgr.h"
+
+
+namespace MDbe
+{
+const static int32 START_WAIT_VM_PROC = 100;
+
+class CVmConfig
+{
+public:
+	CVmConfig()
+	{}   
+	virtual ~CVmConfig()
+	{}   
+
+	READ_CONFIG_BEGIN
+		READ_VALUE2(m_iVmheart, "vm_nonheart_time", 60, NAMESPACE_XML_CONFIG emValueOptional)
+		READ_VALUE2(m_isyncInterval, "proc_sync_interval", 3600, NAMESPACE_XML_CONFIG emValueOptional)
+	READ_CONFIG_END
+
+public:
+	int32 m_iVmheart;
+	int32 m_isyncInterval;
+};
+
+class CSrmVmMgrImpl : public ISrmVmMgr
+{
+protected:
+	CIntTimeMap m_cNextSyncTimeMap;
+	CLock m_cNextSyncTimelock;
+
+    CVmConfig m_cConfig;
+	CSrmVmMgrImpl();
+	friend class ISrmVmMgr;
+
+public:
+    void Init(CMgrInitHelper & cMgrInitHelper);
+public:
+	/**
+	 *检查虚拟机是否可使用
+	 * @return true 可用 false 不可用
+	 */
+	bool CheckVmAvailable(int32 iVmId);
+	/**
+	 * 检查域下有无虚拟机可使用
+	 * @return true 可用 false 不可用
+	 */
+	bool CheckDomainAvailable(int32 iDomainId);
+	/**
+	 * 检查集群下有无虚拟机可使用
+	 * @return true 可用 false 不可用
+	 */
+	bool CheckClusterAvailable(int32 iClusterId);
+	/**
+	 * 请求PDC_VM所有可使用的虚拟机信息
+	 * @出参 rlstVmList
+	 */
+	void RequestAvailableVm(CPdcVmList& rlstVmList);
+	/**
+	 * 更新虚拟机状态 
+	 * @param in  iVmId  iVmConnectState iVmState
+	 */
+	void UpdateVmstate(int32 iVmId,int32 iNrmConnectState,int32 iVmRelyAppState);
+	/**
+	 * 设置nrm连接断开
+	 * @param in  iVmId 虚拟机编号
+	 */
+	void SetNrmNoConnect(int32 iVmId);
+public:
+	/**
+	 * nrm注册逻辑
+	 * @param in  rcPdcVm  
+	 */
+	bool HandleNrmRegister(SSrmNrmRegister& rNrmRegister);
+	/**
+	 * 检查nrm心跳   
+	 */
+	void CheckNrmHeart();
+	/**
+	 * 虚拟机依赖服务启动回调函数
+	 * @param in  iVmId  
+	 * @param in  bResult
+	 */
+	void VmRelyCallBack(int32 iVmId,int32 bResult,int32 iTransId,aistring strErrorMsg="");
+	/**
+     * 对外接口
+	 * 同步主机进程
+	 */
+    void SyncVmProc(int32 iVmId);
+private:
+	/**
+	* 更新虚拟机信息及虚拟机轨迹
+	*/
+	void UpdateVmInfoAndLog(CPdcVm& rcPdcVm);
+	/**
+	 * 更新虚拟机静态信息
+	 */
+	void UpdateVmStaticInfo(SBaseVmStaticInfo& VmStaticInfo);
+	void UpdateVmProcInfo(int32 iVmId,SBaseProcUpdStatusList& rlstProcUpStatus);
+	/**
+     * 对内接口
+	 * 处理无心跳及等待迁移进程的虚拟机
+	 */
+	void HandleNoHeartVm(int32 iVmId);
+	bool MigrateVmProc(int32 iVmId);
+	/**
+	 * 选择要迁移的进程与要删除的进程
+	 * 
+	*/
+	void FilterMigAndDelProc(CRdcProcList& rAllProcList,CRdcProcList& rMigrateProcList,CRdcProcList& rFailProcList);
+	/**
+     * 对内接口
+	 * rMigrateProcList 无主备的需要迁移的进程
+	 * rWaitVmProclist  指定主机,域无效,依赖服务不用迁移
+	 * rStandbyProclist 存放主备机有一个可部署的进程列表
+	 */
+	void ScreeningMigrateProc(CRdcProcList&rMigrateProcList,CRdcProcList& rWaitVmProclist,CRdcProcList& rStandbyProclist);
+	/**
+     * 对内接口
+	 * 设置进程为等待虚拟机启动状态 
+	 */
+	void DealWaitVmProc(CRdcProcList& rWaitVmProclist);
+		 /**
+     * 对内接口
+	 * rMigrateProcList 迁移的进程列表
+	 * iMigType 1 主备机 0 无主备机
+	 */
+	void DealMigrateProc(int32 iMigType,aistring& strFlag,CInt32Set& rTransSet,CRdcProcList&rProcList);
+	 /**
+     * 对内接口
+	 * iFlowId 迁移的流程无主备
+	 * rProcList 无主备
+	 */
+	void StartMigrateProc(int32 iAppId,CRdcProcList& rProcList,aistring& strFlag,CInt32Set& rTransSet);
+	 /**
+     * 对内接口
+	 * iFlowId 迁移的流程有主备
+	 * rProcList 有主备
+	 */
+	void StartStandbyProc(int32 iAppId,CRdcProcList& rProcList,aistring& strFlag,CInt32Set& rTransSet);
+	/**
+     * 迁移中删除启动失败的进程
+	 */
+	void DelFailProc(CRdcProcList& rProcList);
+	 /**
+     * 对内接口
+	 * iClusterId 集群id
+	 * rAppList app信息
+	 */
+	void GetRelyAppList(int32 iClusterId,CRdcAppList& rAppList);
+	void PartitionRelyProc(int32 iVmId,CRdcAppList& rRelyAppList,CRdcProcList & rExistXcProcList);
+	void BringUpVmRelyApp(int32 iVmId,CPdcClusterVmRelationList& rClusterVmRelationList);
+	void StartVmRelySrv(int32 iVmId,CRdcAppList& rRelyAppList,CRdcProcList & rExistXcProcList);
+	//同步
+	/**
+     * 事务操作提交事务
+	 */
+	int32 MakeSyncStartTrans(int32 iVmId,CRdcProcTransOperateList& rcStartOperateList);
+	int32 MakeSyncForceStopTrans(int32 iVmId,CRdcProcTransOperateList& rcStopOperateList);
+private:
+	CLock m_vmIdLock[SRM_VM_ID_LOCK_SIZE];
+
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_VM_MGR_IMPL_H___ */

@@ -1,0 +1,205 @@
+#include <unittest_cp_dbe2_msg_dispatch_main.h>
+
+SUITE(SUITE_dispatch_frame_cpp)
+{
+	//Fuction: CMsgDispatchThread :: ~ CMsgDispatchThread ( )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgDispatchThread :: CMsgDispatchThread ( ) : m_pcMsgHelper ( 0 )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_CMsgDispatchThread)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgDispatchThread :: DealInsideMsg ( CSendSource & cSendSource , CSendTarget & cSendTarget , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_DealInsideMsg)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CMsgDispatchThread :: InsertRecvTimerMsg ( int32 iMsg )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_InsertRecvTimerMsg)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CMsgDispatchThread :: ParserNotify ( od_frame :: CCommData * pCommData , MDbe :: CRouteData & rRouteData , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_ParserNotify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CMsgDispatchThread :: ProcDisconnect ( od_frame :: CCommData * pCommData )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_ProcDisconnect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CMsgDispatchThread :: ProcLogin ( od_frame :: CCommData * pCommData )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_ProcLogin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CMsgDispatchThread :: RemoveRecvTimerMsg ( int32 iMsg )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_RemoveRecvTimerMsg)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CMsgDispatchThread :: ResponseProcLogin ( od_frame :: CCommData * pCommData )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_ResponseProcLogin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgDispatchThread :: SetSourceMsgAddr ( CRouteData & rRouteData , CSendSource & cSendSource , CSendTarget & cSendTarget )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_SetSourceMsgAddr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: od_frame :: CThread * create_dispatchInstance ( )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_create_dispatchInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CMsgDispatchThread :: destroy ( )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_destroy)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CMsgDispatchThread :: init ( )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CMsgDispatchThread :: run ( od_frame :: CData * p )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_run)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CMsgDispatchThread :: stop ( )
+	TEST_FIXTURE(TestFixture,TestCMsgDispatchThread_stop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CCommunicateApiPool :: AddPool ( CCommunicateApi * pCommunicateApi )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiPool_AddPool)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CCommunicateApiPool :: CCommunicateApiPool ( )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiPool_CCommunicateApiPool)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CCommunicateApiPool :: Close ( CCommunicateApi * pCommunicateApi )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiPool_Close)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CCommunicateApiPool :: ReleaseExpire ( )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiPool_ReleaseExpire)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CCommunicateApiPool :: SetExpireSec ( int32 iExpireSec )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiPool_SetExpireSec)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CCommunicateApiExpirePool :: AddPool ( CCommunicateApi * pCommunicateApi )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiExpirePool_AddPool)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CCommunicateApiExpirePool :: CCommunicateApiExpirePool ( )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiExpirePool_CCommunicateApiExpirePool)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CCommunicateApiExpirePool :: Close ( CCommunicateApi * pCommunicateApi )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiExpirePool_Close)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CCommunicateApiExpirePool :: ReleaseExpire ( )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiExpirePool_ReleaseExpire)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CCommunicateApiExpirePool :: SetExpireSec ( int32 iExpireSec )
+	TEST_FIXTURE(TestFixture,TestCCommunicateApiExpirePool_SetExpireSec)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

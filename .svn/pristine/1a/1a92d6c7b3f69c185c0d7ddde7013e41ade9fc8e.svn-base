@@ -1,0 +1,32 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_vm_mgr.cpp）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "srm_vm_mgr.h"
+#include "srm_vm_mgr_impl.h"
+
+namespace MDbe
+{
+
+	ISrmVmMgr & ISrmVmMgr::GetInstance()
+	{
+		static CSrmVmMgrImpl cMgr;
+		return cMgr;
+	}
+
+} // namespace MDbe

@@ -1,0 +1,124 @@
+/* $Id: srm_job_mgr.h 382292 2013-11-18 10:28:28Z hupj $  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_job_mgr.h）
+/// brief	 
+///				JOB类管理接口
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_JOB_MGR_H___
+#define __SRM_JOB_MGR_H___
+
+#include "dbe2_base_mgr.h"
+#include "dbe_base_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include "dbe2_log.h"
+
+namespace MDbe
+{
+
+typedef enum
+{
+	STOP_JOB = 0,
+	START_JOB = 1,
+	PAUSE_JOB = 2,
+	CONTINUE_JOB = 3,
+	FORCE_STOP_JOB = 4,
+	START_REMOVED_STEP = 5,
+} JOB_OPERATE_TYPE;
+
+typedef enum
+{
+	STOP_JOB_APP = 0,
+	START_JOB_APP = 1,
+	FORCE_STOP_JOB_APP = 2,
+	REPAIR_JOB_APP = 3,
+} JOB_APP_OPERATE_TYPE;
+
+typedef enum
+{
+	STEP_NOMAL = 0,
+	STEP_BREAK = 1,
+	STEP_REMOVED = 2,
+} SETP_BREAK_TYPE;
+
+/**
+ * JOB类管理接口
+ */
+class ISrmJobMgr : public IBaseMgr
+{
+public:
+
+	/**
+	 * 获取管理类的实例
+	 * @return 返回实例
+	 */
+	static ISrmJobMgr & GetInstance();
+	/**
+	 * 定时启动job
+	 */
+	virtual void JobScheduleProcess() = 0;
+	/**
+	 * 启动任务
+	 * @
+	 */
+	virtual void StartJob(int32 iJobId) = 0;
+	/**
+	 * 停止任务
+	 * @
+	 */
+	virtual void StopJob(int32 iJobId) = 0;
+	/**
+	 * 强停任务
+	 * @
+	 */
+	virtual void ForceJob(int32 iJobId) = 0;
+	/**
+	 * 暂停任务
+	 * @
+	 */
+	virtual void PauseJob(SJobContrlInfo& rcJobCtrlInfo) = 0;
+	/**
+	 * 继续任务
+	 * @
+	 */
+	virtual void ContinueJob(SJobContrlInfo& rcJobCtrlInfo) = 0;
+	/**
+	 * 执行被移除的step
+	 * @
+	 */
+	virtual void StartRemovedStep(SJobContrlInfo& rcJobCtrlInfo) = 0;
+	/**
+	 * 流程启动回调
+	 * @
+	 */
+	virtual void AppStartCallback(SSrmExeCallBack & rExeSCallBack) = 0;
+	/**
+	 * 流程结束回调
+	 * @
+	 */
+	virtual void AppEndCallback(SSrmExeCallBack & rExeSCallBack) = 0;
+
+	/*
+	 * 单流程启停接口
+	 */
+	virtual void AppOperate(SJobAppContrlInfoList &rJobAppOperateList) = 0;
+
+    /*
+	 * 流程异常回调
+	 */
+	virtual void AppExcptionCallback(SSrmExeCallBack & rExeSCallBack) = 0;
+};
+
+} // namespace MDbe
+
+#endif /* __SRM_JOB_MGR_H___ */

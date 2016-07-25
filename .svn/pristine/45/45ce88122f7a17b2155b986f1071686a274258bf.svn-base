@@ -1,0 +1,32 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_nr_mgr.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-7）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "nrm_nr_mgr_impl.h"
+
+namespace MDbe
+{
+
+INrmNrMgr & INrmNrMgr::GetInstance()
+{
+	static CNrmNrMgrImpl cMgr;
+	return cMgr;
+}
+
+} // namespace MDbe
+

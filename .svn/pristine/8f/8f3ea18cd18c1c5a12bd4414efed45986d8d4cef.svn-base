@@ -1,0 +1,427 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：msg_dispatch_mgr.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-14）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __MSG_DISPATCH_MGR_H___
+#define __MSG_DISPATCH_MGR_H___
+
+
+#include "dbe2_typedef.h"
+#include "public/common/sdlbuffer/obb_stream.h"
+#include "public/odframe/dbe_public.h"
+#include "public/odframe/frame_interface.h"
+#include "dbe2_base_mgr.h"
+#include "dbe2_common_struct.h"
+#include "dbe2_lock.h"
+#include "msg_dispatch_error_code.h"
+
+
+#define DBE2_MSG_PROCESS_FUNCTION_NAME "____getMsgProcessByMsgType"
+#define DBE2_ALL_MGR_FUNCTION_NAME "____ctlAllMgr"
+
+//开始管理器注册
+#define DBE2_ALL_MGR_BEGIN \
+extern "C" void ____ctlAllMgr(bool isInit, CMgrInitHelper & cMgrInitHelper) \
+{
+
+
+//结束管理器注册
+#define DBE2_ALL_MGR_END \
+}
+
+//注册一个管理器
+#define DBE2_ALL_MGR_REGISGER(mgr) \
+		if(isInit == true) \
+		{ \
+			mgr::GetInstance().Init(cMgrInitHelper); \
+		} \
+		else \
+		{ \
+			mgr::GetInstance().Destroy(); \
+		}
+
+//开始注册消息
+#define DBE2_MSG_PROCESS_BEGIN \
+extern "C" MDbe::IMsgProcess * ____getMsgProcessByMsgType(int64 iMsgType) \
+{
+
+//结束注册消息
+#define DBE2_MSG_PROCESS_END \
+	return NULL; \
+}
+
+//注册一个消息
+#define DBE2_MSG_PROCESS_REGISGER(msg_type, msg_process_class) \
+do	\
+{ \
+	if(iMsgType == msg_type) \
+	{ \
+		msg_process_class * c = new msg_process_class(); \
+		return c; \
+	} \
+} \
+while(0);
+
+//注册连续的多个消息(包括start,end)
+#define DBE2_MSG_PROCESS_REGISGER_MULTI(start_msg_type, end_msg_type, msg_process_class) \
+do	\
+{ \
+	if(iMsgType >= start_msg_type && iMsgType <= end_msg_type) \
+	{ \
+		msg_process_class * c = new msg_process_class(); \
+		return c; \
+	} \
+} \
+while(0);
+
+
+/**
+ * 在LIB库里面写注册一个处理消息
+ * DBE2_MSG_PROCESS_BEGIN
+ * DBE2_MSG_PROCESS_REGISGER(1001, CMsgProcessA)
+ * DBE2_MSG_PROCESS_REGISGER(1002, CMsgProcessB)
+ * DBE2_MSG_PROCESS_END
+ * 注册管理器
+ * DBE2_ALL_MGR_BEGIN
+ * DBE2_ALL_MGR_REGISGER(CTestAMgr)
+ * DBE2_ALL_MGR_REGISGER(CTestBMgr)
+ * DBE2_ALL_MGR_END
+ */
+
+namespace MDbe
+{
+
+/**
+ * 地址信息
+ */
+class CMsgAddr
+{
+public:
+	CMsgAddr(int32 iFlowId, int32 iSrvId, int32 iProcId, int32 iVmId, int32 iSrvType):
+		m_iFlowId(iFlowId), m_iSrvId(iSrvId), m_iProcId(iProcId), m_iVmId(iVmId),
+		m_iSrvType(iSrvType)
+	{
+
+	}
+    CMsgAddr()
+    {
+        m_iFlowId = 0;
+        m_iSrvId = 0;
+        m_iProcId = 0;
+        m_iVmId = 0;
+        m_iSrvType = 0;
+    }
+
+    bool IsEmpty()
+    {
+        if(m_iFlowId == 0 && m_iSrvId == 0 &&
+                m_iProcId == 0 && m_iVmId == 0 &&
+                m_iSrvType == 0)
+        {
+            return true;
+        }
+        return false;
+    }
+
+	int32 m_iFlowId;
+	int32 m_iSrvId;
+	int32 m_iProcId;
+	int32 m_iVmId;
+	//采用服务类型当做数据路由信息，跟DBE_PROC_TYPE对应
+	int32 m_iSrvType;
+};
+
+/**
+ * 发送目标信息
+ */
+typedef CMsgAddr CSendTarget;
+typedef AISTD vector<CSendTarget/*发送目标信息*/> CSendTargetList;
+
+/**
+ * 发送源信息
+ */
+typedef CMsgAddr CSendSource;
+
+struct CCommunicateApiInfo
+{
+    CCommunicateApi* m_cCommunicateApi;
+    bool m_bServer;
+    CCommunicateApiInfo()
+    {
+        m_cCommunicateApi = NULL;
+        m_bServer = false;
+    }
+};
+
+//通信指针
+typedef AISTD map<CSourceData, CCommunicateApiInfo > CSourceDataCmuApiMap;
+typedef CSourceDataCmuApiMap::iterator CSourceDataCmuApiMapIterator;
+/**
+ * @brief
+ * 消息帮助类
+ * 用于封装odframe的一些公共方法,例如send_data
+ */
+class CMsgHelper
+{
+public:
+	CMsgHelper(od_frame::CThread * pOdThread, bool bDumpSendObbstream);
+
+	~CMsgHelper();
+
+	/**
+	 * 发送一个外部消息
+	 * @param IN 	cSendSource		设置发送源信息
+	 * @param IN    cSendTarget		out_stream,需要发送的目标
+	 * @param IN    iMsgType        消息类型
+	 * @param IN    cObbStream		需要发送的obb_stream
+	 */
+	void Send(CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cObbStream);
+
+	/**
+	 * 发送一个外部消息
+	 * @param IN    cSendTarget		out_stream,需要发送的目标
+	 * @param IN    iMsgType        消息类型
+	 * @param IN    cObbStream		需要发送的obb_stream
+	 */
+	void Send(CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cObbStream);
+
+	/**
+	 * 发送一个内部消息
+	 * @param IN    iMsgType    消息类型
+	 * @param IN    cObbStream  需要发送的obb_stream
+	 * @param IN    bMyself     是否发给自己模块
+	 */
+	void Send(int32 iMsgType, obb_stream & cObbStream, bool bMyself = true);
+
+protected:
+	od_frame::CThread * m_pOdThread;
+	bool m_bDumpSendObbstream;
+private:
+	/**
+	 * 获取通信指针
+	 * @param IN    rSourceData             进程prockey
+	 * @param OUT   rSourceDataCmuApiMap    可用通信指针列表
+	 */
+    void GetSocket(const MDbe:: CSourceData& rSourceData, CSourceDataCmuApiMap& rSourceDataCmuApiMap);
+
+
+	/**
+	 * 获取通信指针
+	 * @param IN    rSourceData		进程prockey
+	 * @param IN    pCommunicateApi	通信指针
+	 * @param IN    bServer	        是否是服务器通信指针
+	 * @return 成功：0 失败：非0
+	 */
+    int32 SetSocket(CSourceData& rSourceData, CCommunicateApi* pCommunicateApi, bool bServer);
+
+	/**
+	 * 连接通知
+	 * @param IN    pCommunicateApi         通信进程指针
+	 * @return      CMsgAddr    连接的远端信息
+	 */
+    CMsgAddr Connect(CCommunicateApi* pCommunicateApi);
+
+
+    /**
+     * 删除通讯指针
+     * @param IN    pCommunicateApi         通信进程指针
+     * @return      CMsgAddr    连接的远端信息
+     */
+    CMsgAddr Delete(CCommunicateApi * pCommunicateApi);
+
+
+	/**
+	 * 断开通知
+	 * @param IN    pCommunicateApi         通信进程指针
+	 * @return      CMsgAddr    连接的远端信息
+	 */
+    CMsgAddr Disconnect(CCommunicateApi* pCommunicateApi);
+
+    /**
+     * 发送内部消息,例如151,152用
+     * @param IN    rSendTarget           目标
+     *             pCommunicateApi        通讯指针
+     *             iMsgType               消息类型
+     */
+    void SendIntraMsg(CSendTarget & rSendTarget, CCommunicateApi* pCommunicateApi, int32 iMsgType);
+
+	void _GetSocket(const MDbe:: CSourceData& rcReqSourceData, CSourceDataCmuApiMap& rSourceDataCmuApiMap);
+
+	/**
+	 * 设置消息路由
+	 * @param IN    cSendSource	发送源
+	 * @param IN    cSendTarget	发送目标
+	 * @param OUT   rRouteData	路由结构
+	 * @return NULL
+	 */
+    void SetRouteData(CSendSource & cSendSource, CSendTarget & cSendTarget, CRouteData & rRouteData);
+
+	/**
+	 * 设置CNotify消息头
+	 * @param IN    cSendSource		发送源
+	 * @param IN    cSendTarget		out_stream,需要发送的目标
+	 * @param IN    iMsgType        消息类型
+	 * @param IN	isFindComuApi	是否查询通讯指针
+	 * @return CCommData 通信结构指针
+	 */
+    od_frame:: CCommData* MakeCNotifyHead(CSendSource & cSendSource, CSendTarget & cSendTarget,
+                int32 iMsgType, bool isFindComuApi);
+    void ObtainSocket(const CSourceData& rcReqSourceData, CSourceDataCmuApiMap& rcSourceDataCmuApiMap,
+    		const CSourceData &rcSourceData, CCommunicateApiInfo & cCmuApi, const char * pFromInfo);
+
+    void GetSocketBySrm(const MDbe:: CSourceData& rcReqSourceData,
+            CSourceDataCmuApiMap& rSourceDataCmuApiMap);
+
+    void GetSocketBySoJob(const MDbe:: CSourceData& rcReqSourceData,
+            CSourceDataCmuApiMap& rSourceDataCmuApiMap);
+
+    void GetSocketByDbm(const MDbe:: CSourceData& rcReqSourceData,
+            CSourceDataCmuApiMap& rSourceDataCmuApiMap);
+
+    void GetSocketByTs(const MDbe:: CSourceData& rcReqSourceData,
+            CSourceDataCmuApiMap& rSourceDataCmuApiMap);
+
+    void GetSocketByProckey(const MDbe:: CSourceData& rcReqSourceData,
+            CSourceDataCmuApiMap& rSourceDataCmuApiMap);
+
+    void GetSocketByVm(const MDbe:: CSourceData& rcReqSourceData,
+            CSourceDataCmuApiMap& rSourceDataCmuApiMap);
+
+    /**
+	 * 连接通知
+	 * @param IN    pCommunicateApi         通信进程指针
+	 * @return      CMsgAddr    连接的远端信息
+	 */
+    CMsgAddr FindSourceByCCommunicateApi(CCommunicateApi* pCommunicateApi, bool isDelete = false);
+
+	/**
+	 * 转换消息源端结构
+	 * @param IN    rSourceData         消息CNotify结构
+	 * @return      CMsgAddr    消息源端内部结构
+	 */
+    CMsgAddr GetSourceMsgAddr(const MDbe:: CSourceData& rSourceData);
+
+    //通信指针列表
+    static CSourceDataCmuApiMap m_cSourceDataCmuApiMap;
+    //锁
+    static CLock m_cLock;
+
+    friend class CMsgDispatchThread;
+};
+
+
+class CMgrInitHelper
+{
+public:
+	CMgrInitHelper(od_frame::CThread * pOdThread);
+
+	~CMgrInitHelper();
+
+	template< typename _T >
+	void ReadConfig(_T& objConfig)
+	{
+		int32 iRet = m_pOdThread->read_config(objConfig);
+		if(iRet != 0)
+		{
+			THROW_CAIEXCEPTION(E_MSG_DISPATCH_MGR_INIT_GET_CONFIG_FAIL, "mgr init read config fail![ret:?]")
+					<< iRet;
+		}
+	}
+	NAMESPACE_XML_CONFIG CDOMLevelMap * GetDomMap()
+	{
+		return m_pOdThread->get_domMap();
+	}
+protected:
+	od_frame::CThread * m_pOdThread;
+};
+
+/**
+ * 消息处理接口类
+ */
+class IMsgProcess
+{
+public:
+	virtual ~IMsgProcess(){}
+
+	/**
+	 * 消息处理接口
+	 * @param cMsgHelper		消息帮助类
+	 * @param cSendSource		发送源信息
+	 * @param cSendTarget		发送目标信息
+	 * @param iMsgType			消息类类型
+	 * @param cInObbStream		请求处理obb_stream,一个obb_stream有可能包含多个SDL结构
+	 * @param cErrorMsg			错误消息
+	 * @exception 消息处理失败
+	 */
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+			int32 iMsgType, obb_stream & cInObbStream) = 0;
+};
+
+typedef IMsgProcess* (*GetMsgProcessByMsgTypeFunc)(int64 iMsgType);
+typedef void (*AllMgrFunc)(bool isInit, CMgrInitHelper & cMgrInitHelper);
+
+
+
+
+/**
+ * 消息处理管理类
+ * 这个类是单例的,通过GetInstance()获取
+ */
+class IMsgDispatchMgr
+{
+public:
+	virtual ~IMsgDispatchMgr(){}
+
+	/**
+	 * 销毁
+	 */
+	virtual void Destroy() = 0;
+
+	/**
+	 * 绑定一个库
+	 * @param strLibName		库名:例如dbe2_test	那么就是绑定libdbe2_testD.sl这个库
+	 * @param cMgrInitHelper	帮助类
+	 * @return	是否成功
+	 * @exception 绑定库失败
+	 */
+	virtual void BindLib(aistring& strLibName, CMgrInitHelper & cMgrInitHelper) = 0;
+
+	/**
+	 * 消息分配
+	 * @param cMsgHelper		消息帮助类
+	 * @param cSendSource		发送源信息
+	 * @param cSendTarget		发送目标信息
+	 * @param iMsgType			消息类类型
+	 * @param cInObbStream		请求处理obb_stream,一个obb_stream有可能包含多个SDL结构
+	 * @exception 分派处理失败
+	 */
+	virtual void Dispatch(CMsgHelper & cMsgHelper, CSendSource & cSendSource,
+			CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream) = 0;
+
+	/**
+	 * 获取消息分派管理类的实例
+	 * @return 返回实例
+	 */
+	static IMsgDispatchMgr & GetInstance();
+};
+
+
+};
+
+
+
+#endif /* __MSG_DISPATCH_MGR_H___ */

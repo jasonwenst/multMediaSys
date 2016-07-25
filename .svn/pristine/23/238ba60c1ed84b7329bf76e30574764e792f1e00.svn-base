@@ -1,0 +1,159 @@
+#ifndef __EPA_INFO_H___
+#define __EPA_INFO_H___
+
+#include "epa_info.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <signal.h>
+#include <stdarg.h>
+
+#include <pthread.h>
+#include <unistd.h>
+
+#define SEPARATOR "="
+
+#define FILE_PERMISSION 0770
+#define DEFAULT_FILE_LEN 1024
+
+namespace epa{
+
+std::string FormatString(const char * format, ...);
+
+class locker  
+{  
+public:  
+    inline locker(){
+		pthread_mutexattr_t attr_;
+        pthread_mutexattr_init(&attr_);
+        pthread_mutexattr_settype(&attr_, PTHREAD_MUTEX_RECURSIVE);
+		pthread_mutex_init(&mutex, &attr_);
+	}  
+
+    inline ~locker(){
+		pthread_mutex_destroy(&mutex);
+	}
+
+    inline void lock(){
+		pthread_mutex_lock(&mutex);
+	}  
+
+    inline void unlock(){
+		pthread_mutex_unlock(&mutex);
+	}
+
+private:  
+    pthread_mutex_t mutex;  
+};
+
+class CAutoLock
+{
+public:
+	CAutoLock(locker &lock):m_lock(lock)
+	{
+		m_lock.lock();
+	}
+
+	~CAutoLock()
+	{
+		m_lock.unlock();
+	}
+
+private:
+	CAutoLock(const CAutoLock &rhs):m_lock(rhs.m_lock)
+	{
+		*this = rhs;
+	}
+
+	CAutoLock &operator=(const CAutoLock & rhs)
+	{
+		return *this;
+	}
+
+private:
+	locker &m_lock;
+};
+
+
+class Epa_Info
+{
+
+public:
+	/*
+	* 获取实例
+ 	* 所有对文件的读取都通过这个单例
+ 	*/
+	static Epa_Info* GetInstance()
+	{
+		if(NULL == m_pInstance)
+		{
+			s_lock.lock();
+			if(NULL == m_pInstance)
+			{
+				m_pInstance = new Epa_Info();
+				m_pInstance->Init();
+			}
+			s_lock.unlock();
+		}
+
+		return m_pInstance;
+	}
+
+private:
+	Epa_Info()
+	{
+		
+	}
+
+	~Epa_Info()
+	{
+
+	}
+
+	Epa_Info(const Epa_Info&);
+	Epa_Info& operator=(const Epa_Info&);
+
+public:
+
+	int Init();
+
+	int SetInitInfo(
+			int iInitValue, 
+			std::string strInitErrorInfo = "");
+
+	int SetStopInfo(
+			int iStopProgress,
+			std::string strStopErrorInfo = "");
+
+	int WriteToFile(const char *szFileName, const char *szFileContent);
+
+	void setPPid()
+	{
+		strPid = FormatString("%s%s%d\n", "pid", SEPARATOR, getppid());
+	}
+
+private:
+	static Epa_Info* m_pInstance;
+
+	std::string m_strFileCfg;
+	
+	std::string m_strRootPath;
+
+	//------ ().info文件参数
+	// pid
+	std::string strPid;
+	// 初始化进度 0 失败 1 成功 2 初始化中
+	int m_iInitValue;
+	// 进程收到kill后的退出程度 100表示完全退出
+	int m_iStopProgress;
+	// 初始化失败信息
+	std::string m_strInitErrorInfo;
+	
+	static locker s_lock;
+};
+	
+
+}
+#endif

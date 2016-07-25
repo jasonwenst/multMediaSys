@@ -1,0 +1,144 @@
+#include "WarnClientFileQueImp.h"
+#include "pubtools.h"
+#include "QueForMutiProc.h"
+using namespace  HW_PUB_TOOLS;
+
+CWarnClientFileQueImp::CWarnClientFileQueImp()
+:m_pQue(NULL)
+{
+}
+
+
+CWarnClientFileQueImp::~CWarnClientFileQueImp()
+{
+	uninit();
+}
+
+int CWarnClientFileQueImp::init()
+{
+	try
+	{
+		CHwTmpLock lock(m_lock);
+		if (m_pQue == NULL)
+		{
+			m_pQue = new CQueForMutiProcWrite();
+			if (m_pQue == NULL)
+				return -2;
+#ifdef _HWWIN_
+			return m_pQue->init("C:/data/warning_file_que/");
+#else
+			std::string sHome = getenv("HOME");
+			sHome += "/warning_file_que/";
+			return m_pQue->init(sHome.c_str());
+#endif
+		}
+		return 0;
+	}
+	catch (...)
+	{
+		return -1;
+	}
+
+	
+}
+
+int CWarnClientFileQueImp::uninit()
+{
+	try
+	{
+		
+		CHwTmpLock lock(m_lock);
+		if (m_pQue)
+		{
+			m_pQue->uninit();
+			delete m_pQue;
+			m_pQue = NULL;
+		}
+		return 0;
+	}
+	catch (...)
+	{
+		return -2;
+	}
+	
+	
+}
+int CWarnClientFileQueImp::doWarning( int jobSeqId, int appId, int procId, const char* appName, const char* warnSpace, int warnCode, const char* warnMsg, const char* warnRemark) 
+{
+	try
+	{
+		int msgType = 1001;//第一类报警消息
+		std::string warnRecord = "";
+		warnRecord += number2String(msgType) + "|";
+		warnRecord += number2String(time(NULL))+ "|";
+		warnRecord += number2String(HW_PUB_TOOLS::getProcessId()) + "|";
+		warnRecord += number2String(jobSeqId) + "|";
+		warnRecord += number2String(appId) + "|";
+		warnRecord += number2String(procId) + "|";
+
+		if (appName != NULL)
+			warnRecord += std::string(appName) + "|";
+		else
+			warnRecord += std::string("") + "|";
+
+		warnRecord += std::string(warnSpace) + "|";
+		warnRecord += number2String(warnCode) + "|";
+		if (warnMsg != NULL)
+			warnRecord += std::string(warnMsg) + "|";
+		else
+			warnRecord += std::string("") + "|";
+
+
+		if (warnRemark != NULL)
+			warnRecord += std::string(warnRemark) + "|";
+		else
+			warnRecord += std::string("") + "|";
+		CHwTmpLock lock(m_lock);
+		if (m_pQue==NULL)//已初始化
+		{
+			return -3;
+		}
+		int res = m_pQue->push(warnRecord.c_str(),m_bLittleMode);
+		
+		//1001|2015-01-23 14:53:15|6300|1|2|3|4|myapp|mywarn|-1|big error|nothing to care|
+#ifdef _DEBUG
+		if(res==0)
+		std::cout << warnRecord << std::endl;
+		else
+		std::cout << "push failed"<< std::endl;
+#endif
+		return res;
+	}
+	catch (...)
+	{
+		return -2;
+	}
+
+}
+
+int CWarnClientFileQueImp::doWarning(const char* formatMsg)
+{
+	try
+	{
+		CHwTmpLock lock(m_lock);
+		if (m_pQue == NULL)//已初始化
+		{
+			return -3;
+		}
+		int res = m_pQue->push(formatMsg,m_bLittleMode);
+
+		//1001|2015-01-23 14:53:15|6300|1|1|1|2|3|4|myapp|mywarn|-1|big error|nothing to care|
+#ifdef _DEBUG
+		if (res == 0)
+			std::cout << formatMsg << std::endl;
+		else
+			std::cout << "push failed" << std::endl;
+#endif
+		return res;
+	}
+	catch (...)
+	{
+		return -2;
+	}
+	
+}

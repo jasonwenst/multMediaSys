@@ -1,0 +1,155 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_communicate_read.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Nov 6, 2012）
+///
+///
+///	修订说明：最初版本
+/////////////////////////////////////////////////////////////////////////
+
+#include "dbe2_communicate_read.h"
+#include "dbe2_base_def.h"
+#include "public/common/communicate/communicate.h"
+#include <communicate_thread.h>
+#include "dbe_frame_def_sdl_c.h"
+#include "dbe2_common_struct.h"
+#include "dbe2_util.h"
+
+
+namespace MDbe
+{
+
+
+int32 CDbe2CommunicateRead::init()
+{
+    return 0;
+}
+
+
+
+int32 CDbe2CommunicateRead::destroy()
+{
+    return 0;
+}
+
+
+
+int32 CDbe2CommunicateRead::stop()
+{
+    return 0;
+}
+
+
+
+int32 CDbe2CommunicateRead::run(od_frame::CData * p)
+{
+    if (p == NULL)
+        return 0;
+
+    CCommunicateConnection * pCommConn = (CCommunicateConnection *)p;
+    CCommunicateApi * pCommunicateApi = pCommConn->m_pCommunicateApi;
+
+    int32 iRet = 0;
+    while ((pCommunicateApi != NULL) && (iRet = pCommunicateApi->wait_recv(0))) // iRet == 0, timeout
+    {
+        if (iRet == -1) 
+        {
+		    DBE2_LOG(ERROR_LOGGER, "recive timeout from %s use %s, return:%d",
+		            pCommunicateApi->get_peer(),
+		            pCommunicateApi->get_local(),
+    				iRet);
+			break;
+		}
+		
+        od_frame::CCommData * pCommData = od_frame::CCommData::alloc();
+        iRet = pCommunicateApi->recv_notify((CNotify &)(*pCommData));
+        pCommData->m_uCommApi.m_pCommunicateApi = pCommunicateApi;
+
+        if (iRet < 0)
+        {
+            //接受失败
+            DBE2_LOG(ERROR_LOGGER, "recive illegal package from %s use %s,"
+                     "socket will be closed. return:%d, errno:%d, errinfo %s",
+                     pCommunicateApi->get_peer(),
+                     pCommunicateApi->get_local(),
+                     iRet,
+                     pCommunicateApi->get_errno(),
+                     pCommunicateApi->get_errorMsg());
+
+            pCommData->TEMPLATE_MEMBER(CNotify) seek<CRouteData>(0, SEEK_SET);
+            //连接断开通知
+            CRouteData *pRouteData = pCommData->TEMPLATE_MEMBER(CNotify) create_object<CRouteData>();
+
+            pCommData->set_type(MDbe:: MSG_COMMON_DISCONNECT/*-11*/);
+            //按新框架组建消息包
+            MDbe::SInsideMessage stSInsideMessage;
+            stSInsideMessage.set_intraMsgType(MDbe:: MSG_COMMON_DISCONNECT/*-11*/);
+            obb_stream out = Sdl2Obbstream(stSInsideMessage);//声明obb_stream
+            aistring strData = "";
+            out.export_data(strData);//导出数据
+            char * pObbBuf = pCommData->TEMPLATE_MEMBER(CNotify) alloc_object<char>(strData.size());
+            memset(pObbBuf, 0x00, strData.size());
+            memcpy(pObbBuf, strData.c_str(), strData.size());//拷贝size长度
+            pCommunicateApi->close();  //关闭异常的通讯链接
+            send_data(pCommData);
+            break;
+        }
+
+        if (pCommData->get_type() > 0)
+        {
+            DBE2_LOG(DEBUG_LOGGER,
+                     "recive data from %s, local %s msg_type:%d successfully!ret:%d",
+                     pCommunicateApi->get_peer(),
+                     pCommunicateApi->get_local(),
+                     pCommData->get_type(), iRet);
+            send_data(pCommData);
+        }
+    }
+    //设置socket 使用状态,如果为1:使用,0:不使用,-1:socket异常
+    pCommConn->m_iUsing = iRet;
+
+
+    return 0;
+}
+
+
+
+CDbe2CommunicateRead::CDbe2CommunicateRead()
+{
+}
+
+
+
+CDbe2CommunicateRead::~CDbe2CommunicateRead()
+{
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+    od_frame::CThread * create_dbeCommunicateRead()
+    {
+        return new CDbe2CommunicateRead();
+    }
+
+#ifdef __cplusplus
+}
+#endif
+
+} // namespace MDbe
+
+
+
+
+
+

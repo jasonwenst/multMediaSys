@@ -1,0 +1,634 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_nr_mgr_impl.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者:louxiao）
+/// date		（文件创建日期，eg：2012-5-7）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "nrm_nr_mgr_impl.h"
+#include "nrm_error_code.h"
+#include "../../nr/nr_api.h"
+#include <parseenv.h>
+#include "nrm_util.h"
+#include "dbe2_util.h"
+#include <unistd.h>
+#include <sys/types.h>
+#include <signal.h>
+
+namespace MDbe
+{
+
+MDbe::CProcKey& ChangeSBaseProcKey2CProcKey(MDbe::CProcKey &rcOutProcKey, SBaseProcKey &rcProcKey)
+{
+    rcOutProcKey.m_iProcId = rcProcKey.procId();
+    rcOutProcKey.m_objSKey.m_iFlowId = BUSINESS_FLOW_ID;
+    rcOutProcKey.m_objSKey.m_iSrvId = rcProcKey.appId();
+    return rcOutProcKey;
+}
+
+bool compare_procKey(const  MDbe::CProcKey& rcProcKey1,const MDbe::CProcKey& rcProcKey2)
+{
+    return (((rcProcKey1.m_objSKey.m_iFlowId == rcProcKey2.m_objSKey.m_iFlowId)
+                && (rcProcKey1.m_objSKey.m_iSrvId == rcProcKey2.m_objSKey.m_iSrvId))
+            && (rcProcKey1.m_iProcId == rcProcKey2.m_iProcId));
+}
+
+CNrmNrMgrImpl::CNrmNrMgrImpl()
+{
+}
+
+CNrmNrMgrImpl::~CNrmNrMgrImpl()
+{
+}
+
+void CNrmNrMgrImpl::GetBaseProcKeyListInNr(std::list<SBaseProcKey> &rcProcKeyList)
+{
+    aistring strProcInNr;
+    CProcKeyVec rProcKeyVec;
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr();
+    pNrApi->ReadAllProcKey(rProcKeyVec);
+    for(CProcKeyVec::iterator it = rProcKeyVec.begin(); it != rProcKeyVec.end(); ++it)
+    {
+		if ( (*it).m_objSKey.m_iFlowId == 0 
+			&& (*it).m_iProcId == 0
+			&& (*it).m_objSKey.m_iSrvId == 0 )
+        {
+            continue;
+        }
+        if((*it).m_objSKey.m_iFlowId == -1)
+        {
+            MDbe:: CProcStat rProcStat;
+            rProcStat.init();
+            rProcStat.m_iCount = 0;
+            int32 iRet = pNrApi->WriteProcStatus((*it), rProcStat);
+            if (0 != iRet)
+            {
+                //THROW_CAIEXCEPTION(DBE2_NRM_NRMGR_PROC_INFO_IS_NULL, "set proc info to nr fail");
+                DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+                continue;
+            }
+        }
+        SBaseProcKey procKey;
+        procKey.set_procId((*it).m_iProcId);
+        procKey.set_appId((*it).m_objSKey.m_iSrvId);
+        rcProcKeyList.push_back(procKey);
+        strProcInNr += FormatString("[pid: %d, prockey: %d-%d]", GetProcPid(procKey),(*it).m_objSKey.m_iSrvId, (*it).m_iProcId);
+    }
+    DBE2_LOG(INFO_LOGGER, "proc in nr -- %s", strProcInNr.c_str());
+}
+
+void CNrmNrMgrImpl::CreateProcInfo(SBaseProcKey & rcProcKey, const aistring &strCmd)
+{
+	CAutoLock cAutoLock(m_cLock);
+    MDbe:: CProcPid procPid;
+    procPid.m_iPid = 0;
+    procPid.m_objSKey.m_iFlowId = BUSINESS_FLOW_ID;
+    procPid.m_objSKey.m_iSrvId = rcProcKey.appId();
+    procPid.m_iProcId = rcProcKey.procId();
+    procPid.m_dbCpuUse = 0;
+    procPid.m_dbMemUse = 0;
+    procPid.m_fNetUse = 0;
+    procPid.m_dbHandleRate = 0;
+    procPid.m_llUpdateTime = 0;
+    procPid.m_iSecModify = 0;
+    MDbe:: CNrApi* pNrApi = MDbe:: CNrApi::CreateNr();
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    if ( 0 != pNrApi->CreateProcNr(cInnerProcKey) )
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_NRMGR_HOLD_NR_FAIL, "hold nr fail, may be disk is full, check the disk usage");
+    }
+}
+
+void CNrmNrMgrImpl::SetProcStatus(SBaseProcKey &rcProcKey, EmNrProcStatus iStatus)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr();
+
+    rProcStat.init();
+    rProcStat.m_emProcStat = (EmNrProcStatus)iStatus;
+    int32 iRet = pNrApi->WriteProcStatus(cInnerProcKey, rProcStat);
+    if (0 != iRet)
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+int32 CNrmNrMgrImpl::GetProcMsgType(SBaseProcKey & rcProcKey)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr();
+    int32 iRet = pNrApi->ReadProcStatus(cInnerProcKey, rProcStat);
+    if (0 != iRet)
+    {
+        DBE2_LOG(TRACE_LOGGER, "get proc info form nr is fail");
+        return 0;
+    }
+    return rProcStat.m_iSrcMsg;
+}
+
+void  CNrmNrMgrImpl::SetProcMsgType(SBaseProcKey & rcProcKey, int32 iMsgType)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr();
+    rProcStat.init();
+    rProcStat.m_iSrcMsg = iMsgType;
+
+    if (0 != pNrApi->WriteProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+// 7004 消息调用
+void CNrmNrMgrImpl::DeleteProcInfo(SBaseProcKey & rcProcKey)
+{
+    MDbe::CProcKey cInnerProcKey;
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr();
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    if(0 != pNrApi->UnholdNr(cInnerProcKey))
+    {
+        DBE2_LOG(INFO_LOGGER, "unhold nr fail [prockey %d-%d]",  rcProcKey.appId(), rcProcKey.procId());
+    }
+}
+
+void CNrmNrMgrImpl::UpdateProcInfo(SBaseProcKey &rcProcKey, SBaseProcUpdStatus & rcProcUpdateInfo)
+{
+    MDbe::CProcPid rProcPid;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr();
+    int32 iRet = pNrApi->ReadProcResoure(cInnerProcKey, rProcPid);
+    if (0 != iRet)
+    {
+        DBE2_LOG(TRACE_LOGGER, "get proc info form nr is fail");
+    }
+    rProcPid.m_dbCpuUse = rcProcUpdateInfo.cpuUse();
+    rProcPid.m_dbMemUse = rcProcUpdateInfo.memUse();
+    rProcPid.m_fNetUse = rcProcUpdateInfo.netUse();
+    rProcPid.m_dbHandleRate = rcProcUpdateInfo.handleRate();
+    rProcPid.m_llUpdateTime = rcProcUpdateInfo.updateTime();
+    rProcPid.m_iSecModify = rcProcUpdateInfo.secModify();
+    MDbe:: CNrApi* _pNrApi =  (MDbe:: CNrApi*)pNrApi;
+    iRet = _pNrApi->WriteProcResoure(cInnerProcKey, rProcPid);
+    if (0 != iRet)
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+    
+}
+
+/**
+ * @brief  判断虚拟机上该进程是否存在
+ *
+ * @param rcProcKey
+ *
+ * @return 
+ * 0  -> nr中存在进程信息，而且进程存在
+ * 1  -> nr中存在进程信息，但是进程不存在
+ * -1 -> nr中不存在该进程信息
+ */
+int32 CNrmNrMgrImpl::IsProcContain(SBaseProcKey &rcProcKey)
+{
+    int32 iPid = GetProcPid(rcProcKey);
+    DBE2_LOG(DEBUG_LOGGER, 
+            "get proc container [procKey:%d-%d, pid:%d]", 
+    		rcProcKey.appId(), 
+            rcProcKey.procId(), iPid);
+    if(iPid > 0 )
+    {
+        if ( !kill(iPid, 0) )
+        {
+            return 0;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+    else if(iPid == -1)
+    {
+    	//nr 中进程不存在
+    	return -1;
+    }
+    return 0;
+}
+
+void CNrmNrMgrImpl::GetVmProcListInfo(SBaseProcUpdStatusList &rcVmInfoList)
+{
+    MDbe::CProcKey zeroProcKey;
+    zeroProcKey.m_iProcId = 0;
+    zeroProcKey.m_objSKey.m_iFlowId = 0;
+    zeroProcKey.m_objSKey.m_iSrvId = 0;
+    MDbe::ProcPidMap rProcPidMap;
+    
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    if(0 != pNrApi->ReadAllProcResource(rProcPidMap))
+    {
+        //TODO fail
+        return ;
+    }
+    for(ProcPidMap::iterator it = rProcPidMap.begin();
+        it != rProcPidMap.end(); ++it)
+    {
+        if(compare_procKey(it->first, zeroProcKey))
+        {
+            continue;
+        }
+        else if ( it->first.m_objSKey.m_iFlowId == -1 ) 
+        {
+            continue;
+        }
+        else
+		{
+            if ( it->first.m_objSKey.m_iFlowId == 0 || it->first.m_objSKey.m_iSrvId == 0 || it->first.m_iProcId == 0 ) 
+            {
+                DBE2_LOG(INFO_LOGGER, "invail proc in nr  [ignore!!!] -- [ prockey--%d-%d-%d] ", it->first.m_objSKey.m_iFlowId, it->first.m_objSKey.m_iSrvId, it->first.m_iProcId);
+                continue;
+            }
+
+            SBaseProcUpdStatus vmInfo;
+            vmInfo.set_cpuUse((double)it->second.m_dbCpuUse);
+            vmInfo.set_memUse((double)it->second.m_dbMemUse);
+            vmInfo.set_netUse((double)it->second.m_fNetUse);
+            vmInfo.set_handleRate(it->second.m_dbHandleRate);
+            vmInfo.set_updateTime(it->second.m_llUpdateTime);
+            vmInfo.set_secModify(it->second.m_iSecModify);
+            vmInfo.baseProcKey().set_procId(it->first.m_iProcId);
+            vmInfo.baseProcKey().set_appId(it->first.m_objSKey.m_iSrvId);
+            DBE2_LOG(INFO_LOGGER, "proc in nr -- [pid--%d prockey--%d-%d] ", it->second.m_iPid,it->first.m_objSKey.m_iSrvId, it->first.m_iProcId);
+            rcVmInfoList.push_back(vmInfo);
+        }
+    }
+}
+
+void CNrmNrMgrImpl::UpdateProcAttr(SBaseProcKey &rcProcKey, CProcAttr & rcProcAttr)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    CNrProcCmd rNrProcCmd;
+    memset(&rNrProcCmd, 0x00, sizeof(rNrProcCmd));
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+	ListNrProcCmd lstNrRecod;
+    //start_cmd
+    snprintf(rNrProcCmd.m_szProcCmd, CMD_MAX_LEN, "%s", rcProcAttr.m_strStartCmd.c_str());
+    snprintf(rNrProcCmd.m_szProcParameter, COMM_MAX_LEN, "%d", rcProcAttr.m_iTimeout);
+	rNrProcCmd.m_emCmdType = EM_NR_PROC_CMD_START;
+    lstNrRecod.push_back(rNrProcCmd);
+    //stop_cmd
+    snprintf(rNrProcCmd.m_szProcParameter, 128, "%d", rcProcAttr.m_iTimeout);
+    snprintf(rNrProcCmd.m_szProcCmd, CMD_MAX_LEN, "%s", rcProcAttr.m_strStopCmd.c_str());
+	rNrProcCmd.m_emCmdType = EM_NR_PROC_CMD_STOP;
+	lstNrRecod.push_back(rNrProcCmd);
+
+    memset(&rNrProcCmd, 0x00, sizeof(rNrProcCmd));
+
+    //forced_stop_cmd
+    snprintf(rNrProcCmd.m_szProcCmd, CMD_MAX_LEN, "%s", rcProcAttr.m_strForcedStopCmd.c_str());
+	rNrProcCmd.m_emCmdType = EM_NR_PROC_CMD_FORCED_STOP;
+	lstNrRecod.push_back(rNrProcCmd);
+
+    //check_cmd
+    snprintf(rNrProcCmd.m_szProcCmd, CMD_MAX_LEN, "%s", rcProcAttr.m_strCheckCmd.c_str());
+	rNrProcCmd.m_emCmdType = EM_NR_PROC_CMD_CHECK;
+	lstNrRecod.push_back(rNrProcCmd);
+
+    //restart_cmd
+    snprintf(rNrProcCmd.m_szProcCmd, CMD_MAX_LEN, "%s", rcProcAttr.m_strRestartCmd.c_str());
+	rNrProcCmd.m_emCmdType = EM_NR_PROC_CMD_RESTART;
+	lstNrRecod.push_back(rNrProcCmd);
+
+	pNrApi->WriteProcCmds(cInnerProcKey, lstNrRecod);
+}
+
+int32 CNrmNrMgrImpl::GetProcPid(SBaseProcKey & rcProcKey)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr();
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+	int32 iPid = -1;
+    pNrApi->ReadPid(cInnerProcKey, iPid);
+    return iPid;
+}
+
+void CNrmNrMgrImpl::SetProcPid(SBaseProcKey & rcProcKey, int32 iPid)
+{
+//    MDbe::CProcPid rProcPid;
+    
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+//    if(0 != pNrApi->ReadProcResoure(cInnerProcKey, rProcPid))
+//    {
+//        return;
+//    }
+//    rProcPid.m_iPid = iPid;
+//    MDbe:: CNrApi* _pNrApi =  (MDbe:: CNrApi*)pNrApi;
+//    _pNrApi->WriteProcResoure(cInnerProcKey, rProcPid);
+    if(0 == pNrApi->WritePid(cInnerProcKey, iPid))
+    {
+        DBE2_LOG(INFO_LOGGER, "set proc pid success, proc %d-%d-%d pid %d",
+              cInnerProcKey.m_objSKey.m_iFlowId,
+              cInnerProcKey.m_objSKey.m_iSrvId,
+              cInnerProcKey.m_iProcId,
+              iPid);
+    }
+}
+
+aistring CNrmNrMgrImpl::GetProcStopCmd(SBaseProcKey & rcProcKey)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    CNrProcCmd rNrProcCmd;
+    memset(&rNrProcCmd, 0, sizeof(rNrProcCmd));
+
+    //stop_cmd
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    pNrApi->ReadProcCmd(cInnerProcKey, rNrProcCmd, EM_NR_PROC_CMD_STOP);
+    return rNrProcCmd.m_szProcCmd;
+}
+
+int CNrmNrMgrImpl::GetProcStartTimeout(SBaseProcKey &rcProcKey)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    CNrProcCmd rNrProcCmd;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    pNrApi->ReadProcCmd(cInnerProcKey, rNrProcCmd, EM_NR_PROC_CMD_START);
+    return atoi(rNrProcCmd.m_szProcParameter);
+}
+
+int CNrmNrMgrImpl::GetProcStopTimeout(SBaseProcKey &rcProcKey)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    CNrProcCmd rNrProcCmd;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    pNrApi->ReadProcCmd(cInnerProcKey, rNrProcCmd, EM_NR_PROC_CMD_STOP);
+    return atoi(rNrProcCmd.m_szProcParameter);
+}
+
+aistring CNrmNrMgrImpl::GetProcRestartCmd(SBaseProcKey & rcProcKey)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    CNrProcCmd rNrProcCmd;
+    memset(&rNrProcCmd, 0, sizeof(rNrProcCmd));
+
+    //stop_cmd
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    pNrApi->ReadProcCmd(cInnerProcKey, rNrProcCmd, EM_NR_PROC_CMD_START/*EM_NR_PROC_CMD_RESTART*/);
+    return rNrProcCmd.m_szProcCmd;
+}
+
+int32 CNrmNrMgrImpl::GetProcRestartCount(SBaseProcKey & rcProcKey)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr();
+
+    if (0 != pNrApi->ReadProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "get proc info form nr is fail");
+        return 0;
+    }
+    return rProcStat.m_iCount;
+}
+
+aistring CNrmNrMgrImpl::GetProcForceStopCmd(SBaseProcKey & rcProcKey)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    CNrProcCmd rNrProcCmd;
+    memset(&rNrProcCmd, 0, sizeof(rNrProcCmd));
+
+    //forced_stop
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    pNrApi->ReadProcCmd(cInnerProcKey, rNrProcCmd, EM_NR_PROC_CMD_FORCED_STOP);
+    return rNrProcCmd.m_szProcCmd;
+}
+
+aistring CNrmNrMgrImpl::GetProcCheckCmd(SBaseProcKey & rcProcKey)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    CNrProcCmd rNrProcCmd;
+    memset(&rNrProcCmd, 0, sizeof(rNrProcCmd));
+
+    //check
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    pNrApi->ReadProcCmd(cInnerProcKey, rNrProcCmd, EM_NR_PROC_CMD_CHECK);
+    return rNrProcCmd.m_szProcCmd;
+}
+
+
+void CNrmNrMgrImpl::SetStopProgress(SBaseProcKey & rcProcKey, int32 iStopProgress)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    rProcStat.init();
+    rProcStat.m_iStopProgress = iStopProgress;
+    if (0 != pNrApi->WriteProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+void CNrmNrMgrImpl::SetLastOperateTime(SBaseProcKey & rcProcKey, int64 lluLastStartOperateTime)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+
+    rProcStat.init();
+    rProcStat.m_lluLastOperateTime = lluLastStartOperateTime;
+    if (0 != pNrApi->WriteProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+void CNrmNrMgrImpl::SetProcStartStatus(SBaseProcKey &rcProcKey)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+
+    rProcStat.init();
+    int64 iTime;
+    GetCurrentTime(iTime);
+    rProcStat.m_iCount = 0;
+    rProcStat.m_lluLastOperateTime = iTime; 
+    rProcStat.m_emProcStat = EM_NR_INIT;
+
+    if (0 != pNrApi->WriteProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+void CNrmNrMgrImpl::SetProcStopStatus(SBaseProcKey &rcProcKey)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+
+    rProcStat.init();
+    int64 iTime;
+    GetCurrentTime(iTime);
+    rProcStat.m_lluLastOperateTime = iTime;
+    rProcStat.m_emProcStat = EM_NR_STOPPING;
+    rProcStat.m_iDataType = 0;
+
+    if (0 != pNrApi->WriteProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+void CNrmNrMgrImpl::SetProcStopStatus(SBaseProcKey &rcProcKey, bool bForce = false)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+
+    rProcStat.init();
+    rProcStat.m_emProcStat = EM_NR_STOPPING;
+    if(bForce)
+    {
+        rProcStat.m_iDataType = 2;
+    }
+    else
+    {
+        rProcStat.m_iDataType = 0;
+    }
+
+    if (0 != pNrApi->WriteProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+void CNrmNrMgrImpl::SetProcTransportStatus(SBaseProcKey &rcProcKey)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+
+    rProcStat.init();
+    rProcStat.m_emProcStat = EM_NR_SEND;
+    if (0 != pNrApi->WriteProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+void CNrmNrMgrImpl::SetProcRestartStatus(SBaseProcKey &rcProcKey)
+{
+    static CLock cLock;
+    CAutoLock cAutoLock(cLock);
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+
+    rProcStat.init();
+    if (0 != pNrApi->ReadProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "get proc info to nr fail");
+    }
+    rProcStat.m_emProcStat = EM_NR_RESTART;
+	if ((rcProcKey.appId()==1)||(rcProcKey.appId()==5))
+	{
+		rProcStat.m_iCount = 0;
+	}
+	else
+	{
+        rProcStat.m_iCount++;
+	}
+
+    if (0 != pNrApi->WriteProcStatus(cInnerProcKey, rProcStat))
+    {
+        DBE2_LOG(TRACE_LOGGER, "set proc info to nr fail");
+    }
+}
+
+int64 CNrmNrMgrImpl::GetLastOperateTime(SBaseProcKey & rcProcKey)
+{
+    MDbe:: CProcStat rProcStat; 
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    if(0 != pNrApi->ReadProcStatus(cInnerProcKey, rProcStat))
+    {
+        return 0;
+    }
+    return rProcStat.m_lluLastOperateTime;
+}
+
+int64 CNrmNrMgrImpl::GetLastUpdateTime(SBaseProcKey & rcProcKey)
+{
+    MDbe:: CProcPid procPid;
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    if(0 != pNrApi->ReadProcResoure(cInnerProcKey, procPid))
+    {
+        return 0;
+    }
+    return procPid.m_llUpdateTime;
+}
+
+int CNrmNrMgrImpl::GetProcStatus(SBaseProcKey & rcProcKey)
+{
+    MDbe:: CProcStat rProcStat;
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    int32 iRet = pNrApi->ReadProcStatus(cInnerProcKey, rProcStat);
+    if (0 != iRet)
+    {
+        return MDbe:: EM_NR_INIT;
+    }
+    return (MDbe::EmNrProcStatus)rProcStat.m_emProcStat;
+}
+
+aistring CNrmNrMgrImpl::GetProcStartCmd(SBaseProcKey &rcProcKey)
+{
+    MDbe::CNrApi* pNrApi = MDbe::CNrApi::CreateNr(); 
+    CNrProcCmd rNrProcCmd;
+    memset(&rNrProcCmd, 0, sizeof(rNrProcCmd));
+
+    //stop_cmd
+    MDbe::CProcKey cInnerProcKey;
+    ChangeSBaseProcKey2CProcKey(cInnerProcKey, rcProcKey);
+    pNrApi->ReadProcCmd(cInnerProcKey, rNrProcCmd, EM_NR_PROC_CMD_START);
+    return rNrProcCmd.m_szProcCmd;
+}
+
+}

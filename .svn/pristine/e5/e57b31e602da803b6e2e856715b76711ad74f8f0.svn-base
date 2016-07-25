@@ -1,0 +1,14 @@
+#!/bin/sh
+# useage: check_ts.sh prockey
+
+ls ./
+#echo "check_ts.sh $prockey $odframpid $shellpid"
+
+#echo "check odfram exit!"
+
+while false
+do
+echo "aaaaaaaaaa"
+done
+
+

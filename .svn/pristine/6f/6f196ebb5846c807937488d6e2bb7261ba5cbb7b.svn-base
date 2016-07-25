@@ -1,0 +1,86 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+/////   COPYRIGHT NOTICE
+/////   Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+/////   All rights reserved.
+/////
+///// file  （本文件的文件名eg：pwrapper_main.cpp）
+///// brief 
+/////
+/////（本文件实现的功能的详述）
+/////
+///// version 1.1   （版本声明）
+///// author        （作者，eg：fanxiaojun） 
+///// date      （文件创建日期，eg：2013-01-07 15:25:58）
+/////
+/////
+/////   修订说明：最初版本
+////////////////////////////////////////////////////////////////////////////
+#include <stdio.h>
+#include <string.h>
+#include <string>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include "compile.h"
+
+/**
+ *
+ * 显示帮助信息
+ *
+ **/
+void Usage()
+{
+    printf("Usage:\n");
+    printf("pwrapper <display name> <program name> [program argvs]\n");
+}
+
+
+/**
+ *
+ * 关闭所有没用的句柄链接
+ *
+ **/
+void CloseFd()
+{
+    int32 iMax = sysconf(_SC_OPEN_MAX);
+    for(int32 i = 3; i <  iMax; ++i)
+    {
+        fcntl(i, F_SETFD, FD_CLOEXEC);
+    }
+}
+
+int32 main(int argc, char **argv)
+{
+    if(argc < 3)
+    {
+        Usage();
+        return 1;
+    }
+
+    CloseFd();
+
+    char * pDisplayName = argv[1];
+    char * pProgramName = argv[2];
+    if(strcmp(pDisplayName, "@") == 0)
+    {
+        pDisplayName = pProgramName;
+    }
+    printf("display name:%s, program name:%s\n", pDisplayName, pProgramName);
+    //切换程序名与显示名的位置
+    argv[2] = pDisplayName;
+        
+    //转变为目标程序
+    int iRet = execvp(pProgramName, &(argv[2]));
+    if(iRet != 0)
+    {
+        printf("program run fail![ret:%d, errno:%d, errstring:%s, program name:%s]\n", 
+            iRet, errno, strerror(errno), pProgramName);
+        exit(127);
+    }
+    return 0;
+}
+
+
+

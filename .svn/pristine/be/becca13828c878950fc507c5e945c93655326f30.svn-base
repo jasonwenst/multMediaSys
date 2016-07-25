@@ -1,0 +1,137 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_msg_process_dbm.h）
+/// brief
+///
+///
+///
+/// version 2.1
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "msg_dispatch_mgr.h"
+
+#ifndef __SRM_MSG_PROCESS_DBM_H__
+#define __SRM_MSG_PROCESS_DBM_H__
+
+namespace MDbe
+{
+/**
+ * 3023(MSG_RSP_JOB_PROGRESS)
+ * DBM手动操作job
+ */
+class CMsgProcess3023 : public IMsgProcess
+{
+public:
+    CMsgProcess3023() {}
+
+    virtual ~CMsgProcess3023() {}
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcess3024 : public IMsgProcess
+{
+public:
+	CMsgProcess3024(){}
+
+	virtual ~CMsgProcess3024(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/*
+ * 4111
+ * 启动/停止/强停应用
+ */
+class CMsgProcess4111 : public IMsgProcess
+{
+public:
+    CMsgProcess4111() {}
+
+    virtual ~CMsgProcess4111() {}
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/*
+ * 4112
+ * 启动/停止/强停进程
+ */
+class CMsgProcess4112 : public IMsgProcess
+{
+public:
+    CMsgProcess4112() {}
+
+    virtual ~CMsgProcess4112() {}
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/*
+ * 4113
+ * 增加APP进程
+ */
+class CMsgProcess4113 : public IMsgProcess
+{
+public:
+    CMsgProcess4113() {}
+
+    virtual ~CMsgProcess4113() {}
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+/*
+ * 4123
+ * 主机同步消息
+ */
+class CMsgProcess4123 : public IMsgProcess
+{
+public:
+    CMsgProcess4123() {}
+
+    virtual ~CMsgProcess4123() {}
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+
+/**
+ * 4116(MSG_DBM_HEART_BEAT)
+ * DBM发送心跳
+ */
+class CMsgProcess4116 : public IMsgProcess
+{
+public:
+    CMsgProcess4116() {}
+
+    virtual ~CMsgProcess4116() {}
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * 4121(MSG_SOFTWARE_UPGRADE)
+ * DBM发出软件更新请求
+ */
+class CMsgProcess4121 : public IMsgProcess
+{
+public:
+	CMsgProcess4121(){}
+
+	virtual ~CMsgProcess4121(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+} // namespace MDbe
+
+#endif /* __SRM_MSG_PROCESS_DBM_H__ */

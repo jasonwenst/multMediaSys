@@ -1,0 +1,78 @@
+#include "nr_common_struct.h"
+#include "util.h"
+#include "base_func.h"
+
+namespace cpf
+{
+CDbeNrConfig g_cDbeNrConfig;
+
+CProcStat::CProcStat():m_emProcStat(EM_NR_INIT)
+{
+}
+
+int32 CProcStat::init()
+{
+	m_emProcStat = EM_NR_END;
+	m_iSrcMsg = -1;
+	m_iCount = -1;
+	m_iDataType = -1;
+	m_lluLastOperateTime = -1;
+	m_iStopProgress = -1;
+	return 0;
+}
+
+aistring CProcStat::TransInfo2Map(MapNrRecord &rNrRecord)
+{
+	aistring strReturn = "";
+	if (EM_NR_END != m_emProcStat)
+	{
+		rNrRecord["emProcStat"] = itoa(m_emProcStat);
+	}
+	if (-1 != m_iCount)
+	{
+		rNrRecord["iCount"] = itoa(m_iCount);
+	}
+	if (-1 != m_iDataType)
+	{
+		rNrRecord["iDataType"] = itoa(m_iDataType);
+	}
+	if (-1 != m_iSrcMsg)
+	{
+		rNrRecord["iSrcMsg"] = itoa(m_iSrcMsg);
+	}
+	if (-1 != m_iStopProgress)
+	{
+		rNrRecord["iStopProgress"] = itoa(m_iStopProgress);
+	}
+	if (-1 != m_lluLastOperateTime)
+	{
+		rNrRecord["lluLastOperateTime"] = itoa(m_lluLastOperateTime);
+	}
+
+	MapNrRecord::iterator itNr;
+	for (itNr = rNrRecord.begin(); itNr != rNrRecord.end(); ++itNr)
+	{
+		strReturn += FormatString("%s%s%s\n", itNr->first.c_str(), SEPARATOR,
+			itNr->second.c_str());
+	}
+	strReturn += '\n';
+	return strReturn;
+}
+
+CProcStat::~CProcStat()
+{
+}
+
+CProcStat& CProcStat::operator=(const CProcStat& rProcStat)
+{
+	if(this == &rProcStat) return *this;
+	m_emProcStat = rProcStat.m_emProcStat;
+	m_iSrcMsg = rProcStat.m_iSrcMsg;
+	m_iDataType = rProcStat.m_iDataType;
+	m_iCount = rProcStat.m_iCount;
+	m_lluLastOperateTime = rProcStat.m_lluLastOperateTime;
+	m_iStopProgress = rProcStat.m_iStopProgress;
+	return *this;
+}
+
+}

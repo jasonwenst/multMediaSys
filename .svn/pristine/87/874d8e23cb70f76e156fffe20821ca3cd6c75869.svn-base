@@ -1,0 +1,147 @@
+#pragma  once
+#include <stdio.h>
+#include <string>
+#include <memory>
+//#include <mutex>
+#include <time.h>
+//#ifdef _WIN32
+//const std::string  
+//#endif
+//#ifdef _UNIX
+//#endif
+//#ifdef _LINUX
+//#endif
+//huwei 2014-12-15 
+//公共辅助函数文件
+//struct aa
+//{
+//	int bb;
+//};
+// 取结构体成员位移
+#define MyStructOf(aa,bb)  ((long)((char*)(&(((aa*)(0))->bb)))) 
+
+//typedef  std::unique_lock<std::mutex> MyTmpLock;
+namespace HW_PUB_TOOLS
+{
+	//从文件中读取制定字节的内容
+	int readMax(FILE* fd, char* buf, int len);
+	//向文件中写入指定字节的内容
+	int writeMax(FILE* fd,const  char* buf, int len);
+
+	bool isFileExist(const char* fileName);
+
+	bool mkdir_fromFileName(const char *cszPathFile);
+
+	bool createFile(const char* fileName);
+
+	bool deleteFile(const char* fileName);
+	bool is_file(const char *path);
+
+	long long getFileSize(const char* fileName);
+
+	bool isProcessExist(int pid);
+
+	char system_endian();
+	std::string number2String(long long num);
+	std::string getTime();
+	int getProcessId();
+	void mysleep(int n);
+}
+
+
+
+
+class CAutoCloseFile
+{
+public:
+	CAutoCloseFile(const char* fileName,const char* mode);
+	operator  FILE* ()
+	{
+		return m_fd;
+	}
+	~CAutoCloseFile()
+	{
+		close();
+	}
+	void close()
+	{
+		if (m_fd != NULL)
+		{
+			fclose(m_fd);
+			m_fd = NULL;
+		}
+	}
+private:
+	FILE* m_fd;
+}; 
+
+template <class T>
+class CAutoSetToBackup
+{
+public:
+	CAutoSetToBackup(T& n):
+	now(n),
+	bResetToOld(true)
+	{
+		back = n;
+	}
+	~CAutoSetToBackup()
+	{
+		if (bResetToOld)
+		{
+			now = back;
+		}
+	}
+	void disable()
+	{
+		bResetToOld = false;
+	}
+
+	void enable()
+	{
+		bResetToOld = true;
+	}
+private:
+	T back;
+	T& now;
+	bool bResetToOld;
+};
+
+
+
+template<class T>
+class CMyAutoLock
+{
+public:
+	CMyAutoLock(T* t) :
+		m_t(t)
+	{
+		m_t->lock();
+	}
+
+	~CMyAutoLock()
+	{
+		m_t->unlock();
+	}
+private:
+	T* m_t;
+
+};
+
+
+
+struct CAutoPrintCostTime
+{
+	time_t t;
+	CAutoPrintCostTime()
+	{
+		t = time(NULL);
+	}
+	void operator()(const char* s)
+	{
+		time_t t2 = time(NULL);
+		printf("%s : %d s\n", s, (int)(t2 - t));
+		t = t2;
+	}
+
+};

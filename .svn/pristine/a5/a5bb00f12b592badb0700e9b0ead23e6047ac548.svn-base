@@ -1,0 +1,125 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___msg_process_srm_msg_process_dbe_cpp)
+{
+	//Fuction: void CMsgProcess3001 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3001_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3002 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3002_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3003 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3003_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3004 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3004_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3005 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3005_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3006 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3006_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3007 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3007_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3008 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3008_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3010 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3010_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3016 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3016_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3021 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3021_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess3025 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess3025_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess6102 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess6102_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcessTransmitDbm :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , CSendTarget & cSendTarget , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcessTransmitDbm_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgProcess5201 :: Process ( CMsgHelper & cMsgHelper , CSendSource & cSendSource , CSendTarget & cSendTarget , int32 iMsgType , obb_stream & cInObbStream )
+	TEST_FIXTURE(TestFixture,TestCMsgProcess5201_Process)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

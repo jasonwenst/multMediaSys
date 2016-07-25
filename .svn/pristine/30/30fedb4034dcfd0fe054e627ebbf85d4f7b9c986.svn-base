@@ -1,0 +1,49 @@
+#include "rdc_table_def.sdl"
+#include "dbe_base_def.sdl"
+
+module MDbe
+{
+	struct SRdcCreateTrans
+    {
+        MDbe::CRdcProcTransOperateList proc_operate_list;               // 事务创建事务操作
+        MDbe::CRdcProcTrans proc_trans;                                 // 事务创建事务
+    }
+    list vector<SRdcCreateTrans> SRdcCreateTransList;
+
+	//自定义表PDC_SCRITPS SDL  
+	struct SPdcScritps 
+	{
+		int32  script_id;
+		string script_name;
+		string scritp_content;
+	};
+    list vector<SPdcScritps> SPdcScritpsList;
+    
+    //部署App信息
+    struct SDeployToLuaSrvInfo {
+		int32 app_id;
+		int32 proc_num;				//最小进程数
+		int32 cluster_id;			//部署的集群id
+	};
+	list vector<SDeployToLuaSrvInfo> SDeployToLuaSrvInfoList;
+	    	
+	//部署虚拟机信息
+	struct SToLuaVmInfo {
+		int32 cluster_id;									//需要部署的集群
+		MDbe::CRdcVmStateRecordList vm_state_record_list;	//此集群下面的虚拟机信息列表
+	};
+	list vector<SToLuaVmInfo> SToLuaVmInfoList;
+	
+	//lua 返回sdl结构存储
+	struct SLuaReturnProcInfo {
+		int32 vm_id;
+		int32 app_id;
+		int32 proc_id;
+	};
+	list vector<SLuaReturnProcInfo> SLuaReturnProcInfoList;
+
+
+
+	map aimap<int32,MDbe::CRdcVmStateRecord> CRdcVmStateRecordMap;
+	map aimap<int32,MDbe::CRdcProcStateRecordList> CRdcProcStateRecordListMap;
+}

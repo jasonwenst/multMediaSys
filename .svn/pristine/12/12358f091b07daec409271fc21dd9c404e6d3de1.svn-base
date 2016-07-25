@@ -1,0 +1,78 @@
+//////////////////////////////////////////////////////////////////////////  								
+///	COPYRIGHT NOTICE  							
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）  							
+///	All rights reserved.
+///  
+/// \file	corn_tiem.h
+/// \brief	cron 表达式中，每项的具体类
+/// 
+///  cron 表达式中，每项的具体类，重载基础类的方法，实现具体的业务逻辑
+///
+/// \version 1.0
+/// \author		jinxin2
+/// \date		2011-11-21
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#ifndef _CRON_ITEM_H
+#define _CRON_ITEM_H
+#include "cron_define.h"
+#include "cron_base.h"
+
+NAMESPACE_OD_CRON_BEGIN
+
+#define DECLARE_CRON_OBJ_BEGIN(classname) \
+class  classname: public CCronItem \
+{ \
+public: \
+	classname() \
+	{ \
+	} \
+\
+	virtual ~classname() \
+	{ \
+	} \
+
+#define DECLARE_CRON_OBJ_END \
+}; //classname
+
+
+DECLARE_CRON_OBJ_BEGIN(CCronSec)
+	virtual int32 GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance);
+DECLARE_CRON_OBJ_END
+
+DECLARE_CRON_OBJ_BEGIN(CCronMin)
+	virtual int32 GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance);
+DECLARE_CRON_OBJ_END
+
+DECLARE_CRON_OBJ_BEGIN(CCronHour)
+	virtual int32 GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance);
+DECLARE_CRON_OBJ_END
+
+DECLARE_CRON_OBJ_BEGIN(CCronDay)
+	int32 ModifyTime(struct tm &tmInput);
+	virtual int32 GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance);
+	int32 m_iMonth;
+	virtual int32 SeekBegin(struct tm &tmNextTime);
+	virtual int32 SeekEnd(struct tm &tmNextTime);
+DECLARE_CRON_OBJ_END
+
+DECLARE_CRON_OBJ_BEGIN(CCronMonth)
+	virtual int32 GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance);
+DECLARE_CRON_OBJ_END
+
+DECLARE_CRON_OBJ_BEGIN(CCronYear)
+	virtual int32 GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance);
+DECLARE_CRON_OBJ_END
+
+DECLARE_CRON_OBJ_BEGIN(CCronWeek)
+	int32 ModifyTime(struct tm &tmInput);
+	virtual int32 GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance);
+	virtual int32 SeekBegin(struct tm &tmNextTime);
+	virtual int32 SeekEnd(struct tm &tmNextTime);
+DECLARE_CRON_OBJ_END
+
+NAMESPACE_OD_CRON_END
+
+#endif

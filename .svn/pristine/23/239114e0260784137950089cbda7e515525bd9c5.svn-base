@@ -1,0 +1,47 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_forward_mgr.h）
+/// brief
+///				消息转发管理器
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-7）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __NRM_FORWARD_MGR_H___
+#define __NRM_FORWARD_MGR_H___
+
+
+#include "dbe2_base_mgr.h"
+
+namespace MDbe
+{
+
+/**
+ * 消息转发管理器
+ */
+class INrmForwardMgr : public IBaseMgr
+{
+public:
+    /**
+     * 获取管理类的实例
+     * @return 返回实例
+     */
+    static INrmForwardMgr & GetInstance();
+
+    virtual void MsgForward(SNrmConfirmRecv & rcNrmConfirmRecv) = 0;
+};
+
+} // namespace MDbe
+
+
+
+#endif /* __NRM_FORWARD_MGR_H___ */

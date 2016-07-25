@@ -1,0 +1,155 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_proc_trans_mgr.h）
+/// brief	 
+///				进程事务管理类接口
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_PROC_TRANS_MGR_H___
+#define __SRM_PROC_TRANS_MGR_H___
+
+#include "dbe2_base_mgr.h"
+#include "rdc_table_def_sdl_c.h"
+
+// 包含的sdl
+#include "dbe_base_def_sdl_c.h"
+#include "rdc_def_sdl_c.h"
+#include "nrm_def_sdl_c.h"
+#include "dbe2_typedef.h"
+
+namespace MDbe
+{
+
+enum TRANS_EXE_TYPE
+{
+    TRANS_EXE_PITY = 1,  // 事务单独执行，有事务执行时候，不会创建这个事务,建议都采用这种类型
+    TRANS_EXE_FORCE_ONLY = 2,  // 事务单独执行，有事务执行时候，仍然创建这个事务，会清除其他事务操作
+    TRANS_EXE_COEXIST = 3,  // 事务允许和其他事务共存，不建议使用这种类型，不能完全保证事务，不推荐使用
+};
+
+enum TRANS_TYPE
+{
+    TRANS_DBM = 1,                  // DBM的4111消息创建的事务
+    TRANS_JOB = 2,                  // job模块发起启停APP创建的事务
+    TRANS_APP_NOTIFY_EXIT = 3,      // 通知APP退出的事务
+    TRANS_QUEUE_ADJUST = 4,         // 队列调整创建的事务
+    TRANS_VM_ADJUST = 5,            // 主机平衡性调整创建的事务
+    TRANS_PROC_SYNC = 6,            // 进程同步创建的事务
+    TRANS_VM_RELY_AUTO = 7,         // 主机连上时候，启动主机依赖服务创建的事务
+    TRANS_VM_RECONNECTION = 8,      // 主机连上时候，原先启动的进程因虚拟机断开，而无法迁出进程的启动创建的事务
+    TRANS_VM_DISABLED = 9,          // 主机不可用时候，进程迁移创建的事务   
+    TRANS_HANDLE_PROC_EXC = 10,     // 进程异常后，srm重启该进程
+    TRANS_PROC_EXIT = 11,			// 结点完成任务后主动退出
+};
+
+enum OPERATE_RESULT
+{
+    OPERATE_FAIL = 0,
+    OPERATE_SUCCESS = 1,
+    OPERATE_DOING = 2,
+    OPERATE_TIME_OUT = 3,
+    OPERATE_NO_DO = 4,
+};
+
+enum TRANS_RESULT
+{
+    TRANS_FAIL = 0,
+    TRANS_SUCCESS = 1,
+    TRANS_CANCEL = 2,
+};
+
+enum TRANS_STATE
+{
+    TRANS_DONE = 0,
+    TRANS_DOING = 1,
+};
+
+/**
+ * 进程事务管理类接口
+ */
+class ISrmProcTransMgr : public IBaseMgr
+{
+public:
+
+	/**
+	 * 获取管理类的实例
+	 * @return 返回实例
+	 */
+	static ISrmProcTransMgr & GetInstance();
+
+   	/**
+	 * 创建事务
+	 * @param rcCreateTrans 事务创建参数列表
+	 * @param iExeType 事务执行类型
+	 * @return 创建的事务ID
+	 */
+	virtual int32 Create(SRdcCreateTrans &rcCreateTrans, int32 iExeType = TRANS_EXE_PITY);
+
+    /**
+	 * 停止某个事务
+	 * @param trans_id 要停止的事务编号
+     * @param rstrDes 停止事务原因描述
+	 */
+	virtual void StopTrans(int32 iTransId, aistring rstrDes) = 0;
+
+   	/**
+	 * 按照APP编号停止相关事务
+	 */
+	virtual void StopTransByApp(int32 iAppId, aistring rstrDes) = 0;
+
+   	/**
+	 * 根据APPID查询相关事务
+	 * @param iAppId
+	 * @param 此APP相关的事务ID
+	 * @return APP是否此时有事务操作进行中，true：有，false：否
+	 */
+	virtual bool QueryAppTransId(int32 iAppId, CRdcProcTransList &rlstProcTrans) = 0;
+
+	/**
+	 * 事务完成回调接口
+	 * @param rProcKey 进程key
+	 * @param iVmId 虚拟机编号
+	 * @param iOperateType 操作类型
+	 * @param iOperateResult 操作结果
+	 * @param rstrError 错误信息
+	 */
+	virtual void CompleteOpera(SBaseProcKey &rcProcKey, int32 iVmId, int32 iOperateType,
+			int32 iOperateResult ,aistring &rstrError) = 0;
+
+	/**
+	 * 事务超时判断处理
+	 */
+	virtual void OperateTimeOut() = 0;
+
+    /**
+	 * 增加事务错误信息
+	 * @param iAppId 要停止的APP编号
+	 * @param rstrError 错误信息
+	 */
+	virtual void AddTransErrorInfo(int32 iTransId, aistring &rstrError) = 0;
+
+	/**
+	 * 获取进程错误信息详细
+	 * 参数皆为入参
+	 */
+	virtual aistring DetailProcErrInfo(SBaseProcKey &rcPk, int32 iVmId, aistring &strErrInfo) = 0;
+};
+
+} // namespace MDbe
+
+#endif /* __SRM_PROC_TRANS_MGR_H___ */

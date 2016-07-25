@@ -1,0 +1,20 @@
+#!/bin/sh
+# useage: stop_ts.sh prockey
+
+pid=$1
+
+childPids=`ps -ef | awk '{ if( \$3 == '$pid' ) { print \$2 } }'`
+echo "childPids:$childPids"
+for cpid in $childPids; do
+    kill "$cpid"
+done
+#edit begin
+
+#if you need to kill other child proc add in this blank
+
+#edit end
+if [ "$pid" -gt "1" ]; then
+	kill "$pid"
+fi
+
+

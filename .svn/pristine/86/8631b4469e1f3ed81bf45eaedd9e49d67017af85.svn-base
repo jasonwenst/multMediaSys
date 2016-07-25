@@ -1,0 +1,53 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_queue_adjust_mgr_impl_cpp)
+{
+	//Fuction: CSrmQueueAdjustMgrImpl :: CSrmQueueAdjustMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmQueueAdjustMgrImpl_CSrmQueueAdjustMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmQueueAdjustMgrImpl :: AdjustAction ( SBaseSrvKey & rSBaseSrvKey , int32 iAdjustNum )
+	TEST_FIXTURE(TestFixture,TestCSrmQueueAdjustMgrImpl_AdjustAction)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmQueueAdjustMgrImpl :: AdjustAlgorithm ( int64 iQueuetaskVolume , int64 iQueueTaskTimeLimit , int64 iSumHandleRate , SBaseSrvKey & rSBaseSrvKey , int32 iNowNum , int32 & iNum )
+	TEST_FIXTURE(TestFixture,TestCSrmQueueAdjustMgrImpl_AdjustAlgorithm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmQueueAdjustMgrImpl :: CheckQueueBalance ( )
+	TEST_FIXTURE(TestFixture,TestCSrmQueueAdjustMgrImpl_CheckQueueBalance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmQueueAdjustMgrImpl :: JudgeQueueBalance ( CRdcTbQueue & rCRdcTbQueue , SBaseSrvKey & rSBaseSrvKey , int32 iAdjustNum )
+	TEST_FIXTURE(TestFixture,TestCSrmQueueAdjustMgrImpl_JudgeQueueBalance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmQueueAdjustMgrImpl :: ExeProc ( SBaseProcKey & rcProKey , int32 iOperType )
+	TEST_FIXTURE(TestFixture,TestCSrmQueueAdjustMgrImpl_ExeProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

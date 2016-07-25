@@ -1,0 +1,455 @@
+#!/usr/bin/lua 
+
+-- 上次缓存的空的VM列表
+LastCachedVmList = {} 
+NONE = 0
+ALL = 1
+MEM = 2
+
+function getl_interfacelist_from_sdl(interfacelist)
+    local list = {}
+    local list_len = getsdlen(interfacelist)
+    local node = nil
+    for i = 1, list_len do 
+        node = get_vmlist_from_sdl(getsdl(interfacelist, i-1))
+        list[i] = node
+    return list
+end
+
+-- 从部署接口获得部署接口数据结构
+function getl_vmlist_interface_from_sdl(interface)
+    local interface = {}
+    interface.domain = getsdlval("m_iDomainId")
+    interface.vmlist = getl_vmlist_from_sdl(getsdl("VM_STATE_RECORD_LIST"))
+    return interface
+end
+
+function getl_domainlist_from_sdl(domainlist)
+    local list = {}
+    local list_len = getsdlen(domainlist)
+    local node = nil
+    for i = 1, list_len do 
+        node = get_vmlist_from_sdl(getsdl(domainlist, i-1))
+        list[i] = node
+    return list
+end
+
+-- 从一个sdl vmlist 获得 lua vmlist对象
+function getl_vmlist_from_sdl(vmlist)
+    local lua_vmlist = {}
+    local lua_vmlist_len = getsdllen(vmlist)  
+    for i = 1, lua_vmlist_len do 
+        local vm = getl_vm_from_sdl(getsdl(vmlist, i-1))
+        lua_vmlist[i] = vm
+    end
+    return lua_vmlist
+end
+
+-- 从一个sdl vm对象终获得lua vm对象
+function getl_vm_from_sdl(vm)
+    local luavm = {}
+    
+    -- 虚拟机ID
+    luavm.id = getsdlval(vm, "m_iVmId")
+
+    -- 权重
+    luavm.wcpu = 0
+    luavm.wnet = 0
+    luavm.wmem = 0
+    luavm.wall = 0
+    
+    -- 当前使用百分率
+    luavm.pcpu = getsdlval(vm, "m_iCpuUseRatio") 
+    luavm.pmem = getsdlval(vm, "m_iMemUseRatio") 
+    luavm.pnet = getsdlval(vm, "m_iNetUseRatio")
+
+    -- 已经使用的量
+    luavm.cpu = getsdlval(vm, "m_llCpuLeft")
+    luavm.net = getsdlval(vm, "m_llNetUse")
+    luavm.mem = getsdlval(vm, "m_llMemLeft")
+
+    -- 总资源量
+    luavm.tcpu = luavm.cpu / luavm.pcpu
+    luavm.tmem = luavm.mem / luavm.pmem
+    luavm.tnet = luavm.net / luavm.pnet
+
+end
+
+-- 按照cpu的使用率进行vm权重排序
+function VmSortWeightByCpu(vmlist, cached_len, cached)
+    local CachedByCpu = {}
+
+    table.sort(vmlist, function(m, n) 
+        return m.pcpu < n.pcpu
+    end)
+
+    if cached == nil then
+        return false
+    end
+
+    for i, vm in pairs(vmlist) do
+        vm.wcpu = i 
+        vm.wall = vm.wall + vm.wcpu
+        if i < cached_len then
+            CachedByCpu[i] = vm.vmid      
+        end
+    end
+    return CachedByCpu
+end
+
+-- 按照mem的使用率进行vm权重排序
+function VmSortWeightByMem(vmlist, cached_len, cached)
+    local CachedByMem = {}
+    table.sort(vmlist, function(m, n)
+        return m.pmem < n.pmem
+    end)
+
+    if cached == false then
+        return nil
+    end
+
+    for i, vm in pairs(vmlist) do
+        vm.wmem = i 
+        vm.wall = vm.wall + vm.wmem
+        if i < cached_len then
+            CachedByMem[i] = vm.vmid      
+        end
+    end
+    return CachedByMem
+end
+
+-- 按照net的使用率进行vm权重排序
+function VmSortWeightByNet(vmlist, cached_len, cached)
+    local CachedByNet = {}
+    table.sort(vmlist, function(m, n)
+        return m.pnet < n.pnet
+    end)
+
+    if cached == false then
+        return nil
+    end
+
+    for i, vm in pairs(vmlist) do
+        vm.wnet = i 
+        vm.wall = vm.wall + vm.wnet
+        if i < cached_len then
+            CachedByNet[i] = vm.vmid      
+        end
+    end
+    return CachedByNet
+end
+
+-- 按照所有资源的使用率进行vm权重排序
+function VmSortByAll(vmlist, cached_len, cached)
+    table.sort(vmlist, function(m, n)
+        return m.wall < n.wall
+    end)
+
+    if cached == false then
+        return LastCachedVmList
+    end
+
+    local CachedByAll = {}
+    local CachedList = {}
+    local CachedByNet = VmSortByNet(vmlist, cached_len, true)
+    local CachedByMem = VmSortByMem(vmlist, cached_len, true)
+    local CachedByCpu = VmSortByCpu(vmlist, cached_len, true)
+
+    for i, vm in pairs(vmlist) do
+        if i < cached_len then
+            CachedByAll[i] = vm.vmid
+        end
+    end
+
+    CachedList.CpuCache = CachedByCpu
+    CachedList.MemCache = CachedByMem
+    CachedList.NetCache = CachedByNet
+    CachedList.AllCache = CachedByAll
+    return CachedList
+end
+
+-- 将vm切分free和overflow 2 个不同的list
+function CutVmlist(vmlist, flag)
+    local overflow = {}
+    local free = {}
+    for _, vm in pairs(vmlist) do 
+        if CheckVmIsBalance(vm, flag) == false then
+            table.insert(overflow, vm)
+        else
+            table.insert(free, vm)
+        end
+    end
+    return overflow, free
+end
+
+-- 检测vm是否超标, 阀值为0.7
+function CheckVmIsBalance(vm, flag) 
+    ret = false
+    if flag == ALL then
+        if vm.cpu < vm.tcpu * 0.7 then
+            if vm.mem < vm.tmem * 0.7 then
+                if vm.net < vm.tnet * 0.7 then
+                    ret = true
+                end
+            end
+        end
+    elseif flag == MEM then
+        if vm.mem < vm.tmem * 0.7 then
+            ret = true 
+        end
+    end
+    return ret
+end
+
+-- 估算某个服务需要的资源
+-- 包含依赖服务的计算
+-- 估算值是当前服务所用资源的70%
+-- srv 指定的服务
+-- vm  指定的vm
+--
+-- @ret{cpu, mem, net}  需要的资源
+function GetTotalResNeeded(srv, vm)
+    --[[
+    -- FIXME:解决多级依赖 A->B->C的情况  
+       XXX: 不会出现多级依赖情况,暂时不予考虑
+        
+    -- FIXME:解决依赖的服务已经存在当前虚拟机的情况 
+       XXX: 每个服务,增加一个id
+    --]]
+    local ret = {}
+    ret.mem = 0
+    ret.net = 0
+    ret.cpu = 0
+
+    if srv = nil then
+        return ret
+    end
+
+    -- 当前服务需要的资源
+    for _, proc in pairs(srv.proclist) do
+        ret.mem = ret.mem + proc.mem * 0.70
+        ret.net = ret.net + proc.net * 0.70
+        ret.cpu = ret.cpu + proc.cpu * 0.70
+    end
+
+    -- 依赖服务需要的资源
+    for _, relysrv in pairs(srv.relysrvlist) do
+        if SrvIsInVm(relysrv, vm) == false then
+            for _, proc in pairs(relysrv.proclist) do
+                ret.mem = ret.mem + proc.mem * 0.70
+                ret.net = ret.net + proc.net * 0.70
+                ret.cpu = ret.cpu + proc.cpu * 0.70
+            end
+        end
+    end
+
+    return ret
+end
+
+-- 判断指定vm在不同flag条件下,新增srv服务是否会超标
+--   note: vm超标判断阀值0.7
+-- vm   指定的vm
+-- srv  需要迁移的服务
+-- flag 迁移的方式,可选无条件,内存阀值条件,所有阀值条件
+function CheckVmForSrvIsSuitable(vm, srv, flag)
+    local ret = false
+    local need = GetTotalResNeeded(srv, vm)
+    if flag == NONE then
+        ret = true
+    elseif flag == ALL then
+        local t1 = vm.tmem * ( 0.7 - vm.pmem ) > need.mem
+        local t2 = vm.tcpu * ( 0.7 - vm.pcpu ) > need.cpu
+        local t3 = vm.tnet * ( 0.7 - vm.pnet ) > need.net
+        if (t1 > 0) and (t2 > 0) and (t3 > 0) then
+            ret = true
+        end
+    elseif flag == MEM then
+        local t1 = vm.tmem * ( 0.7 - vm.pmem ) > need.mem
+        if (t1 > 0 ) then
+            ret = true
+        end
+    else
+        ret = false
+    end
+    return ret
+end
+
+function GetFitVm(vmlist, deploylist)
+    local l_domainlist = getl_domain_list_from_sdl(list)
+    local l_deploylist = getl_dpeloylist_from_sdl(deploylist)
+    local ret = {}
+    local node = {}
+
+    for _, l_vmlist in pairs(l_domainlist) do
+        for _, deploy in pairs(l_deploylist) do
+            if deploy.domainid == vmlist.domain then
+                VmSortByAll(vmlist, cached_len, true)
+                node.vmid = vmlist[1].id
+                node.flowid = deploy.flowid
+                node.srvid = deploy.srvid
+                table.insert(ret, node)
+            end
+        end
+     end
+     return ret
+ end
+
+-- 筛选最佳虚拟机部署服务或者是进程
+-- vmlist 虚拟机列表
+function GetFitableVm(list, vmold, srvid, srv)
+    local vmlist = getl_domainlist_from_sdl(list) 
+    local ret = {}
+    local len = table.getn(vmlist)
+    local catch = nil
+    --[[
+    --  注意，目前只提取10%的VM作为cache
+    --]]
+    local cached_len = len / 10
+    if cached_len < 3 then
+        cached = 1
+    end
+
+    -- 如果cache表是空的，重新排序
+    if table.getn(LastCachedVmList.CachedByAll) == 0 then
+        LastCachedVmList = VmSortByAll(vmlist, cached_len, true)
+        vmid = vmlist[1].vmid
+        for _, vm in pairs(vmlist) do
+            ret.vmid = vm.vimd
+            catch = vm
+            break
+        end
+
+    -- 如果cache表不空，直接选择最空的虚拟机
+    else
+        local vmids = CachedList.CachedByAll
+        local findvm = nil
+        for _, vmid in pairs(vmids) do
+            for _, vm in pairs(vmlist) do
+                if vm.vimid == vmid then
+                    findvm = vm
+                    break
+                end
+            end
+            vmids.vmid = nil
+            ret.vmid = findvm.vimd
+            catch = findvm
+            break
+        end
+    end
+    ret.srvid = srvid
+    if catch ~= nil then
+        if CheckVmForSrvIsSuitable(catch, srv, MEM) == false then
+            ret = nil
+        end
+    end
+
+    if vmold ~= nil then
+        if CmpResUsage(vmold, catch, srv) == false then
+            ret = nil
+        end
+    end
+    return ret
+end
+
+function GetTop10OverFlowProc(vmlist, flag)
+    local overflow = {}
+    local i = 1
+    flag = MEM
+    for _, vm in pairs(vmlist) do 
+        if CheckVmIsBalance(vm, flag) == false then
+            if i < 10 then
+                overflow[i] = vm
+                i = i + 1
+            else
+                break
+            end
+        end
+    end
+    return overflow
+end
+
+function getl_dpeloylist_from_sdl(list)
+    local dpeloylist = {}
+    local dpeloylist_len = getsdllen(list)
+    local dpeloy = nil
+    for i = 1, dpeloylist_len do
+        dpeloy = getl_dpeloy_from_sdl(list, i-1)
+        dpeloylist[i] = dpeloy
+    end
+    return dpeloylist
+end
+
+function getl_dpeloy_from_sdl(dpeloy)
+    local ret = {}
+
+    ret.flowid = getsdlval(dpeloy, "m_iFlowId")
+    ret.srvid = getsdlval(dpeloy, "m_iSrvId")
+    ret.procnum = getsdlval(dpeloy, "m_iProcNum")
+    ret.domainid = getsdlval(dpeloy, "m_iDomainId")
+
+    ret.mem = getsdlval(dpeloy, "m_dSrvUsedMem")
+    ret.net = getsdlval(dpeloy, "m_dSrvUsedNet")
+    ret.cpu = getsdlval(dpeloy, "m_dSrvUsedCpu")
+    ret.oldvmid = getsdlval(dpeloy, "m_iNeedMigrateVmId")
+
+    ret.srvtype = getsdlval(dpeloy, "m_iSrvType")
+    if ret.srvtype == 0 then
+        ret.relylist = nil
+    else
+        ret.relylist = {}
+        relylist = getsdl(dpeloy, "m_listStartedVmList")
+        local relylen = getsdllen(relylist)
+        local vmid = 0
+        for i = 1, relylen do
+            vmid = getsdlval(relylist, i-1)
+            ret.relylist[i] = vmid
+        end
+    end
+end
+
+function getl_dpeloylist_from_sdl(list)
+    ret = {}
+    local list_len = getsdllen(list) 
+    for i = 1, list_len do
+        ret[i] = getl_dpeloy_from_sdl(getsdlval(list, i-1))
+    end
+    return ret
+end
+
+function DpeloySrvIntoVm(vmlist, list)
+    ret = {}
+    for i = 1, list_len do
+        ret[i] = DpeloySrvIntoVmHelp(vmlist, list[i])
+    end
+    return ret
+end
+
+function DpeloySrvIntoVmHelp(vmlist, dpeloyinfo)
+    local srv = {}
+    local ret = nil
+    srv.mem = dpeloyinfo.mem
+    srv.net = dpeloyinfo.net
+    srv.cpu = dpeloyinfo.cpu
+    ret = GetFitableVm(list, dpeloyinfo.srvid, srv)
+    return ret
+end
+
+
+-- TODO 防止抖动
+function CmpResUsage(vmold, vmnew, srv)
+    local pold = vmold.pmem
+    local pnew = (vm.mem + srv.mem) / (vmnew.mem / vmnew.pmem)
+    local diff = 0
+    if pold > pnew then
+        diff = pold - pnew
+    elseif pold <= pnew then
+        diff = pnew - pold
+    end
+    local ret = 0
+    if diff < 0.1 then
+        ret = false
+    else
+        ret = true
+    end
+    return ret
+end

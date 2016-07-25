@@ -1,0 +1,83 @@
+#include "IWarnClient.h"
+#include "QueForMutiProc.h"
+#include <iostream>
+#include <assert.h>
+#include <thread>
+#include <functional>
+void testApiPut()
+{
+	IWarnClient* ins = IWarnClient::getInstance();
+	int res = ins->init();
+	assert(res == 0);
+	for (int i = 0; i < 100; ++i)
+	{
+		ins->doWarning(  2, 3, 4, "myapp", "mywarn", -1, "big error", "nothing to care");
+	}
+
+	ins->uninit();
+
+}
+
+
+void testApiPut2()
+{
+	IWarnClient* ins = IWarnClient::getInstance();
+	int res = ins->init();
+	assert(res == 0);
+	for (int i = 0; i < 10000000; ++i)
+	{
+		ins->doWarning(  2, 3, 4, "myapp", "mywarn", -1, "big error", "nothing to care");
+		sleep(1);
+	}
+	
+  
+}
+
+void testMutiThread()
+{
+	int threadsz = 5;
+	std::thread* thr[10];
+		for(int i = 0;i< threadsz;++i)
+		{
+			thr[i] = new std::thread(std::bind(&testApiPut2));
+		}
+
+		for(int i = 0;i< threadsz;++i)
+		{
+			thr[i] ->join();
+			delete thr[i];
+		}
+}
+
+void testFileLock()
+{
+	
+}
+
+void showMutiqueState(const char* path)
+{
+	CQueForMutiProcWrite * que = new CQueForMutiProcWrite();
+	que->init(path);
+	que->printControl();
+	delete que;
+}
+
+int main(int argc, char* argv[])
+{
+	//testSqlite();
+	//testSqliteApi();
+	//testSqliteApiGet();
+	//testApiPut();
+	int i;
+//	std::cin >> i;
+	if (argc == 2)
+	{
+		showMutiqueState(argv[1]);
+		return 0;
+	}
+	else
+	{
+    testMutiThread();
+  }
+	return 0;
+}

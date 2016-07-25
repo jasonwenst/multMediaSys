@@ -1,0 +1,81 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_communicate_client.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-6-7）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_COMMUNICATE_CLIENT_H___
+#define __DBE2_COMMUNICATE_CLIENT_H___
+
+#include <public/odframe/frame_interface.h>
+#include "dbe2_base_def.h"
+#include "public/common/communicate/communicate.h"
+#include "public/common/communicate/communicate_config.h"
+namespace MDbe
+{
+
+class CDbe2CommunicateClient
+    : public od_frame::CThread
+{
+public:
+    int32 init();
+    int32 destroy();
+    int32 stop();
+
+    /*!
+     *      转成CToNextData*处理
+    */
+    virtual int32 run(od_frame::CData * p);
+
+    CDbe2CommunicateClient();
+    ~CDbe2CommunicateClient();
+private:
+    CDbe2CommunicateClient(const CDbe2CommunicateClient & rh){}
+    CDbe2CommunicateClient & operator=(const CDbe2CommunicateClient & rh){ return *this; }
+
+
+protected:
+    bool FindIpAndPortByUdp(aistring & strSrmIp, int32 & iSrmPort);
+    aistring GetSrmIpInEnv();
+
+    int32 RecvNotify(od_frame::CCommData * pCommData);
+    void DoRecvFailTimeout(od_frame::CCommData * pCommData);
+    void DoRecvFailProc(od_frame::CCommData * pCommData);
+    int32 DoRecvSucceed(od_frame::CCommData * pCommData);
+    bool Connect();
+    void Disconnect();
+    bool CreateClientConfig(CCommunicateClientConfig & cClientConfig, aistring strIp, int32 iPort);
+    void ConnectFailClear();
+private:
+    CCommunicateApi * m_pCommunicateApi;
+    bool m_isConnected;
+    CStringList m_lstSrmIp;
+    int32 m_iCurrentSrmIpIdx;
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+    od_frame::CThread * create_dbeCommunicateClient();
+#ifdef __cplusplus
+}
+#endif
+
+
+
+} // namespace MDbe
+
+
+#endif /* __DBE2_COMMUNICATE_CLIENT_H___ */

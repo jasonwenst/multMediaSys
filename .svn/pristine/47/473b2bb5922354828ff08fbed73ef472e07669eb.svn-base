@@ -1,0 +1,43 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_base_hash_map.h）
+/// brief	 
+///				hash_map定义
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_BASE_HASH_MAP_H___
+#define __DBE2_BASE_HASH_MAP_H___
+
+#include "dbe2_base_hash_table.h"
+
+#define DBE2_BASE_HASH_MAP_DEFAULT_SIZE 32
+namespace MDbe
+{
+
+template<typename KEY, typename VALUE>
+class base_hash_map : public base_hash_table<KEY,VALUE>
+{
+public:
+    base_hash_map(typename base_hash_table<KEY,VALUE>::size_type size = DBE2_BASE_HASH_MAP_DEFAULT_SIZE):
+        base_hash_table<KEY,VALUE>(false, size)
+    {
+
+    }
+};
+
+
+}; // namespace dbe2
+
+
+#endif /* __DBE2_BASE_HASH_MAP_H___ */

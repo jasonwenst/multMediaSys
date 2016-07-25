@@ -1,0 +1,68 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_msg_dispatch.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-7）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+
+
+#include "msg_dispatch_mgr.h"
+#include "nrm_nr_mgr.h"
+#include "nrm_proc_mgr.h"
+#include "nrm_vm_mgr.h"
+#include "nrm_warn_mgr.h"
+#include "msg_process/nrm_msg_process.h"
+
+namespace MDbe
+{
+//注册消息
+DBE2_MSG_PROCESS_BEGIN
+DBE2_MSG_PROCESS_REGISGER(151, CMsgProcess151)
+DBE2_MSG_PROCESS_REGISGER(207, CMsgProcessForwardTbts) 
+DBE2_MSG_PROCESS_REGISGER(3001, CMsgProcess3001)
+DBE2_MSG_PROCESS_REGISGER(7111, CMsgProcess3001)
+DBE2_MSG_PROCESS_REGISGER(3016, CMsgProcessForwardSrm)
+DBE2_MSG_PROCESS_REGISGER(3021, CMsgProcessForwardSrm)
+DBE2_MSG_PROCESS_REGISGER(3025, CMsgProcessForwardSrm)
+DBE2_MSG_PROCESS_REGISGER(3501, CMsgProcessForwardSrm)
+DBE2_MSG_PROCESS_REGISGER(3502, CMsgProcessForwardSrm)
+DBE2_MSG_PROCESS_REGISGER(7001, CMsgProcess7001)
+DBE2_MSG_PROCESS_REGISGER(7002, CMsgProcess7002)
+DBE2_MSG_PROCESS_REGISGER(7004, CMsgProcess7004)
+DBE2_MSG_PROCESS_REGISGER(7112, CMsgProcess7004)
+DBE2_MSG_PROCESS_REGISGER(7007, CMsgProcess7007)
+DBE2_MSG_PROCESS_REGISGER(7013, CMsgProcess7013)
+DBE2_MSG_PROCESS_REGISGER(7121, CMsgProcess7121)
+DBE2_MSG_PROCESS_REGISGER(7122, CMsgProcess7122)
+
+
+DBE2_MSG_PROCESS_REGISGER_MULTI(1000, 6000, CMsgProcessForwardSrm)
+
+// 配置注册, 100->3006, 200->timer check
+DBE2_MSG_PROCESS_REGISGER(-100, CMsgProcessInner)
+DBE2_MSG_PROCESS_REGISGER(-200, CMsgProcessTimer)
+DBE2_MSG_PROCESS_REGISGER(-101, CMsgProcessWarn)
+DBE2_MSG_PROCESS_END
+
+//注册管理器
+DBE2_ALL_MGR_BEGIN
+DBE2_ALL_MGR_REGISGER(INrmNrMgr)
+DBE2_ALL_MGR_REGISGER(INrmProcMgr)
+DBE2_ALL_MGR_REGISGER(INrmVmMgr)
+DBE2_ALL_MGR_REGISGER(INrmWarnMgr)
+DBE2_ALL_MGR_END
+
+} // namespace MDbe

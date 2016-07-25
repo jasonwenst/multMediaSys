@@ -1,0 +1,178 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_redis_client.h）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-3-6）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_REDIS_CLIENT_H___
+#define __DBE2_REDIS_CLIENT_H___
+
+
+#include <sys/time.h>
+#include "base.h"
+#include "../hicache/hiredis.h"
+
+namespace cpf
+{
+enum EErrorCodeRediaClt
+{
+    EC_REDISCLT_CONNECT_FAIL = CPF_ERROR_CODE_CACHE_START,
+    EC_REDISCLT_PARSE_CONNECT_URL_FAIL,
+    EC_REDISCLT_CONNECT_TYPE_NOT_SUPPORT,
+    EC_REDISCLT_REPLY_CAN_NOT_COPY,
+    EC_REDISCLT_REPLY_ERROR
+};
+
+/**
+ * cache返回类封装
+ * 类不允许拷贝构造
+ */
+class CCacheReply
+{
+public:
+    CCacheReply(redisReply * pReply): m_pReply(pReply)
+    {
+
+    }
+
+    CCacheReply(const CCacheReply & rhs)
+    {
+        CPF_THROW(EC_REDISCLT_REPLY_CAN_NOT_COPY, "redis reply object con't copy it!");
+    }
+
+    ~CCacheReply()
+    {
+        if(m_pReply != NULL)
+        {
+            freeReplyObject(m_pReply);
+            m_pReply = NULL;
+        }
+    }
+
+    bool IsNull() const
+    {
+        return m_pReply == NULL;
+    }
+
+    void CheckAndThrowError() const
+    {
+        if(IsError())
+        {
+            CPF_THROW(EC_REDISCLT_REPLY_ERROR, "redis reply error!?")
+                    << GetErrorMsg();
+        }
+    }
+
+    void CheckNullAndThrow() const
+    {
+        if(IsNull())
+        {
+            CPF_THROW(EC_REDISCLT_CONNECT_FAIL, "connect redis fail!");
+        }
+    }
+
+    const char * GetErrorMsg() const
+    {
+        return (operator*()).str;
+    }
+
+    bool IsError() const
+    {
+        return (operator*()).str != NULL;
+    }
+
+
+    redisReply & operator*() const
+    {
+        CheckNullAndThrow();
+        return *m_pReply;
+    }
+
+    redisReply * operator->() const
+    {
+        return &(operator*());
+    }
+
+private:
+    CCacheReply & operator=(const CCacheReply & rhs)
+    {
+        return *this;
+    }
+
+
+private:
+    redisReply * m_pReply;
+};
+
+/**
+ * redis client 封装
+ */
+class CCacheClient
+{
+protected:
+
+public:
+    /**
+     * 构造
+     * @param isAutoReconnect   是否自动重联
+     */
+    CCacheClient(bool isAutoReconnect = true);
+
+    /**
+     * 析构
+     */
+    ~CCacheClient();
+
+    /**
+     * 链接到redis服务器
+     * @param strConnInfo   链接串,现支持tcp:ip:port
+     * @param iTimeoutMs    超时时间(毫秒) -1为没有超时时间
+     */
+    void Connect(aistring strConnInfo,  int32 iTimeoutMs = -1);
+
+    /**
+     * 重联
+     * @param isAlway   一直重联直到链接成功
+     * @param iSleepMs  重联休眠时间(毫秒)
+     */
+    void ReConnect(bool isAlway = true, int32 iSleepMs = 1000);
+
+    /**
+     * 手动断开链接
+     */
+    void Disconnect();
+
+    bool Setnx(const char * pKey, const char * pValue);
+
+    /**
+     * 执行一个命令(通用)
+     * @param format
+     * @return
+     */
+    CCacheReply Command(const char *format, ...);
+private:
+    void ConnectByTcp(aistring strIp, int32 iPort, int32 iTimeoutMs);
+private:
+    bool m_isAutoReconnect;
+    aistring m_strConnInfo;
+    int32 m_iTimeoutMs;
+    redisContext * m_pContext;
+};
+
+} // namespace dbe2
+
+
+
+#endif /* __DBE2_REDIS_CLIENT_H___ */

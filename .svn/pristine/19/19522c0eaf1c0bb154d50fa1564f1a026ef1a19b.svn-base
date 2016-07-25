@@ -1,0 +1,165 @@
+
+#include "time_frame.h"
+#include "dbe2_common_struct.h"
+#include "dbe2_srm_msg_interface.h"
+#include "dbe_frame_def_sdl_c.h"
+#include "dbe2_lock.h"
+#include "dbe2_util.h"
+
+#define TIME_TRY try {
+
+#define TIME_CATCH  } catch(err_info_service::CAIException exception) { \
+        DBE2_LOG(ERROR_LOGGER, "Throw an exception when processing timer, exception number:%lld [Information]:%s", \
+        exception.get_code(), exception.get_message().c_str()); \
+        return 0; \
+        } \
+        catch(...) { return 0; }
+
+namespace MDbe {
+
+//int64 CTimerThread::m_i64Sequence = 0;
+CTimerThread::CTimerThread()
+    : m_pcMsgHelper(NULL)
+{
+}
+
+CTimerThread::~CTimerThread()
+{
+}
+
+int32 CTimerThread::init()
+{
+TIME_TRY
+    int32 iRet = -1;
+    iRet = read_config(m_cMyTimeConfig);
+    if(iRet != 0)
+    {
+        //读取配置失败
+        return iRet;
+    }
+    if(NULL == m_pcMsgHelper)
+    {
+        m_pcMsgHelper = new CMsgHelper(this, m_cMyTimeConfig.m_iDumpSendObbstream == 1);
+    }
+    m_cInt32TimeInfoMap.clear();
+    ReadTimerInfo();
+
+    return iRet;
+TIME_CATCH
+}
+
+int32 CTimerThread::destroy()
+{
+TIME_TRY
+    if(m_pcMsgHelper)
+    {
+        delete m_pcMsgHelper;
+        m_pcMsgHelper = NULL;
+    }
+    m_cInt32TimeInfoMap.clear();
+
+    return 0;
+TIME_CATCH
+}
+
+int32 CTimerThread::run(NAMESPACE_OD_FRAME CData *p)
+{
+TIME_TRY
+    if(p != NULL)
+    {
+        od_frame:: CCommData* pCommData = (od_frame:: CCommData*)p;
+        od_frame:: CCommData::dealloc(pCommData);
+    }
+USE_CHECK_TIME_OUT( this )
+CHECK_TIME_OUT_BEGIN( 30 )// 单位毫秒,检测运行是否超时
+    Timer();
+CHECK_TIME_OUT_END( )
+
+    ::usleep(500 * 1000); //sleep 0.5s
+   
+    return 0;
+TIME_CATCH
+}
+
+void CTimerThread::Timer()
+{
+    obb_stream out;//声明obb_stream
+    MDbe::SInsideMessage stSInsideMessage;
+    for(CInt32TimeInfoMap::iterator it = m_cInt32TimeInfoMap.begin();
+        it != m_cInt32TimeInfoMap.end();
+        ++it)
+    {
+        int32 iTempSleep = it->second.m_cSaveTime.compare(GetCurrentTime().toTimet());
+
+        //触发超时
+        if(iTempSleep >= it->second.m_ui64TimeInterval)
+        {
+            UpdateTimerInfo(it->first, it->second.m_ui64TimeInterval);
+            stSInsideMessage.set_intraMsgType(it->first);
+            DBE2_LOG(TRACE_LOGGER, "insert msg %d to obbstream to send MDbe:: MSG_PROC_INTER/*104*/", it->first);
+//            out.begin_stream("Time Trigger marshaller");//必须调用该方法
+//            out << stSInsideMessage;
+//            out.end_stream();//结束时必须调用该方法
+            out = Sdl2Obbstream(stSInsideMessage);
+USE_CHECK_TIME_OUT( this )
+CHECK_TIME_OUT_BEGIN( 20 )// 单位毫秒,检测运行是否超时
+            m_pcMsgHelper->Send(MDbe:: MSG_PROC_INTER/*104*/, out, false);
+CHECK_TIME_OUT_END( )
+        }
+    }
+}
+
+void CTimerThread::ReadTimerInfo()
+{
+    int32 iTempSleep = 0;
+    //从配置中获取list
+    for(CTimeLsConfigList::iterator it = m_cMyTimeConfig.m_lstTimeLsConfigList.begin();
+        it != m_cMyTimeConfig.m_lstTimeLsConfigList.end();
+        ++it)
+    {
+        //将配置中读取的内容按照【msg + 当前时间 + 定时间隔】保存
+        CTimerInfo &rTimerInfo = m_cInt32TimeInfoMap[(*it).m_objTimeConfig.m_iMsgType];
+        rTimerInfo.m_cSaveTime.update(GetCurrentTime().toTimet());
+        rTimerInfo.m_ui64TimeInterval = (*it).m_objTimeConfig.m_ui64Interval;
+        DBE2_LOG(TRACE_LOGGER, "read msg %d from xml, interval %d, save time %lld",
+            (*it).m_objTimeConfig.m_iMsgType,
+            rTimerInfo.m_ui64TimeInterval,
+            rTimerInfo.m_cSaveTime.secvalue());
+    }
+    return ;
+}
+
+int32 CTimerThread::UpdateTimerInfo(int32 iMsg, uint64 ui64TimeInterval)
+{
+    CAutoLock cAutoLock(m_cLock);
+    CInt32TimeInfoMap::iterator it = m_cInt32TimeInfoMap.find(iMsg);
+    if(it != m_cInt32TimeInfoMap.end())
+    {
+        it->second.m_cSaveTime.update(GetCurrentTime().toTimet());
+        it->second.m_ui64TimeInterval = ui64TimeInterval;
+        DBE2_LOG(DEBUG_LOGGER, "update msg %d from xml, interval %d, save time %lld",
+            iMsg,
+            it->second.m_ui64TimeInterval,
+            it->second.m_cSaveTime.secvalue());
+        return 0;
+    }
+
+    DBE2_LOG(WARN_LOGGER, 
+        "cannot update msg %d from xml msg %d, interval %d, current time %lld",
+        iMsg,
+        ui64TimeInterval,
+        GetCurrentTime().toTimet());
+    return -1;
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+od_frame:: CThread *create_timerInstance()
+{
+    return new CTimerThread();
+}
+#ifdef __cplusplus
+}
+#endif
+}//end namespace

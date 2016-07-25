@@ -1,0 +1,10 @@
+#include "nrm_warn_mgr_impl.h"
+
+namespace MDbe
+{
+	INrmWarnMgr & INrmWarnMgr::GetInstance()
+	{
+		static CNrmWarnMgrImpl cMgr;
+		return cMgr;
+	}
+}

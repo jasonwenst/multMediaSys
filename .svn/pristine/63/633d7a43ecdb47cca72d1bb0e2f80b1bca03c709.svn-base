@@ -1,0 +1,143 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_proc_mgr.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_PROC_MGR_H___
+#define __SRM_PROC_MGR_H___
+
+#include "dbe2_base_mgr.h"
+#include "rdc_table_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include "nrm_def_sdl_c.h"
+#include "dbe2_common_struct.h"
+
+namespace MDbe
+{
+class SSrmProcOperation;
+enum PROC_STATE
+{
+	PROC_NOT_START = 0,
+	PROC_START_DOING = 1,
+	PROC_START_SUCCESS = 2,
+	PROC_STOP_DOING = 3,
+	PROC_RUN_EXCETION = 4,
+	PROC_FORCE_STOP_DOING = 5,
+	PROC_START_RETRY = 6,
+    PROC_START_FAIL = 7,
+    PROC_STOP_FAIL = 8,
+	WAIT_VM_USEABLE =9,
+	PROC_MIGRATING=10
+};
+
+class ISrmProcMgr : public IBaseMgr
+{
+public:
+    /**
+	 * 启动进程接口
+	 * @param rcStartOperateList 启动操作信息
+	 */
+	virtual void StartByTrans(CRdcProcTransOperateList &rcStartOperateList, int32 modifyState) = 0;
+
+    /**
+	 * 停止进程接口
+	 * @param rcStopOperate 停止操作信息
+	 * @param iFoceStop 是否为强停
+	 */
+	virtual void StopByTrans(CRdcProcTransOperateList &rcStartOperateList, int32 modifyState) = 0;
+
+    /**
+	 * 停止进程接口
+	 * @param rcStopOperate 停止操作信息
+	 * @param iFoceStop 是否为强停
+	 */
+	virtual void Stop(CRdcProcTransOperate &rcStopOperate, int32 iFoceStop, int32 modifyState) = 0;
+
+    /**
+     * 对外接口
+	 * 进程操作完成后更新进程状态
+	 * @param rcProKey 进程key
+	 * @param iExeType 操作类型
+	 * @param iExeResult 执行结果
+	 * @param iPid 进程pid
+	 */
+	virtual void UpdateProcState(SBaseProcKey &rcProKey, int32 iVmId, int32 iExeType, int32 iExeResult, int32 iPid) = 0;
+
+    /**
+     * 更新进程转台
+     * @param rcProKey 进程key
+     * @param iState 操作类型
+     */
+    virtual void UpdateStopProcState(SBaseProcKey &rcProKey, int32 iVmId, int32 iState) = 0;
+
+   	/**
+	 * 进程主动退出
+	 * @param rcProcKey 进程key
+	 * @param iVmId 虚拟机ID
+	 */
+	virtual void ProcActiveExit(SBaseProcKey &rcProcKey, int32 iVmId) = 0;
+
+    /**
+     * 对外接口
+	 * 处理3501消息 更新进程处理积压量
+	 */
+	virtual void UpdateProcBackInfo(SProcBackLog &rcProcBackLog) = 0;
+
+    /**
+     * 对外接口
+	 * 处理3502消息 更新进程处理速度
+	 */
+	virtual void UpdateProcHandleRate(SProcHandleRate &rcProcHandleRate) = 0;
+
+    /**
+     * 定时写入动态信息
+	 */
+	virtual void WriteProcDynamicInfo() = 0;
+
+    /**
+     * Dbm启停进程
+    */
+    virtual int32 DbmOperateProc(SSrmProcOperation &procOperation) = 0;
+
+    /**
+     * Dbm启停进程
+    */
+    virtual int32 DbmAddProc(SSrmAddProc &rSrmAddProc) = 0;
+	/**
+	 * 处理进程异常
+	 * @param rcProcKey 进程key
+	 * @param iVmid 虚拟机ID
+	 */
+    virtual void HandleExceptProc(SBaseProcKey &rcProcKey, int32 iVmId) = 0;
+
+	virtual bool AddProcSomeLogPath(CRdcProc&) = 0;
+
+	/**
+	 * 获取管理类的实例
+	 * @return 返回实例
+	 */
+	static ISrmProcMgr & GetInstance();
+};
+
+} // namespace MDbe
+
+
+
+#endif /* __SRM_PROC_MGR_H___ */

@@ -1,0 +1,10 @@
+#include <XmlTestReporter.h>
+#include "TestSuiteManager.h"//manager for test
+#include "public/ob_kernel/ob_kernel.h"
+struct TestFixture
+{
+	TestFixture()
+	{
+	}
+};
+

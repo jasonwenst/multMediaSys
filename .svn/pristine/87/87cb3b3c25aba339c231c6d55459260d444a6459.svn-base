@@ -1,0 +1,61 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_record_mgr.h）
+/// brief	 
+///				记录类管理接口
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+///////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_RECORD_MGR_H___
+#define __SRM_RECORD_MGR_H___
+
+#include "dbe2_base_mgr.h"
+#include "rdc_table_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+
+namespace MDbe
+{
+
+/**
+ * 记录类管理接口
+ */
+class ISrmRecordMgr : public IBaseMgr
+{
+public:
+	/**
+	 * 获取管理类的实例
+	 * @return 返回实例
+	 */
+	static ISrmRecordMgr & GetInstance();
+	/**
+	 * 更新虚拟机和进程信息
+	 * @param rVmProcState NRM上报的虚拟机和进程信息
+	 */
+	virtual void UpdateVmAndProcoInfo(SSrmVmProcStatus &rcVmProcState) = 0;
+	/**
+	 * 删除冗余信息接口
+	 */
+	virtual void DeleteRedundantData() = 0;
+
+    /**
+	 * 将数据写入
+	 */
+	virtual void WriteRecordToDb() = 0;
+public:
+	int32 m_iCleanInterval;
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_RECORD_MGR_H___ */

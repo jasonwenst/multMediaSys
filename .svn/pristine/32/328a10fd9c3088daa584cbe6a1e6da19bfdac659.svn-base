@@ -1,0 +1,377 @@
+#include "public/common/base/array.h"
+#include "public/common/log/oderr.h"
+#include "dbe2_common_struct.h"
+#include "dbe_public.h"
+#include "udp_server.h"
+#include "dbe2_log.h"
+#include "parseenv.h"
+
+#define MT_DUBUG_TIME     20
+const static int32 UDP_REPONSE_LEN = 64;
+
+namespace MDbe
+{
+
+struct srm_addr_broadcast_pkg :  SRM_UDP_BROADCAST_PKG
+{
+};
+
+CUdpServer::CUdpServer()
+{
+	bzero(&this->broadcast_, sizeof(this->broadcast_));
+	this->broadcast_.sin_family		= AF_INET;
+	this->broadcast_.sin_addr.s_addr	= INADDR_BROADCAST;
+}
+
+CUdpServer::~CUdpServer()
+{
+}
+
+bool CAUdpThread::QueryUdpServer(void)
+{
+    UdpFinder cUf;
+    od_srm::srm_udp_addr_req query;
+    char cszResponse[UDP_REPONSE_LEN];
+    bool bFound = false;
+    for (int i = 0; i < 5; i++)
+    {
+        bFound = cUf.find(config_.udp_port_, &query, query.size(), &cszResponse, UDP_REPONSE_LEN);
+        if (bFound)
+        {
+            od_srm::psrm_udp_addr_ack pResp = (od_srm::psrm_udp_addr_ack)cszResponse;
+            DBE2_LOG(WARN_LOGGER, "get udp ack,maybe srm have started in %s,please check it!",
+                pResp->address_);
+            return true;
+        }
+    }
+    return bFound;
+}
+
+bool CUdpServer::CreateServer(const char* _ip_mask, ushort _port)
+{
+	//this->port_ = _port;
+	bzero(this->ip_, sizeof(this->ip_));
+	strncpy(this->ip_, _ip_mask, sizeof(this->ip_) - 1);
+
+	this->socket_.udp();
+	this->socket_.set_block(true);
+	this->socket_.set_broadcast(true);
+	this->port_ = _port;
+
+	this->broadcast_.sin_addr.s_addr	= inet_addr(_ip_mask);
+	this->broadcast_.sin_port		= htons(_port);
+
+    bool bRet = this->socket_.bind(_port);
+	if(!bRet) return false;
+    //设置本机IP
+    array_t<char> buf;
+    NAMESPACE_OD_FRAME get_ip(NAMESPACE_OD_FRAME CONTROL_IP, buf);
+    AISTD string strPort;
+    int32 iRet = ConvertEnvPath("$SRM_PORT", strPort);
+    if(0 != iRet) return false;
+    if(!SetIp(buf.ptr(), atoi(strPort.c_str())))
+    {
+		DBE2_LOG(ERROR_LOGGER, "set ip failed.");
+		return false;
+    }
+    //广播地址
+    return DeliverAddress();
+}
+
+//bool CUdpServer::CreateClient(const char* _ip_mask, ushort _port)
+//{
+//	bzero(this->ip_, sizeof(this->ip_));
+//	strncpy(this->ip_, _ip_mask, sizeof(this->ip_) - 1);
+//
+//    // 创建UDP套接字
+//	this->socket_.udp();
+//	// 设置为非阻塞模式
+//	this->socket_.set_block(false);
+//	// 设置为允许广播
+//	this->socket_.set_broadcast(true);
+//	this->port_ = _port;
+//    return true;
+//}
+
+bool CUdpServer::Close()
+{
+	if (this->socket_.valid())
+	{
+		this->socket_.close();
+	}
+	return true;
+}
+
+char __g_recv_buffer[2048];
+
+bool CUdpServer::Listen()
+{
+	if (! this->socket_.valid())
+	{
+		return false;
+	}
+
+	for (;;)
+	{
+		int n = this->socket_.recvfrom(__g_recv_buffer, sizeof(__g_recv_buffer));
+		if (n < 0)
+		{
+			return false;
+		}
+
+		if (n > 0)
+		{
+			const sockaddr_in& sip = this->socket_.get_peer();
+			const sockaddr_in& sil = this->socket_.get_local();
+			if (sip.sin_addr.s_addr == sil.sin_addr.s_addr || sip.sin_port == sil.sin_port)
+			{
+				// filter self
+				continue;
+			}
+
+			MDbe:: SRM_UDP_BROADCAST_PKG* pkg = (MDbe:: SRM_UDP_BROADCAST_PKG*)__g_recv_buffer;
+			this->OnReceived(pkg);
+		}
+	}
+	return true;
+}
+
+//bool CUdpServer::Request()
+//{
+//	if (! this->socket_.valid())
+//	{
+//		return false;
+//	}
+//	char buf[1024] = {0};
+//	size_t len = sizeof(buf);
+//	if (this->OnGetSrmAddress(buf, &len))
+//	{
+//		// build srm address response pkg
+//		MDbe:: SRM_UDP_BROADCAST_PKG * p = MDbe:: SRM_UDP_BROADCAST_PKG::create(1, "");
+//		p->type_ = MDbe:: SUBPT_ADDRESS_REQUEST;//询问
+//        DBE2_LOG(TRACE_LOGGER, "send msg %d for ip ", p->type_);
+//
+//		if (0 > this->socket_.sendto(p, p->size(), 0, &this->broadcast_))
+//		{
+//		    MDbe:: SRM_UDP_BROADCAST_PKG::destory(p);
+//		    return false;
+//		}
+//		
+//        char cszResponse[UDP_REPONSE_LEN];
+//        int32 n = this->socket_.recvfrom(cszResponse, UDP_REPONSE_LEN);
+//        
+//        
+//        
+//		if (n < 0) return false;
+//		if (n > 0)
+//		{
+//			const sockaddr_in& sip = this->socket_.get_peer();
+//			const sockaddr_in& sil = this->socket_.get_local();
+//			if (sip.sin_addr.s_addr == sil.sin_addr.s_addr || sip.sin_port == sil.sin_port)
+//			{
+//				// filter self
+//				continue;
+//			}
+//
+//			MDbe:: SRM_UDP_BROADCAST_PKG* pkg = (MDbe:: SRM_UDP_BROADCAST_PKG*)cszResponse;
+//			this->OnReceived(pkg);
+//		}
+//
+//        ::usleep(MT_DUBUG_TIME*100000);
+//        return true;
+//	}
+//	sleep(10);
+//	return true;
+//}
+
+bool CUdpServer::SetIp(const char* szIp, uint16 usPort)
+{
+	if (NULL == szIp)
+	{
+	    DBE2_LOG(ERROR_LOGGER, "cannot get local ip");
+		return false;
+	}
+	sprintf(this->srm_address_, "%s:%u;", szIp, usPort);
+	DBE2_LOG(INFO_LOGGER, "set ip %s", this->srm_address_);
+	return true;
+}
+
+bool CUdpServer::ResponseAddress()
+{
+	char buf[1024] = {0};
+	size_t len = sizeof(buf);
+	if (this->OnGetSrmAddress(buf, &len))
+	{
+		// build srm address response pkg
+		MDbe:: SRM_UDP_BROADCAST_PKG * p = MDbe:: SRM_UDP_BROADCAST_PKG::create(len, buf);
+		p->type_ = MDbe:: SUBPT_ADDRESS_DELIVER;
+		this->socket_.sendto(p, p->size());
+		MDbe:: SRM_UDP_BROADCAST_PKG::destory(p);
+	}
+	else
+	{
+		//REPORT_TRACE("on_get_srm_address failed.");
+		DBE2_LOG(WARN_LOGGER, "on_get_srm_address failed.");
+		return false;
+	}
+	return true;
+}
+
+bool CUdpServer::DeliverAddress()
+{
+	// build srm address response pkg
+	size_t len = strlen(this->srm_address_) + 1;
+	MDbe:: SRM_UDP_BROADCAST_PKG * p = MDbe:: SRM_UDP_BROADCAST_PKG::create(len, srm_address_);
+	p->type_ = MDbe:: SUBPT_ADDRESS_DELIVER;
+	this->OnDeliver(p);
+	MDbe:: SRM_UDP_BROADCAST_PKG::destory(p);
+	return true;
+}
+
+void CUdpServer::OnReceived(MDbe:: SRM_UDP_BROADCAST_PKG* _pkg)
+{
+    DBE2_LOG(TRACE_LOGGER, "received msg %d, ip %s", _pkg->type_, srm_address_);
+	switch (_pkg->type_)
+	{
+//		case MDbe:: SUBPT_ADDRESS_RESPONSE://响应
+//			if (this->OnSrmAddressChanged((const char*)(_pkg + 1)))
+//			{
+//				_pkg->type_ = MDbe:: SUBPT_ADDRESS_DELIVER;
+//				this->OnDeliver(_pkg);
+//			}
+//			break;
+		case MDbe:: SUBPT_ADDRESS_REQUEST://询问
+			this->ResponseAddress();
+			break;
+		case MDbe:: SUBPT_ADDRESS_DELIVER://发布
+			this->OnSrmAddressChanged((const char*)(_pkg + 1));
+			break;
+		default:
+			//REPORT_TRACE("pkg recevied (type:%d)", _pkg->type_);
+			DBE2_LOG(WARN_LOGGER, "pkg recevied (type:%d)", _pkg->type_);
+			break;
+	}
+}
+
+#define SRM_ADDRESS_CHANGED	1
+bool CUdpServer::OnSrmAddressChanged(const char* _addr)
+{
+	if (0 != strcmp(this->srm_address_, _addr))
+	{
+		strcpy(this->srm_address_, _addr);		
+		return true;
+	}
+	return false;
+}
+
+//发布srm地址
+void CUdpServer::OnDeliver(MDbe:: SRM_UDP_BROADCAST_PKG* _pkg)
+{	
+	this->socket_.sendto(_pkg, _pkg->size(), 0, &this->broadcast_);
+}
+
+//获取srm地址
+bool CUdpServer::OnGetSrmAddress(char* _buffer, size_t* _length)
+{
+	if (0 == this->srm_address_[0])
+	{
+		return false;
+	}
+
+	bool ret = false;
+	size_t len = strlen(this->srm_address_) + 1;
+	if (NULL != _length && *_length >= len  && NULL != _buffer)
+	{
+		strcpy(_buffer, this->srm_address_);
+		ret = true;
+	}
+	
+	if (NULL != _length)
+	{
+		*_length = len;
+	}
+    DBE2_LOG(INFO_LOGGER, "deliver server ip %s", this->srm_address_);
+	return ret;
+}
+
+CAUdpThread::CAUdpThread():config_()
+{
+	//bzero(this->srm_address_, sizeof(this->srm_address_));
+}
+
+CAUdpThread::~CAUdpThread()
+{
+}
+
+int32 CAUdpThread::run(NAMESPACE_OD_FRAME CData * p)
+{
+	//REPORT_TRACE("ca udp start listening...");
+	DBE2_LOG(TRACE_LOGGER, "udp start listening...");
+//	if(1 == config_.is_server_ip_) //
+//    {
+//    	if (this->Listen())return 0;
+//    }
+//    else
+//    {
+//        if (this->Request())return 0;
+//    }
+    if (this->Listen())return 0;
+
+	return -1;
+}
+
+int32 CAUdpThread::init()
+{
+	int32 iRet = this->read_config(this->config_);
+	if(0 != iRet) return iRet;
+    
+    if(QueryUdpServer())
+    {
+        DBE2_LOG(ERROR_LOGGER, "udp server has created");
+        return -1;
+    }
+//    if(1 == config_.is_server_ip_)
+    if (! this->CreateServer(this->config_.udp_ip_mask_, this->config_.udp_port_))
+    {
+    	//REPORT_TRACE("create ca udp listener failed.");
+    	DBE2_LOG(ERROR_LOGGER, "create server udp listener failed.");
+    	return -1;
+    }
+//    else
+//    {
+//    	if (! this->CreateClient(this->config_.udp_ip_mask_, this->config_.udp_port_))
+//    	{
+//    		//REPORT_TRACE("create ca udp listener failed.");
+//    		DBE2_LOG(ERROR_LOGGER, "create client udp  failed.");
+//    		return -1;
+//    	}
+//    }
+//
+	return 0;
+}
+
+int32 CAUdpThread::stop()
+{
+	//REPORT_TRACE("stopping ca udp listener...");
+	DBE2_LOG(TRACE_LOGGER, "stopping udp listener...");
+	this->Close();
+	return 0;
+}
+
+int32 CAUdpThread::destroy()
+{
+	return 0;
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+od_frame:: CThread *create_caUdpInstance()
+{
+    return new CAUdpThread();
+}
+#ifdef __cplusplus
+}
+#endif
+
+}

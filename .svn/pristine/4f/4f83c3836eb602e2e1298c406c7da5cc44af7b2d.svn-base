@@ -1,0 +1,29 @@
+.PHONY: all install clean 
+
+TARGET=epa_info
+INSTALL_PATH=$(OB_REL)/bin
+
+CFLAGS:= -O2 -Wall -lpthread -MD $(foreach dir, $(INCLUDEDIR), -I$(dir))
+CXX:=g++
+
+OBJDIR=./buildbin
+
+SRCS=$(wildcard *.cpp)
+
+OBJS=$(patsubst %.cpp, $(OBJDIR)/%.o, $(SRCS))
+
+all: $(OBJS)
+	$(CXX) $(OBJS) $(CFLAGS) -o $(TARGET) 
+
+$(OBJDIR)/%.o : %.cpp 
+	@[ ! -d $(OBJDIR) ] & mkdir -p $(OBJDIR)
+	$(CXX) $(CFLAGS) -o $@ -c $<
+
+install:all
+ifneq "$(INSTALL_PATH)" ""
+	cp -rf  $(TARGET) $(INSTALL_PATH)/$(TARGET)
+endif
+
+clean:
+	@find $(OBJDIR) -name "*.o" -or -name "*.d"|xargs rm -f
+	@rm -f $(TARGET)

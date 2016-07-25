@@ -1,0 +1,399 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_util.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-22）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include <unistd.h>
+#include <pwd.h>
+#include <sys/types.h>
+#include <fcntl.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "nrm_util.h"
+#include "dbe2_util.h"
+#include "nrm_config_data.h"
+#include "dbe_base_def_sdl_c.h"
+#include "nrm_def_sdl_c.h"
+#include "parseenv.h"
+
+namespace MDbe
+{
+
+CNrmConfig & GetNrmConfig()
+{
+    return g_objNrmConfig;
+}
+
+bool compare_procKey(const  od_srm::CProcKey& rcProcKey1,const od_srm::CProcKey& rcProcKey2)
+{
+    return (((rcProcKey1.m_objSKey.m_iFlowId == rcProcKey2.m_objSKey.m_iFlowId)
+                && (rcProcKey1.m_objSKey.m_iSrvId == rcProcKey2.m_objSKey.m_iSrvId))
+            && (rcProcKey1.m_iProcId == rcProcKey2.m_iProcId));
+}
+
+bool compare_procKey(SBaseProcKey &rcProcKey1, SBaseProcKey rcProcKey2)
+{
+    return ((rcProcKey1.appId() == rcProcKey2.appId())
+            && (rcProcKey1.procId() == rcProcKey2.procId()));
+}
+
+
+bool compare_procKey(SBaseProcKey &rcProcKey1, const od_srm::CProcKey & rcProcKey2)
+{
+    return ((rcProcKey1.appId() == rcProcKey2.m_objSKey.m_iSrvId)
+            && (rcProcKey1.procId() == rcProcKey2.m_iProcId));
+}
+
+bool compare_procKey(const od_srm::CProcKey & rcProcKey1, SBaseProcKey &rcProcKey2)
+{
+    return ( (rcProcKey2.appId() == rcProcKey1.m_objSKey.m_iSrvId)
+            && (rcProcKey2.procId() == rcProcKey1.m_iProcId));
+}
+
+SBaseProcKey& ChangeCProcKey2SBaseProcKey(SBaseProcKey &rcOutProcKey, const od_srm::CProcKey &rcProcKey)
+{
+    rcOutProcKey.set_appId(rcProcKey.m_objSKey.m_iSrvId);
+    rcOutProcKey.set_procId(rcProcKey.m_iProcId);
+    return rcOutProcKey;
+}
+
+od_srm::CProcKey& ChangeSBaseProcKey2CProcKey(od_srm::CProcKey &rcOutProcKey, SBaseProcKey &rcProcKey)
+{
+    rcOutProcKey.m_iProcId = rcProcKey.procId();
+    rcOutProcKey.m_objSKey.m_iFlowId = BUSINESS_FLOW_ID;
+    rcOutProcKey.m_objSKey.m_iSrvId = rcProcKey.appId();
+    return rcOutProcKey;
+}
+
+#define THROW_TMP_EXCEPTION(type) THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_## type ## _CMD_IS_NULL, #type " script is null")
+
+#define CHECK_ERROR(type) \
+    do { \
+        if ( type == STOP ) { \
+            THROW_TMP_EXCEPTION(STOP); \
+        } else if ( type == CHECK ) { \
+            THROW_TMP_EXCEPTION(CHECK); \
+        } else if ( type == FORCE_STOP ) { \
+            THROW_TMP_EXCEPTION(FORCE_STOP); \
+        } else if ( type == RESTART ) { \
+            THROW_TMP_EXCEPTION(RESTART); \
+        } else { \
+            \
+        } \
+    } while(0)
+
+
+void CheckExecutable(std::vector<aistring> vecEnvPath, const char* szFile, int32 type)
+{
+    int32 iRet = -1;
+
+    const char* szShellFile =  szFile;
+    aistring strFileName = szFile;
+    if(NULL != szFile)
+    {
+        char *saveptr;
+        szShellFile = strtok_r((char*)strFileName.c_str(), " ", &saveptr);
+    }
+    if(NULL == szShellFile)
+    {
+        CHECK_ERROR(type);
+    }
+
+    //判断是否是全路径或者带$的路径
+    if('/' == szShellFile[0] || '$' == szShellFile[0])
+    {
+        aistring strDst;
+        if('$' == szShellFile[0])
+        {
+            int32 iRetPath = ConvertEnvPath(szShellFile, strDst);
+
+            if(iRetPath != 0)
+            {
+                CHECK_ERROR(type);
+            }
+        }
+        else
+        {
+            strDst = szShellFile;
+        }
+        iRet = access(strDst.c_str(), X_OK);
+        goto CHECKEXECUTABLE_END;
+
+    }
+    char szGetCmd[1024];
+    for(std::vector<aistring>::iterator it = vecEnvPath.begin();
+            it != vecEnvPath.end();
+            ++it)
+    {
+        memset(szGetCmd, 0x00, sizeof(szGetCmd));
+        snprintf(szGetCmd, sizeof(szGetCmd) -1,"%s/%s", (*it).c_str(), szShellFile);
+        iRet = access(szGetCmd, X_OK);
+        if(iRet == 0)
+        {
+            break;
+        }
+    }
+CHECKEXECUTABLE_END:
+    if(iRet != 0)
+    {
+        CHECK_ERROR(type);
+    }
+}
+
+int32 ShellCmdNoReturn(const aistring & rcStrCmd)
+{
+	aistring strOut;
+    int32 iMax = sysconf(_SC_OPEN_MAX);
+    for(int32 i = 3; i <  iMax; ++i)
+    {
+        fcntl(i, F_SETFD, FD_CLOEXEC);
+    }
+	int32 iStatus = ExecShell(rcStrCmd, false, strOut);
+
+    return iStatus;
+}
+
+int32 ShellCmd(const aistring &rcStrCmd, aistring & rcStrResult)
+{
+    int32 iMax = sysconf(_SC_OPEN_MAX);
+    for(int32 i = 3; i <  iMax; ++i)
+    {
+        fcntl(i, F_SETFD, FD_CLOEXEC);
+    }
+	return ExecShell(rcStrCmd, true, rcStrResult);
+}
+
+int32 CreateCurrentPath(const char *pszPath)
+{
+    FILE * fp = fopen(pszPath, "r");
+    int iRet = 0;
+    if ( fp )
+    {
+        fclose(fp);
+    }
+    else
+    {
+		DBE2_LOG(INFO_LOGGER, "open dir:%s,errno:%d,fail reason:%s", pszPath, errno, strerror(errno));
+        if (mkdir(pszPath, S_IRUSR | S_IWUSR | S_IXUSR |S_IRGRP | S_IWGRP | S_IXGRP) < 0)
+        {
+			DBE2_LOG(INFO_LOGGER, "mkdir:%s,errno:%d,fail reason:%s", pszPath, errno, strerror(errno));
+			//有可能其他线程已经创建好了
+			fp = fopen(pszPath, "r");
+			if (fp)
+			{
+				DBE2_LOG(INFO_LOGGER, "mkdir %s return error,fopen ok", pszPath);
+				fclose(fp);
+				return iRet;
+			}
+
+		    iRet = -1;
+        }
+    }
+    return iRet;
+}
+
+
+int32 CheckPath(const char *pszPath)
+{
+    aistring strDst;
+    int32 iRet = ConvertEnvPath(pszPath, strDst);
+	DBE2_LOG(INFO_LOGGER, "ConvertEnvPath output strDst:%s", strDst.c_str());
+    if(iRet != 0)
+    {
+		DBE2_LOG(INFO_LOGGER, "CheckPath fail. ConvertEnvPath != 0");
+        iRet = -1;
+    }
+    else
+    {
+        const char* szPath = strDst.c_str();
+        int32 iPathLen = strlen(szPath);
+        char szmvBuf[512];
+
+        for(int32 i = 0; i < iPathLen; i++)
+        {
+            if('/' == szPath[i] && i > 0)
+            {
+                memset(szmvBuf,0,sizeof(szmvBuf));
+                strncpy(szmvBuf,szPath,i + 1);
+                szmvBuf[i+1] = 0;
+				DBE2_LOG(INFO_LOGGER, "CreateCurrentPath szmvBuf:%s", szmvBuf);
+                if( CreateCurrentPath(szmvBuf) < 0 )
+                {
+					DBE2_LOG(INFO_LOGGER, "CheckPath fail. CreateCurrentPath < 0");
+                    iRet = -1;
+					return iRet;
+                }
+            }
+        }
+        iRet = 0;
+    }
+    return iRet;
+}
+
+int32 CheckDir(const char *pszDir)
+{
+    if ( pszDir == NULL || *pszDir == '\0' )
+    {
+        return 0;
+    }
+
+    struct stat statbuf;
+	if (stat(pszDir, &statbuf) < 0)
+	{
+		DBE2_LOG(INFO_LOGGER, "check dir :%s,errno:%d,stat failed:%s", pszDir, errno, strerror(errno));
+		return -1;
+	}
+    if( !S_ISDIR(statbuf.st_mode) )
+    {
+		DBE2_LOG(INFO_LOGGER, "CheckDir fail. !S_ISDIR(statbuf.st_mode) ");
+        return -1;
+    }
+    return 0;
+}
+
+CSendTarget GetSrmAddress()
+{
+    return CSendTarget(-1, 5, 1, -1, 5);
+}
+
+void ReadUpdateProcess(SSrmUpGradeProcess &rcSrmUpGradeProcess)
+{    
+	char szFilePath[MAX_PATH] = {0};
+    // snprintf(szFilePath,sizeof(szFilePath) ,"%s/ipc/upgrade_process.cpf", getenv("HOME"));
+    snprintf(szFilePath,sizeof(szFilePath) ,"%s/ipc/upgrade_process.cpf", getenv("CPF_HOME")); // CPF_HOME
+    
+	FILE *fp = fopen(szFilePath, "r");
+	if(!fp)
+	{
+		DBE2_LOG(WARN_LOGGER, "The file %s does not exist, errno %d strerr %s",szFilePath, errno, strerror(errno));
+		THROW_CAIEXCEPTION(DBE2_NRM_UPDATE_PROCESS_INFORMATION_CANNOT_GET, "cannot open the process update process file");
+		return;
+	}
+	
+	char szLine[1024*10];
+	AISTD string strKey,strValue;
+	while(fgets(szLine, sizeof(szLine), fp) != NULL)
+	{
+		if (0 != GetKeyValueInLine(szLine,"=", strKey, strValue)) continue;
+
+		if (0==strcmp("op_id", strKey.c_str()))
+		{
+			rcSrmUpGradeProcess.set_opId(atoi(strValue.c_str()));
+		}
+		else if (0==strcmp("state", strKey.c_str()))
+		{
+			rcSrmUpGradeProcess.set_state(atoi(strValue.c_str()));
+		}
+		else if (0==strcmp("process", strKey.c_str()))
+		{
+			rcSrmUpGradeProcess.set_process(atoi(strValue.c_str()));
+		}
+		else if (0==strcmp("desc", strKey.c_str()))
+		{
+			rcSrmUpGradeProcess.set_processDesc(strValue);
+		}
+		else if (0 == strcmp("restart_flow_ids",strKey.c_str()))
+		{
+			rcSrmUpGradeProcess.set_restartFlowIds(strValue);
+		}
+		else if (0 == strcmp("update_files",strKey.c_str()))
+		{
+			rcSrmUpGradeProcess.set_updateFiles(strValue);
+		}
+		else
+		{
+			fclose(fp);
+			THROW_CAIEXCEPTION(DBE2_NRM_UPDATE_PROCESS_INFOMATION_ERROR, "the information in the update record file cannot be recognized");
+			return;
+		}
+	}
+
+	fclose(fp);
+	return;
+}
+
+aistring GetCpfVersion()
+{
+    char szPath[MAX_PATH];
+	snprintf(szPath, sizeof(szPath),"%s/ipc/vm_version.cpf", getenv("CPF_HOME"));
+    
+	FILE *fp = fopen(szPath, "r");
+    if ( !fp ) 
+    {
+        return "";
+    }
+
+	char szLine[MAX_PATH];
+	AISTD string strKey,strValue;
+	while(fgets(szLine, sizeof(szLine), fp) != NULL)
+	{
+		if (0 != GetKeyValueInLine(szLine,"=", strKey, strValue)) continue;
+
+		if (0==strcmp("cpf", strKey.c_str()))
+		{
+			fclose(fp);
+			return strValue.c_str();
+		}
+	}
+
+	fclose(fp);
+	return  "";
+}
+
+aistring GetUserName()
+{
+    uid_t uid;
+    struct passwd pwd;
+    struct passwd *result;
+
+    int ret;
+
+    int bufsize;
+    char *buf;
+
+    aistring strUserName;
+
+    uid = geteuid();
+
+    bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if ( bufsize < 0 ) {
+        bufsize = 4096 * 4;
+    }
+    buf = (char *)malloc(sizeof(char) * bufsize);
+    if ( !buf ) {
+        strUserName = "<unknown>";
+        return strUserName;
+    }
+    ret = getpwuid_r(uid, &pwd, buf, bufsize, &result);
+    if ( !result ) {
+        if ( !ret ) {
+            strUserName = "<unknown>";
+        }
+        else {
+            strUserName = "<unknown>";
+        }
+    }
+    else {
+        strUserName = pwd.pw_name;
+    }
+    free(buf);
+    return strUserName;
+}
+
+} // namespace MDbe

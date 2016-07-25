@@ -66,7 +66,13 @@ public class UserServiceTest extends BaseJUnit4Test{
 		System.out.println(user.toString());
 	}
 	
-	
+	@Test
+	public void login() {
+		User user = new User();
+		user.setUsername("yuanouwen");
+		user.setPassword("78375943");
+		System.out.println(userService.findByNameAndPassword(user));
+	}
 	
 	public UserRepository getUserRepository() {
 		return userRepository;

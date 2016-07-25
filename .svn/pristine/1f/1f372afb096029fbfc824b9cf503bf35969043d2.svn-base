@@ -1,0 +1,12 @@
+#pragma  once
+#define _HW_USEC11_ 0
+#if _HW_USEC11_
+#include <mutex>
+#include <memory>
+typedef std::mutex  CHwMutex;
+typedef std::shared_ptr<std::mutex> CHwTmpLock;
+#else
+#include "cbs_mutex.h"
+typedef CBSMutexLock CHwMutex;
+typedef CBSLockGuard<CHwMutex> CHwTmpLock;
+#endif 

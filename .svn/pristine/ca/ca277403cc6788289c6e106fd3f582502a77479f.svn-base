@@ -1,0 +1,316 @@
+package Ca;
+
+#use strict;
+use Exporter;
+use Socket;
+use IO::Handle;
+
+sub new{
+    my $class = shift;
+    my $ref   = \*CLIENT;
+    my $self  = { 
+        _Ip   =>undef,
+        _Port =>undef,
+        _Vmid =>12345,
+        _Sock =>$ref,
+    };  
+    return bless($self,$class);
+}
+#sub DESTROY{
+#       my $self = shift;
+#       #print "socket closed!\n";
+#       #my $handle = $self->("_Sock");
+#       #close CLIENT;
+#}
+sub Connect{
+    my $self =shift;
+    my $handle = $self->{"_Sock"};
+    my $vmid   = $self->{"_Vmid"};
+    register2srm($handle,$vmid);
+    waitSrmResponse(151,0,$handle);
+}
+
+sub send_msg{
+my ($self,$msg_type,$obbstr) =@_;
+my $handle = $self->{"_Sock"};
+my $vmid  = $self->{"_Vmid"};
+send_req($msg_type,$vmid,$obbstr,$handle);
+}
+
+sub collectMsg{
+    my ($self,$msg_type,$seq) =@_;
+    my $handle = $self->{"_Sock"};
+
+    #print "waiting for srm response, seq:$seq\n";
+    my $obbstr =&recv_data($msg_type,$seq,$handle);
+
+    #print  "obbstr:$obbstr\n";
+    return $obbstr;
+}
+
+sub trim
+{
+    my $string = shift;
+    $string =~ s/^\s+//;
+    $string =~ s/\s+$//;
+    return $string;
+}
+
+sub set_data{
+    my $self =shift;
+    my ($ip,$port,$vmid);
+    if(@_==2){
+        $ip   =shift;
+        $port =shift;
+    }
+    elsif(@_==3){
+        $ip   =shift;
+        $port =shift;
+        $vmid =shift;
+        $self->{_Vmid}=$vmid;
+    }
+    else{
+        print "Enter the srm host ip:\n";
+        chomp($ip =<STDIN>);
+        $ip=trim($ip);
+        print "Enter srm port of $ip\n";
+        chomp($port =<STDIN>);
+        $port=trim($port);
+    }
+    
+    $self->{_Ip}=$ip;
+    $self->{_Port}=$port;
+    my $handle = $self->{"_Sock"};
+    connect2srm($ip,$port,$handle);
+}
+
+sub connect2srm{
+    (@_>=1) or  print "[fatal]:connect2srm  param is null!\n";
+    my($ip,$port,$handle) = @_;
+    
+    my $packed_addr=inet_aton($ip);
+    my $address=sockaddr_in($port,$packed_addr);
+
+    socket($handle,AF_INET,SOCK_STREAM,getprotobyname('tcp')) or die "[fatal]:Can't create socket: $!";
+    connect($handle,$address) or die "[fatal]:connect to srm fail! $ip:$port.$!\n";
+#    print "connect to srm  ip:$ip,port:$port successful!\n";
+	print "Connected to:\nSrm Release 2.5.1 - AIOPENBILLING CPF\n";
+    sleep 1;
+    return $address;
+}
+
+sub register2srm{
+    my ($handle,$vmid) = @_;
+
+    $handle->autoflush(1);
+    my $regist_head=pack('isscccci',280, 150,17487,108, 0,0,16,2);
+    send($handle,$regist_head,0);
+
+    my $regist_item1=pack('icccca64',72, 108, 2, 0, 0, "N6od_srm10CRouteDataE");
+    send($handle,$regist_item1,0);
+
+    my $regist_route_data=pack('i*',0,0,0,0,0,0,0,0,0,0,0,0,-1,8,1,$vmid,0,0);
+    send($handle,$regist_route_data,0);
+
+    my $regist_item2=pack('icccca64',64, 108, 2, 0, 0, "N6od_srm11CDbeCommApiE");
+    send($handle,$regist_item2,0);
+
+    my $cur_time=time();
+    my $cur_virtual_time=`ai_time -sec`;
+
+    my $regist_commapi=pack('i4i4i4a16',-1, 2, 1, 0, 0, $cur_virtual_time-$cur_time, 0, $cur_virtual_time,8,2,0,0);
+    send($handle,$regist_commapi,0);
+
+    $handle->autoflush(1);
+    print "Vm id:$vmid,";
+}
+
+sub rece_msg{
+    my ($self,$msg_type,$seq) =@_;
+    my $handle = $self->{"_Sock"};
+    my $obbstr=waitSrmResponse($msg_type,$seq,$handle); 
+    return $obbstr;
+}
+sub waitSrmResponse{
+    my ($msg_type,$seq,$handle) = @_;
+    if($msg_type eq ""){
+        print "wait msg_type error \n";
+        return 0;
+    }
+
+    my $res = -1;
+    my $obbstr="";
+    while($res ==-1)
+    {
+     #   print "waiting for srm response, msg_type:$msg_type...\n";
+        $obbstr =&recv_data($msg_type,$seq,$handle);
+        if($obbstr eq ""){
+#            print "Not wait until reply\n";
+            select(undef,undef,undef,0.1);
+        }
+        else{
+            $res=0;
+        }
+    }
+    if($msg_type==151){
+        print "Register to srm successful\n";    
+    }
+    #print "recviced response, msg_type:$msg_type!\n";
+    return $obbstr;
+}
+
+sub recv_data{
+    my ($msg_type,$seqin,$handle) = @_;
+    my @content_list;
+    my $pack_head = recv_ndata(16,$handle);
+
+    if(length $pack_head <= 0)
+    {
+        return -1;
+    }
+
+    my ($bodylen, $msgtype,$magic,$flag, $encode,$encrypt,$version,$item_count) = unpack('isscccci',$pack_head);
+    #print ("head_info:bodylen[$bodylen],msgtype[$msgtype],magic[$magic],flag[$flag],encode[$encode],encrypt[$encrypt],version[$version],item_count[$item_count]\n");
+
+    while($item_count-->0)
+    {
+        my $item_head = recv_ndata(72,$handle);
+        if(length $item_head <= 0)
+        {
+            return -1;
+        }
+
+        my @itheader=unpack('ic2a2a64',$item_head);
+        my ($itemlen,$flag) = unpack('ic',$item_head);
+        #print("inclusion  itemlen:$itemlen,flag:$flag \n");
+
+        my $content =recv_ndata($itemlen,$handle);
+        push @content_list, $content;
+
+        if($itemlen%8>0)
+        {
+            recv_ndata(8-$itemlen%8,$handle);
+        }
+    }
+
+    @route_data=unpack('i*',$content_list[0]); 
+    #print ("rout_data:@route_data \n");
+    if($msgtype==151)
+    {
+        @comm_api=unpack('i3i4i3a16',$content_list[1]);
+        #print("comm_api:@comm_api\n");
+        $content_list[1] = "comm_api:@comm_api\n";
+    }
+    else
+    {
+        #print ("obb_strem: $content_list[1]");
+    }
+
+    my $result = sprintf("RouteData:Sequence<%d> DataType<%d> TFlowId<%d> TSrvId<%d> TProcId<%d> TVmId<%d> SFlowId<%d> SSrvId<%d> SProcId<%d> SVmId<%d>\nObbStream:$content_list[1]",
+            $route_data[0],$route_data[3],$route_data[6],$route_data[7],$route_data[8],$route_data[9],$route_data[12],$route_data[13],$route_data[14],$route_data[15]);
+    #print("result:$result\n");
+
+    $cmdid = $msgtype;
+
+    if($cmdid != 151)
+    {
+        if($result =~ m#"int64_4_SEQUENCE" : "(.*?)",.*"int32_4_MSG_TYPE" : (.*?),#s)                                               
+        {                                                                                                                        
+            $cmdid = $2;                                                                                                         
+            $seq = $1;                                                                                                           
+        }                                                                                                                        
+        elsif($result =~ m#"int32_3_COMMAND" : (.*?),.*"int64_4_SEQUENCE" : "(.*?)",#s)                                              
+        {                                                                                                                    
+            $cmdid = $1;                                                                                                     
+            $seq = $2;                                                                                                       
+        }    
+    }
+    
+    #print "cmmdid:$cmdid \n";
+    if($msg_type ==151 and $cmdid==151)
+    {
+        return "151";
+    }
+    
+    if($cmdid==152)
+    {
+        print "another console use same vm id connected to srm,process will exit.\n";
+        exit (152);
+    }
+
+    my $obbstr = "ObbStream:".$content_list[1];
+    if($cmdid == $msg_type and $seqin==$seq  )
+    {
+        return $obbstr;
+    }
+    elsif($msg_type==0 and $seqin==$seq) 
+    {
+        return $obbstr;
+    }
+    else
+    {
+        return "";
+    }
+} 
+
+sub recv_ndata{    
+    my $recvdata = "";    
+    my ($len,$handle) =  @_; 
+    while($len > 0)    
+    {    
+        my $data;    
+        recv($handle,$data,$len,0);    
+        my $recv_len =length $data;
+        if($recv_len <= 0)    
+        {    
+            print "disconnect srm! req_len:$len, recved_len:$recv_len, recv_data:$recvdata\n"; 
+            return ""; 
+        }    
+        $len -= length $data;    
+        $recvdata.=$data;    
+    }   
+    return $recvdata;
+}
+
+sub send_req
+{
+    my ($msg_type,$vm_id,$obb_content,$handle) = @_;
+    $handle->autoflush(1);
+    my $req_route_data=pack('i*',0,0,0,0,0,0,0,0,0,0,0,0,-1,8,1,$vm_id,0,0);
+
+     my $size = length($obb_content);
+     $body_len = $size + ($size%8 > 0 ? (8-$size%8) : 0); 
+     $pack_len = 72*3+$body_len; 
+     $obb_content_len = length $obb_content;
+     #print ("msg_type = $msg_type, pack_len = $pack_len, body_len = $body_len, size = $size, content_len = $obb_content_len\n");
+
+     my $req_head=pack('isscccci',$pack_len, $msg_type,17487,108, 0,0,16,2);
+     send($handle, $req_head, 0); 
+
+     my $req_item1=pack('ic2cca64',72, 108, 2, 0,0, "N6od_srm10CRouteDataE");
+     send($handle, $req_item1, 0); 
+
+
+     send($handle, $req_route_data, 0); 
+
+     my $req_item2=pack('ic2cca64',$size, 108, 0, 0,0, "");
+     send($handle, $req_item2, 0); 
+
+
+     send($handle, $obb_content, 0); 
+
+     if($body_len > $size)
+     {
+         my $len = $body_len - $size;
+         while($len--)
+         {   
+             my $invalid=pack('a1',"");
+             send($handle, $invalid, 0); 
+         }   
+     }
+
+     #print ("Ca module send msg to srm:\n$obb_content");
+     $handle->autoflush(1);
+}
+
+1;

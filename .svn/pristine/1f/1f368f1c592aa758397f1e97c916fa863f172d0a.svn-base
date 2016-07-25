@@ -1,0 +1,117 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_proc_trans_mgr_impl_cpp)
+{
+	//Fuction: CSrmProcTransMgrImpl :: CSrmProcTransMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_CSrmProcTransMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmProcTransMgrImpl :: CallBack ( int32 iTransId , int32 bTransResult )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_CallBack)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: CompleteOpera ( SBaseProcKey & rcProcKey , int32 iVmId , int32 iOperateType , int32 iOperateResult )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_CompleteOpera)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CSrmProcTransMgrImpl :: Create ( SRdcCreateTrans & rcCreateTrans )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_Create)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: ExeProcOperate ( CRdcProcTransOperateList & rlstProcOperate , int32 iExeLevel )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_ExeProcOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: GetFlowSrvParam ( rsetInt & ri32FlowIdSet , rsetInt & ri32SrvIdSet , CIntToStringlMap & rcFlowParamSalMap , CIntToStringlMap & rcSrvPramDbMap , CIntToStringlMap & rcSrvPipeLineMap , CIntToStringDuplexMap & rcSrvPramOthMap )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_GetFlowSrvParam)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmProcTransMgrImpl :: OperateFailed ( CRdcProcTransOperate & rcProcOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_OperateFailed)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: OperateTimeOut ( void )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_OperateTimeOut)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmProcTransMgrImpl :: QueryFlowTransId ( int32 iFlowId , CRdcProcTransList & rlstProcTrans )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_QueryFlowTransId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: StopTrans ( int32 iTransId )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_StopTrans)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: StopTransByFlow ( int32 iFlowId )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_StopTransByFlow)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: SetTranOperateKey ( CRdcProcTransOperate & rcInOperate , CRdcProcTransOperate & rcOutOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_SetTranOperateKey)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: GetSingleSrvParam ( int32 iFlowId , int32 iSrvId , SNrmStartProcExt & rSNrmStartProcExt )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_GetSingleSrvParam)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcTransMgrImpl :: AddTransErrorInfo ( int32 iTransId , aistring & rstrError )
+	TEST_FIXTURE(TestFixture,TestCSrmProcTransMgrImpl_AddTransErrorInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

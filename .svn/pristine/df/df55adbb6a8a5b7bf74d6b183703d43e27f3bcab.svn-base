@@ -1,0 +1,54 @@
+
+#include "frame_state.h"
+#include <errno.h>
+#include "dbe2_util.h"
+
+int32 NAMESPACE_DBE_PCC CPccState::init()
+{
+	//add nr register here
+	return 0;
+}
+
+int32 NAMESPACE_DBE_PCC CPccState::destroy()
+{
+	return 0;
+}
+
+int32 NAMESPACE_DBE_PCC CPccState::run(NAMESPACE_OD_FRAME CData *p)
+{
+
+	if(m_cNextWriteTime.compare(GetVirtualTimeSec()) < 0)
+	{
+		sleep(2);
+		return 0;
+	}
+
+	//write nr here
+
+	m_cNextWriteTime.update(GetVirtualTimeSec());
+	return 0;
+}
+
+NAMESPACE_DBE_PCC CPccState::CPccState()
+// : m_lNextWriteTime(0L)
+ : m_cNextWriteTime(GetVirtualTimeSec())
+{
+}
+
+NAMESPACE_DBE_PCC CPccState::~CPccState()
+{
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_OD_FRAME CThread *NAMESPACE_DBE_PCC create_pccStateInstance()
+{
+	return new NAMESPACE_DBE_PCC CPccState();
+}
+
+#ifdef __cplusplus
+}
+#endif
+

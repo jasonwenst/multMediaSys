@@ -1,0 +1,962 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_proc_mgr_impl.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "srm_proc_mgr_impl.h"
+#include "srm_proc_trans_mgr.h"
+#include "srm_def_sdl_c.h"
+#include "nrm_def_sdl_c.h"
+#include "srm_proc_mgr.h"
+#include "srm_rdc_mgr.h"
+#include "srm_vm_mgr.h"
+#include "srm_app_mgr.h"
+#include "srm_deploy_mgr.h"
+#include "dbe2_base_mgr.h"
+#include "dbe2_common_struct.h"
+#include "srm_util.h"
+#include "msg_dispatch_mgr.h"
+#include <string.h>
+
+using namespace std;
+namespace MDbe
+{
+
+CLock g_cProcExitLock[LOCK_SIZE];
+
+CProcExitLock::CProcExitLock(SBaseProcKey &rPk):
+m_cLock(g_cProcExitLock[abs(rPk.appId() % LOCK_SIZE)])
+{
+	m_cLock.Lock();
+}
+
+CProcExitLock::~CProcExitLock()
+{
+	m_cLock.UnLock();
+}
+
+CSrmProcMgrImpl::CSrmProcMgrImpl()
+{
+}
+
+template<typename T>
+void LockList<T>::Push_back( const T &value )
+{
+    MDbe::CAutoLock cAutoLock(m_lock);
+    m_list.push_back(value);
+}
+
+template<typename T>
+T LockList<T>::Pop_front()
+{
+    MDbe::CAutoLock cAutoLock(m_lock);
+    T tmp;
+    if (m_list.begin() != m_list.end()) tmp = m_list.front();
+    m_list.pop_front();
+    return tmp;
+}
+
+template<typename T>
+int32 LockList<T>::Size()
+{
+    MDbe::CAutoLock cAutoLock(m_lock);
+    return m_list.size();
+}
+
+template<typename T>
+void LockList<T>::GetAndClearList(AISTD vector<T> &clist)
+{
+    MDbe::CAutoLock cAutoLock(m_lock);
+    clist = m_list;
+    m_list.clear();
+}
+
+CProcConfig::CProcConfig():m_strCfg(),m_strLogPath(),m_strFilePrefix()
+{
+}
+
+CProcConfig::CProcConfig(const CProcConfig &rProcCfg):m_strCfg(rProcCfg.m_strCfg),
+    m_strLogPath(rProcCfg.m_strLogPath),
+    m_strFilePrefix(rProcCfg.m_strFilePrefix)
+{
+}
+
+CProcConfig& CProcConfig::operator=(const CProcConfig &rProcCfg)
+{
+    if (&rProcCfg == this) return *this;
+    m_strCfg = rProcCfg.m_strCfg;
+    m_strLogPath = rProcCfg.m_strLogPath;
+    m_strFilePrefix = rProcCfg.m_strFilePrefix;
+    return *this;
+}
+
+void CSrmProcMgrImpl::StartByTrans(CRdcProcTransOperateList &rcStartOperateList, int32 modifyState)
+{
+    if (0 == rcStartOperateList.size()) return;
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CMsgHelper *pMsgHelper = GetMsgHelper();
+    SNrmStartProcExtList cStartProcExtList;
+    CRdcProcTransOperateList::iterator itProcOperate;
+    // 涉及到启动依赖服务时候，服务可能会属于不同的流程
+    CInt32Set i32AppIdSet;
+    for(itProcOperate = rcStartOperateList.begin(); itProcOperate != rcStartOperateList.end(); ++itProcOperate)
+    {
+        i32AppIdSet.insert(itProcOperate->get_appId());
+    }
+
+    // 读取配置文件
+    CRdcAppList cAppList;
+    CRdcAppList::iterator itApp;
+    rcRdcMgr.QueryAppList(i32AppIdSet, cAppList);
+    for(itProcOperate = rcStartOperateList.begin(); itProcOperate != rcStartOperateList.end(); ++itProcOperate)
+    {
+        if (PROC_START != itProcOperate->get_operateType()) continue;
+        SNrmStartProcExt startInfo;
+        // 设置流程参数ID
+        // 存在父流程的设置流程参数为父流程ID
+        for (itApp = cAppList.begin(); itApp != cAppList.end(); ++itApp)
+        {
+            if (itProcOperate->get_appId() == itApp->get_appId()) break;
+        }
+        if (itApp == cAppList.end()) continue;
+        startInfo.set_vmId(itProcOperate->vmId());
+        startInfo.set_minProcNum(itApp->procNumMin());
+        startInfo.set_maxProcNum(itApp->procNumMax());
+        startInfo.set_restartNumber(0);
+        startInfo.set_appParam(itApp->appParam());
+        startInfo.startProc().baseProcKey().set_appId(itApp->appId());
+        startInfo.startProc().baseProcKey().set_procId(itProcOperate->procId());
+        startInfo.startProc().set_msgHead(GetMsgHead(7001));
+        startInfo.startProc().set_timeOutSecond(ModifyNrmTime(itApp->timeOutSecond()));
+        cStartProcExtList.push_back(startInfo);
+    }
+    CInt32StringlMap cLogPathMap;
+	CInt32StringlMap cInputPathMap;
+	CInt32StringlMap cShellPathMap;
+	CInt32StringlMap cStatPathMap;
+	GetAppParam(i32AppIdSet, cStartProcExtList, &cLogPathMap, &cInputPathMap, &cShellPathMap, &cStatPathMap);
+	
+    CInt32StringlMap::iterator itLogPath;
+	CInt32StringlMap::iterator itInputPath;
+	CInt32StringlMap::iterator itShellPath;
+	CInt32StringlMap::iterator itStatPath;
+    // 更新进程状态
+    if(modifyState)
+    {
+        for(itProcOperate = rcStartOperateList.begin();
+            itProcOperate != rcStartOperateList.end(); ++itProcOperate)
+        {
+            if(PROC_START != itProcOperate->get_operateType()) continue;
+            CBSDateTime cDate;
+            GetCurrentTime(cDate);
+			
+            CRdcProc cProInfo;
+            cProInfo.set_appId(itProcOperate->get_appId());
+            cProInfo.set_procId(itProcOperate->get_procId());
+            cProInfo.set_vmId(itProcOperate->get_vmId());
+            cProInfo.set_procState(PROC_START_DOING);
+            cProInfo.set_procStartTime(cDate);
+            itLogPath = cLogPathMap.find(itProcOperate->get_appId());
+			itInputPath = cInputPathMap.find(itProcOperate->get_appId());
+			itShellPath = cShellPathMap.find(itProcOperate->get_appId());
+			itStatPath = cStatPathMap.find(itProcOperate->get_appId());
+
+            if (itLogPath != cLogPathMap.end())
+            {
+                cProInfo.logPath() = itLogPath->second + "_" + itoa(itProcOperate->get_appId() * 100 + itProcOperate->get_procId()) +
+                    "_system_" + cDate.toString("%Y%M%D") + "_001";
+            }
+
+			if (itInputPath!=cInputPathMap.end())
+			{
+				cProInfo.inputPath() = itInputPath->second;
+			}
+
+			if (itShellPath!=cShellPathMap.end())
+			{
+				cProInfo.shellLog() = itShellPath->second;
+			}
+			if (itStatPath != cStatPathMap.end())
+			{
+				char appId[16];
+				char procId[16];
+				sprintf(appId, "%d", cProInfo.appId());
+				sprintf(procId, "%d", cProInfo.procId());
+				aistring statPath;
+				aistring itStatStr = itStatPath->second;
+				
+				char ch = itStatStr[itStatStr.length() - 1];
+				if (ch=='/')
+				{
+
+				}
+				else
+				{
+					itStatStr = itStatStr + "/";
+				}
+				if (strlen(procId)==1)
+				{
+					statPath= itStatStr + "processing_" + appId + "0"+procId + "/S" + appId +"0"+ procId+"_YYYYMMDD";
+				}
+				else
+				{
+					statPath = itStatStr + "processing_" + appId + procId + "/S" + appId + procId + "_YYYYMMDD";
+				}
+			
+				cProInfo.statPath() = statPath;
+			}
+
+            rcRdcMgr.InsertProcInfo(cProInfo);
+        }
+    }
+
+    // 发送启动命令
+    SNrmStartProcExtList::iterator itStartProc;
+    for (itStartProc = cStartProcExtList.begin();
+        itStartProc != cStartProcExtList.end(); ++itStartProc)
+    {
+        DBE2_LOG(DEBUG_LOGGER, "start proc(%d-%d).send msg_type:7001 to vm:%d",
+            itStartProc->startProc().baseProcKey().get_appId(),
+            itStartProc->startProc().baseProcKey().get_procId(),
+            itStartProc->get_vmId());
+        CSendTarget cNrmTarget = GetNrmTarget(itStartProc->get_vmId());
+        obb_stream cStream = Sdl2Obbstream(itStartProc->startProc());
+        pMsgHelper->Send(cNrmTarget, 7001, cStream);
+    }
+}
+
+void CSrmProcMgrImpl::StopByTrans(CRdcProcTransOperateList &rcStartOperateList, int32 modifyState)
+{
+    CRdcProcTransOperateList::iterator it;
+    for(it = rcStartOperateList.begin(); it != rcStartOperateList.end(); ++it)
+    {
+        int32 iFoceStopFlag = (FORCE_STOP_APP == it->get_operateType())?1:0;
+        Stop(*it, iFoceStopFlag, modifyState);
+    }
+}
+
+void CSrmProcMgrImpl::Stop(CRdcProcTransOperate &rcStopOperate, int32 iFoceStop, int32 modifyState)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    // 更新进程状态
+    if(modifyState)
+    {
+        CRdcProc cProInfo;
+        cProInfo.set_appId(rcStopOperate.get_appId());
+        cProInfo.set_procId(rcStopOperate.get_procId());
+        cProInfo.set_vmId(rcStopOperate.get_vmId());
+        if (iFoceStop)
+        {
+            cProInfo.set_procState(PROC_FORCE_STOP_DOING);
+			rcRdcMgr.UpdateProcInfo(cProInfo);
+			if (!ISrmVmMgr::GetInstance().CheckVmAvailable(rcStopOperate.get_vmId()))
+			{
+				CMsgHelper *pMsgHelper = GetMsgHelper();
+				SSrmRepExeProc cSrmRepExeProc;
+				cSrmRepExeProc.set_msgHead(GetMsgHead(3008));
+
+				SBaseProcKey rcProcKey;
+				rcProcKey.set_appId(rcStopOperate.get_appId());
+				rcProcKey.set_procId(rcStopOperate.get_procId());
+				cSrmRepExeProc.procExeResult().baseExeProc().set_baseProcKey(rcProcKey);
+				cSrmRepExeProc.procExeResult().baseExeProc().set_flag(PROC_FORCE_STOP); // 0-stop 2-force-stop 1-start nrm_define.h
+				cSrmRepExeProc.procExeResult().set_result(COMMON_SUCCESS);  // 0-false  1-true  nrm_define.h
+				cSrmRepExeProc.procExeResult().set_failReason("force stop");
+				cSrmRepExeProc.set_pid(rcStopOperate.get_vmId());//准备发送-3008消息，不是从vm发送，没有vmid，在此设置
+				obb_stream stream = Sdl2Obbstream(cSrmRepExeProc);
+				LogSdl(cSrmRepExeProc);
+				pMsgHelper->Send(-3008,stream);
+				return;
+			}
+        }
+        else
+        {
+            cProInfo.set_procState(PROC_STOP_DOING);
+			rcRdcMgr.UpdateProcInfo(cProInfo);
+        }
+      
+    }
+
+    // 发送停止消息
+    SBaseProcKey cProcKey;
+    cProcKey.set_appId(rcStopOperate.get_appId());
+    cProcKey.set_procId(rcStopOperate.get_procId());
+    SendStopMsgToNrm(cProcKey, rcStopOperate.get_vmId(), iFoceStop, 
+        ModifyNrmTime(rcStopOperate.operateSecLimit()));
+}
+
+void CSrmProcMgrImpl::UpdateProcState(SBaseProcKey &rcProKey, int32 iVmId, int32 iExeType, int32 iExeResult, int32 iPid)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcProc cProc;
+    bool bGet = rcRdcMgr.QueryProcInfobyProc(rcProKey, cProc);
+    if (!bGet)
+    {
+        DBE2_LOG(DEBUG_LOGGER, "get proc info failed,could not update proc state");
+        LogSdl(rcProKey);
+        return;
+    }
+    // 进程停止成功之后清除TBTS端口信息
+    if (COMMON_SUCCESS == iExeResult &&
+        (PROC_STOP == iExeType || PROC_FORCE_STOP == iExeType))
+    {
+        ClearProcRunInfo(rcProKey, &cProc);
+    }
+
+    // 更新进程状态
+    CRdcProc cProUpInfo;
+    if (COMMON_SUCCESS == iExeResult)
+    {
+        // 进程启动成功
+        if (PROC_START == iExeType &&
+            (PROC_START_DOING == cProc.get_procState() ||
+            PROC_START_SUCCESS == cProc.get_procState() ||
+            WAIT_VM_USEABLE == cProc.get_procState() || 
+            PROC_START_FAIL == cProc.get_procState()))
+        {
+            if (0 != iPid)
+            {
+                cProUpInfo.set_pid(iPid);
+            }
+            cProUpInfo.set_procState(PROC_START_SUCCESS);
+            cProUpInfo.set_procStartTime(GetCurrentTime());
+        }
+        // 进程停止成功  直接删除进程信息
+        else if (PROC_STOP == iExeType && 
+            (PROC_STOP_DOING == cProc.get_procState() ||
+            PROC_STOP_FAIL == cProc.get_procState()))
+        {
+            rcRdcMgr.DeleteProcInfo(rcProKey.get_appId(), rcProKey.get_procId(), iVmId);
+            return;
+        }
+        // 强制停止成功 直接删除进程信息
+        else if (PROC_FORCE_STOP == iExeType &&
+            (PROC_FORCE_STOP_DOING == cProc.get_procState() ||
+            PROC_STOP_FAIL == cProc.get_procState()))
+        {
+            rcRdcMgr.DeleteProcInfo(rcProKey.get_appId(), rcProKey.get_procId(), iVmId);
+            return;
+        }
+        else
+        {
+            DBE2_LOG(DEBUG_LOGGER,
+                "nrm's msg_type:3008 exe type(%d) can not macth proc info", iExeType);
+            LogSdl(cProc);
+            return;
+        }
+    }
+    else
+    {
+        // 进程启动失败
+        if (PROC_START == iExeType
+            && (PROC_START_DOING == cProc.get_procState() || PROC_START_RETRY == iExeType))
+        {
+            cProUpInfo.set_procState(PROC_START_FAIL);
+            cProUpInfo.set_pid(0);
+        }
+        // 进程停止失败
+        else if (PROC_STOP == iExeType && PROC_STOP_DOING == cProc.get_procState())
+        {
+            cProUpInfo.set_procState(PROC_STOP_FAIL);
+        }
+        // 强制停止失败
+        else if (PROC_FORCE_STOP == iExeType
+            && PROC_FORCE_STOP_DOING == cProc.get_procState())
+        {
+            cProUpInfo.set_procState(PROC_STOP_FAIL);
+        }
+        else
+        {
+            DBE2_LOG(DEBUG_LOGGER,
+                "nrm's msg_type:3008 exe type(%d) can not macth proc info", iExeType);
+            LogSdl(cProc);
+            return;
+        }
+    }
+
+    cProUpInfo.set_appId(rcProKey.get_appId());
+    cProUpInfo.set_procId(rcProKey.get_procId());
+    cProUpInfo.set_vmId(iVmId);
+    rcRdcMgr.UpdateProcInfo(cProUpInfo);
+}
+
+void CSrmProcMgrImpl::UpdateStopProcState(SBaseProcKey &rcProKey, int32 iVmId, int32 iState)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcProc cProUpInfo;
+    cProUpInfo.set_appId(rcProKey.get_appId());
+    cProUpInfo.set_procId(rcProKey.get_procId());
+    cProUpInfo.set_vmId(iVmId);
+    cProUpInfo.set_procState(iState);
+    rcRdcMgr.UpdateProcInfo(cProUpInfo);
+    // 清除进程注册信息
+    if (PROC_START_DOING != iState || PROC_START_SUCCESS != iState)
+    {
+        ClearProcRunInfo(rcProKey);
+    }
+}
+
+void CSrmProcMgrImpl::ProcActiveExit(SBaseProcKey &rcProcKey, int32 iVmId)
+{
+    CProcExitLock cAutoLock(rcProcKey);
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    ISrmAppMgr &rcAppMgr = ISrmAppMgr::GetInstance();
+    CMsgHelper *pMsgHelper = GetMsgHelper();
+
+    CRdcProc cProcInfo;
+    CRdcProcList cProcList;
+    CRdcProcList::iterator itProc;
+
+	CRdcApp cApp;
+	rcRdcMgr.QueryApp(rcProcKey.get_appId(),cApp);
+
+    if (rcRdcMgr.QueryProcInfobyProc(rcProcKey, cProcInfo))
+    {
+        if (PROC_STOP_DOING != cProcInfo.get_procState())
+        {
+            rcRdcMgr.QueryProcByApp(cProcInfo.get_appId(), cProcList);
+        }
+        else
+        {
+            DBE2_LOG(DEBUG_LOGGER, "proc state is %d, srm do not stop this proc",
+                cProcInfo.get_procState());
+            return;
+        }
+    }
+
+    int32 iRemainCount = 0;
+    // 进程是否全部退出
+    for (itProc = cProcList.begin(); itProc != cProcList.end(); ++itProc)
+    {
+        if (PROC_START_SUCCESS == itProc->get_procState() ||
+            PROC_START_DOING == itProc->get_procState())
+        {
+            LogSdl(*itProc);
+            DBE2_LOG(DEBUG_LOGGER, "proc state is not stop");
+            iRemainCount ++;
+        }
+    }
+
+    if (1 < iRemainCount||cApp.get_appState()!=APP_START_SUCCESS) 
+    {
+        DBE2_LOG(DEBUG_LOGGER, "there are %d proc still running or app state %d",
+            iRemainCount,cApp.get_appState());
+        StopProcWithTrans(rcProcKey, iVmId, false);
+    }
+    else
+    {
+        DBE2_LOG(DEBUG_LOGGER, "all proc complete,app will be stopped");
+        StopProcWithTrans(rcProcKey, iVmId, true);
+    }
+    return;
+}
+
+void CSrmProcMgrImpl::GetAppParam(const CInt32Set &ri32AppSet, SNrmStartProcExtList &rcStartProcExtList, CInt32StringlMap *pcLogPathMap, CInt32StringlMap *pcInputPathMap, CInt32StringlMap *pcShellPathMap, CInt32StringlMap *pcStatPathMap)
+{
+    CInt32ProcConfigMap mapConfig;
+    CInt32ProcConfigMap::iterator itConfig;
+    for (CInt32Set::iterator itAppId = ri32AppSet.begin(); itAppId != ri32AppSet.end(); itAppId ++)
+    {
+        aistring strConfig;
+        ISrmRdcMgr::GetInstance().QueryAppConfig(*itAppId, strConfig);
+        SetPccParams(strConfig);
+        CProcConfig cProcCfg;
+        cProcCfg.m_strCfg = strConfig;
+        GetLogPath(cProcCfg);
+        mapConfig[*itAppId] = cProcCfg;
+		if (NULL != pcLogPathMap)
+		{
+			char ch = cProcCfg.m_strLogPath[cProcCfg.m_strLogPath.length() - 1];
+			if ('/' == ch)
+			{
+				(*pcLogPathMap)[*itAppId] = cProcCfg.m_strLogPath + cProcCfg.m_strFilePrefix;
+			}
+			else
+			{
+				(*pcLogPathMap)[*itAppId] = cProcCfg.m_strLogPath + "/" + cProcCfg.m_strFilePrefix;
+			}
+		}
+
+		int32 iSite1 = strConfig.find("<input_path>");
+		int32 iSite2 = strConfig.find("</input_path>");
+
+		int32 iSite3 = strConfig.find("<shell_log>");
+		int32 iSite4 = strConfig.find("</shell_log>");
+		
+		int32 iSite5 = strConfig.find("<stat_path>");
+		int32 iSite6 = strConfig.find("</stat_path>");
+
+		if (12<iSite2-iSite1)
+		{
+			if (NULL != pcInputPathMap) (*pcInputPathMap)[*itAppId] = strConfig.substr(iSite1 + 12, iSite2 - iSite1 - 12);
+		}
+		
+		if (11 < iSite4 - iSite3)
+		{
+			if (NULL != pcShellPathMap) (*pcShellPathMap)[*itAppId] = strConfig.substr(iSite3 + 11, iSite4 - iSite3 - 11);
+		}
+
+		if (11 < iSite6 - iSite5)
+		{
+			if (NULL != pcStatPathMap) (*pcStatPathMap)[*itAppId] = strConfig.substr(iSite5 + 11, iSite6 - iSite5 - 11);
+		}
+
+    }
+
+    SNrmStartProcExtList::iterator itStartProcExt;
+    for (itStartProcExt = rcStartProcExtList.begin(); itStartProcExt != rcStartProcExtList.end(); ++ itStartProcExt)
+    {
+        int32 &iAppId = itStartProcExt->startProc().baseProcKey().appId();
+        int32 &iProcId = itStartProcExt->startProc().baseProcKey().procId();
+        int32 iPid = iAppId * 100 + iProcId;
+        itConfig = mapConfig.find(iAppId);
+        if (itConfig == mapConfig.end()) 
+        {
+            DBE2_LOG(ERROR_LOGGER, "get app(%d) config failed", iAppId);
+            return;
+        }
+        
+        // log path设置
+        itStartProcExt->startProc().set_filePrefix(itConfig->second.m_strFilePrefix);
+
+        // 设置common_config
+        itStartProcExt->startProc().set_configFile(itConfig->second.m_strCfg);
+        aistring &strCfg = itStartProcExt->startProc().configFile();
+        int32 iSite = strCfg.find("<common_config>");
+
+	
+		CRdcApp cApp;
+		ISrmRdcMgr::GetInstance().QueryApp(iAppId, cApp);
+		
+		DBE2_LOG(TRACE_LOGGER, "app_param is :%s",cApp.appParam().c_str());
+        if (-1 != iSite)
+        {
+            iSite += 15;
+            strCfg = strCfg.substr(0, iSite) + 
+				"\n	   " + cApp.appParam().c_str() + ""
+            "\n    <proc_id>" + itoa(iPid) + "</proc_id>"
+            "\n    <cpf_flow_id>2</cpf_flow_id>"
+            "\n    <cpf_service_id>" + itoa(iAppId) + "</cpf_service_id>"
+            "\n    <cpf_proc_id>" + itoa(iProcId) + "</cpf_proc_id>"
+                + strCfg.substr(iSite);
+        }
+        else
+        {
+            DBE2_LOG(ERROR_LOGGER, "find tag </common_config> failed");
+        }
+    }
+}
+
+void CSrmProcMgrImpl::GetLogPath(CProcConfig &rcProcCfg)
+{
+    aistring &strTmp = rcProcCfg.m_strCfg;
+    int32 iStart = strTmp.find("<common_config>");
+    iStart = strTmp.find("<log", iStart);
+    if (-1 == iStart) return;
+    aistring strLogPath = "";
+    iStart = strTmp.find("<path", iStart);
+    iStart = strTmp.find(">", iStart) + 1;
+    int32 iEnd = strTmp.find("<", iStart);
+    rcProcCfg.m_strLogPath = strTmp.substr(iStart, iEnd - iStart);
+    MyTrim(rcProcCfg.m_strLogPath);
+
+    iStart = strTmp.find("<common_config>");
+    iStart = strTmp.find("<file_prefix", iStart);
+    iStart = strTmp.find(">", iStart) + 1;
+    iEnd = strTmp.find("<", iStart);
+    rcProcCfg.m_strFilePrefix += strTmp.substr(iStart, iEnd - iStart);
+    MyTrim(rcProcCfg.m_strFilePrefix);
+}
+
+void CSrmProcMgrImpl::SetPccParams(aistring &strCfg)
+{
+    int32 iSite = strCfg.find("</shl_func_define>");
+    if (-1 != iSite)
+    {
+        strCfg = strCfg.substr(0, iSite) + "  <function>\n"
+        "      <func_id>99999</func_id>\n"
+        "      <shl_lib_name>libcpf_pccD.so</shl_lib_name>\n"
+        "      <func_name>create_pccCommunicateInstance</func_name>\n"
+        "    </function>\n  " + strCfg.substr(iSite);
+    }
+    else
+    {
+        DBE2_LOG(ERROR_LOGGER, "find tag </shl_func_define> failed");
+    }
+    
+    iSite = strCfg.find("</node_define>");
+    if (-1 != iSite)
+    {
+        strCfg = strCfg.substr(0, iSite) + "  <node>\n"
+        "      <node_def_id>99999</node_def_id>\n"
+        "      <node_name>cpf_pcc</node_name>\n"
+        "      <min_thread>1</min_thread>\n"
+        "      <max_thread>1</max_thread>\n"
+        "      <buf_upper_limit>0</buf_upper_limit>\n"
+        "      <time_out>-1</time_out>\n"
+        "      <functions>\n"
+        "        <function>\n"
+        "           <func_id>99999</func_id>\n"
+        "           <batch_id>1</batch_id>\n"
+        "        </function>\n"
+        "      </functions>\n"
+        "    </node>\n  " + strCfg.substr(iSite);
+    }
+    else
+    {
+        DBE2_LOG(ERROR_LOGGER, "find tag </node_define> failed");
+    }
+
+    iSite = strCfg.find("<flows>");
+    if (-1 != iSite)
+    {
+        iSite += 7;
+        strCfg = strCfg.substr(0, iSite) + "\n    <flow>\n"
+        "      <flow_name>pcc</flow_name>\n"
+        "      <flow_id>99999</flow_id>\n"
+        "      <flow_type>system</flow_type>\n"
+        "      <start_state>run</start_state>\n"
+        "      <nodes>\n"
+        "        <node>\n"
+        "          <node_id>1</node_id>\n"
+        "          <node_name>cpf_pcc</node_name>\n"
+        "          <define_id>99999</define_id>\n"
+        "          <buf_size>128</buf_size>\n"
+        "        </node>\n"
+        "      </nodes>\n"
+        "    </flow>" + strCfg.substr(iSite);
+    }
+    else
+    {
+        DBE2_LOG(ERROR_LOGGER, "find tag </flows> failed");
+    }
+}
+
+void CSrmProcMgrImpl::SendStopMsgToNrm(SBaseProcKey &rcProcKey,
+    int32 iVmId, int32 iStopType, int32 iTimeLimit)
+{
+    char szStopType[32];
+    if (iStopType) sprintf(szStopType, "FORCE_STOP_PROC");
+    else sprintf(szStopType, "STOP_PROC");
+    DBE2_LOG(DEBUG_LOGGER, "stop proc(%d-%d).send msg_type:7002 to vm:%d stop type is %s",
+        rcProcKey.get_appId(), rcProcKey.get_procId(), iVmId, szStopType);
+    CMsgHelper *pMsgHelper = GetMsgHelper();
+    SNrmStopProc cStopProc;
+    cStopProc.set_msgHead(GetMsgHead(7002));
+    cStopProc.set_baseProcKey(rcProcKey);
+    if (iStopType) cStopProc.set_operateType(PROC_FORCE_STOP);
+    else cStopProc.set_operateType(PROC_STOP);
+    cStopProc.set_timeOutSecond(iTimeLimit);
+
+    CSendTarget cSendNrm;
+    cSendNrm.m_iFlowId = -1;
+    cSendNrm.m_iSrvId = PROC_NRM;
+    cSendNrm.m_iProcId = 1;
+    cSendNrm.m_iVmId = iVmId;
+    cSendNrm.m_iSrvType = PROC_DBE;
+
+    obb_stream cStream = Sdl2Obbstream(cStopProc);
+    try 
+    {
+        pMsgHelper->Send(cSendNrm, 7002, cStream);
+    }
+    catch(CAIException &e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+        SendProcStopSuccessToSelf(rcProcKey, iVmId, iStopType);
+    }
+}
+
+void CSrmProcMgrImpl::SendProcStopSuccessToSelf(SBaseProcKey &rcProcKey, int32 iVmId,
+    int32 iStopType)
+{
+    CMsgHelper *pMsgHelper = GetMsgHelper();
+    SSrmRepExeProc cProExeResult;
+    cProExeResult.set_msgHead(GetMsgHead(-3008));
+    cProExeResult.procExeResult().baseExeProc().set_baseProcKey(rcProcKey);
+    if (iStopType) cProExeResult.procExeResult().baseExeProc().set_flag(PROC_FORCE_STOP);
+    else cProExeResult.procExeResult().baseExeProc().set_flag(PROC_STOP);
+    cProExeResult.procExeResult().set_result(OPERATE_SUCCESS);
+    cProExeResult.procExeResult().set_failReason("send stop command to nrm failed");
+    cProExeResult.set_pid(iVmId);						// 虚拟机ID无法传入，有此传入-3008处理
+    obb_stream cStream = Sdl2Obbstream(cProExeResult);
+    DBE2_LOG(TRACE_LOGGER, "send -3008 msg(proc stop success) to self");
+    pMsgHelper->Send(-3008, cStream);
+}
+
+void CSrmProcMgrImpl::ClearProcRunInfo(SBaseProcKey& rcProcKey, CRdcProc *pProc)
+{
+}
+
+void CSrmProcMgrImpl::StopProcWithTrans(SBaseProcKey &rcProcKey, int32 iVmId, bool bCallBack)
+{
+    SRdcCreateTrans cStopTrans;
+    cStopTrans.procTrans().set_transType(TRANS_PROC_EXIT);
+    cStopTrans.procTrans().set_foceExeFlag(COMMON_NO);
+    cStopTrans.procTrans().set_appId(rcProcKey.get_appId());
+
+    CRdcApp cApp;
+    ISrmRdcMgr::GetInstance().QueryApp(rcProcKey.appId(), cApp);
+
+    CRdcProcTransOperate cProcOpertate;
+    cProcOpertate.set_appId(rcProcKey.get_appId());
+    cProcOpertate.set_procId(rcProcKey.get_procId());
+    cProcOpertate.set_vmId(iVmId);
+    cProcOpertate.set_operateType(PROC_STOP);
+    cProcOpertate.set_operateSecLimit(cApp.get_timeOutSecond());
+    cProcOpertate.set_needRollback(COMMON_NO);
+    cProcOpertate.set_operateLevel(0);
+    cStopTrans.procOperateList().push_back(cProcOpertate);
+
+    // add zhangneng 配置-604完成消息
+    if (bCallBack)
+    {
+		CRdcProcTrans &rProcTrans = cStopTrans.procTrans();
+	    rProcTrans.set_appId(cApp.get_appId());
+	    rProcTrans.set_foceExeFlag(COMMON_NO);
+	    rProcTrans.set_callbackMsgType(cApp.get_stopRollbackMsgType());
+	    rProcTrans.set_callbackParam(cApp.get_startRollbackParam());
+    }
+
+
+    try
+    {
+        ISrmProcTransMgr::GetInstance().Create(cStopTrans, TRANS_EXE_COEXIST);	
+    }
+    catch(CAIException &e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+    }
+}
+
+
+void CSrmProcMgrImpl::UpdateProcBackInfo( SProcBackLog &rcProcBackLog )
+{
+    CRdcProcBacklog cInsertInfo;
+    cInsertInfo.set_appId(rcProcBackLog.procKey().appId());
+    cInsertInfo.set_procId(rcProcBackLog.procKey().procId());
+    cInsertInfo.set_vmId(rcProcBackLog.vmId());
+    cInsertInfo.set_flowName(rcProcBackLog.flowName());
+    cInsertInfo.set_xdrType(rcProcBackLog.xdrType());
+    cInsertInfo.set_inputPath(rcProcBackLog.inputPath());
+    cInsertInfo.set_waiHandleCount(rcProcBackLog.waitHandleCount());
+    cInsertInfo.updateTime().setTime_t(rcProcBackLog.updateTime());
+    m_lstProcBackLog.Push_back(cInsertInfo);
+}
+
+void CSrmProcMgrImpl::UpdateProcHandleRate( SProcHandleRate &rcProcHandleRate )
+{
+    CRdcProcHandleRate cProcHandleRate;
+    cProcHandleRate.set_appId(rcProcHandleRate.procKey().appId());
+    cProcHandleRate.set_procId(rcProcHandleRate.procKey().procId());
+    cProcHandleRate.set_vmId(rcProcHandleRate.vmId());
+    cProcHandleRate.set_flowName(rcProcHandleRate.flowName());
+    cProcHandleRate.set_xdrType(rcProcHandleRate.xdrType());
+    cProcHandleRate.set_handleRate(rcProcHandleRate.handleRate());
+    cProcHandleRate.updateTime().setTime_t(rcProcHandleRate.updateTime());
+    m_lstProcHandleRate.Push_back(cProcHandleRate);
+}
+
+void CSrmProcMgrImpl::WriteProcDynamicInfo()
+{
+    CRdcProcBacklogList cProcBacklogList;
+    m_lstProcBackLog.GetAndClearList(cProcBacklogList);
+    try
+    {
+        if (0 != cProcBacklogList.size()) ISrmRdcMgr::GetInstance().InsertProcBackLog(cProcBacklogList);
+    }catch(CAIException &e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+    }
+
+    CRdcProcHandleRateList cProcHandleRate;
+    m_lstProcHandleRate.GetAndClearList(cProcHandleRate);
+    try
+    {
+        if (0 != cProcBacklogList.size()) ISrmRdcMgr::GetInstance().InsertProcHandleRate(cProcHandleRate);
+    }catch(CAIException &e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+    }
+}
+
+int32 CSrmProcMgrImpl::DbmOperateProc(SSrmProcOperation &procOperation)
+{
+	int32 appId = procOperation.appId();
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    SSrmProcInfoList::iterator itPk;
+    aistring strCallBackParam = FormatString("%d_%lld", procOperation.msgHead().command(), procOperation.msgHead().sequence());
+	CRdcApp cApp;
+	if (rcRdcMgr.QueryApp(appId, cApp))
+	{
+		if (cApp.get_appState()==APP_START_SUCCESS||cApp.get_isRely()==1)
+		{
+			SSrmProcInfoList cTmpList;
+			for (itPk = procOperation.procList().begin(); itPk != procOperation.procList().end(); ++itPk)
+			{
+				if (itPk->appId() == appId)
+				{
+					cTmpList.push_back(*itPk);
+				}
+			}
+			OperateProcWithTrans(procOperation.exeType(), cTmpList, cApp.timeOutSecond(),
+				MSG_REP_DBM_OPERATE_PROC, strCallBackParam);
+		}
+		else
+		{
+			DBE2_LOG(WARN_LOGGER, "only app start success or is_rely = 1 ,could operate proc,app %d can't",appId);
+			THROW_CAIEXCEPTION(DBE2_SRM_OPERATE_PROC_ILLEGAL, "only app start success or is_rely = 1 ,could operate proc,app (?) can't")
+				<< appId;
+		}
+		
+	}
+	else
+	{
+		DBE2_LOG(WARN_LOGGER,"no app %d in RDC_APP,can't operate proc ",appId);
+		THROW_CAIEXCEPTION(DBE2_SRM_OPERATE_PROC_ILLEGAL, "no app (?) in RDC_APP,can't operate proc ")
+			<< appId;
+	}
+    return 0;
+}
+
+int32 CSrmProcMgrImpl::DbmAddProc(SSrmAddProc &rSrmAddProc)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcApp cApp;
+    // 进程启动 状态检查
+    if(!rcRdcMgr.QueryApp(rSrmAddProc.appId(), cApp))
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_OPERATE_PROC_ILLEGAL, "proc add failed! because can not get app info with appid(?) ")
+            << rSrmAddProc.appId();
+    }
+    if (APP_START_SUCCESS != cApp.appState())
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_OPERATE_PROC_ILLEGAL, "proc add failed! app state(%d) , not allow proc start")
+            << cApp.appState();
+    }
+    // 创建事务启动
+    SRdcCreateTrans cCreateTrans;
+    CRdcProcTrans &rProcTrans = cCreateTrans.procTrans();
+    rProcTrans.set_appId(cApp.get_appId());
+    rProcTrans.set_callbackMsgType(MSG_REP_DBM_ADD_PROC);
+    rProcTrans.set_callbackParam(FormatString("%d_%d", rSrmAddProc.msgHead().command(), rSrmAddProc.msgHead().sequence()));
+    rProcTrans.set_foceExeFlag(COMMON_NO);
+    rProcTrans.set_transType(TRANS_DBM);
+
+	ISrmDeployMgr::GetInstance().DeployIncreaseProc(cApp.get_appId(),rSrmAddProc.get_number(),cCreateTrans.procOperateList());
+
+	LogSdl(cCreateTrans);
+    try
+    {
+        // 创建事务，提交流程启动操作
+        ISrmProcTransMgr::GetInstance().Create(cCreateTrans, TRANS_EXE_COEXIST);
+    }
+    catch(CAIException & e)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_OPERATE_PROC_FAILED, "proc add failed! create proc operate trans failed(?)")
+            << e.get_message().c_str();
+    }
+    return 0;
+}
+
+void CSrmProcMgrImpl::OperateProcWithTrans(int32 operateType, SSrmProcInfoList &rPkInfoList,int32 ioutTime, int32 iCallBackMsg, aistring strCallBackParam )
+{
+    // 创建事务启动
+    SRdcCreateTrans cCreateTrans;
+    CRdcProcTrans &rProcTrans = cCreateTrans.procTrans();
+    rProcTrans.set_appId(rPkInfoList[0].appId());
+    rProcTrans.set_callbackMsgType(iCallBackMsg);
+    rProcTrans.set_callbackParam(strCallBackParam);
+    rProcTrans.set_foceExeFlag(COMMON_NO);
+    rProcTrans.set_transType(TRANS_DBM);
+
+    SSrmProcInfoList::iterator itPk;
+    for (itPk = rPkInfoList.begin(); itPk != rPkInfoList.end(); ++itPk)
+    {
+        CRdcProcTransOperate cProcOpertate;
+        cProcOpertate.set_appId(itPk->appId());
+        cProcOpertate.set_procId(itPk->procId());
+        cProcOpertate.set_vmId(itPk->vmId());
+        cProcOpertate.set_operateType(operateType);
+        cProcOpertate.set_operateSecLimit(ioutTime);
+        cProcOpertate.set_needRollback(COMMON_NO);
+        cProcOpertate.set_operateLevel(1);
+        cCreateTrans.procOperateList().push_back(cProcOpertate);
+    }
+
+    try
+    {
+        // 创建事务，提交流程启动操作
+        ISrmProcTransMgr::GetInstance().Create(cCreateTrans, TRANS_EXE_COEXIST);
+    }
+    catch(CAIException & e)
+    {
+		THROW_CAIEXCEPTION(DBE2_SRM_OPERATE_PROC_FAILED, "proc start failed! create proc operate trans failed:(?)")
+            << e.get_message().c_str();
+    }
+}
+
+
+void CSrmProcMgrImpl::HandleExceptProc(SBaseProcKey &rcProcKey, int32 iVmId)
+{
+	CMsgHelper *pMsgHelper = GetMsgHelper();
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	ISrmProcTransMgr &rcTransMgr = ISrmProcTransMgr::GetInstance();
+	
+	CRdcApp cApp;
+	if (!rcRdcMgr.QueryApp(rcProcKey.appId(),cApp))
+	{
+		DBE2_LOG(WARN_LOGGER, "get app(%d) info failed ,not handle this proc",rcProcKey.appId(), rcProcKey.procId());
+		return;
+	}
+	
+	// 更新进程状态
+	UpdateStopProcState(rcProcKey, iVmId, PROC_RUN_EXCETION);
+	
+	CRdcJobRunStepApp cJobStepApp;
+	bool bJobApp = rcRdcMgr.QueryJobAppInfo(rcProcKey.get_appId(), cJobStepApp);
+	if (bJobApp)
+	{
+		CRdcProc cCond;
+		cCond.set_appId(rcProcKey.get_appId());
+		cCond.set_procState(PROC_START_SUCCESS);
+		CRdcProcList cProcList;
+		rcRdcMgr.QueryProcListByCond(cCond, cProcList);
+		if (0 == cProcList.size())
+		{
+			SSrmExeCallBack cCallBack;
+			cCallBack.set_appId(rcProcKey.get_appId());
+			cCallBack.set_param(FormatString("%d_%d_%d",
+					cJobStepApp.get_jobInsId(), cJobStepApp.get_jobRunStepId(), cJobStepApp.get_appId()));
+			cCallBack.set_transType(MSG_REP_JOB_APP_EXCETPION);
+			cCallBack.set_errorInfo(FormatString("app(%d) run exception!",rcProcKey.get_appId()));
+			obb_stream cStream = Sdl2Obbstream(cCallBack);
+			DBE2_LOG(INFO_LOGGER, "proc exception send msg:%d ", MSG_REP_JOB_APP_EXCETPION);
+			pMsgHelper->Send(MSG_REP_JOB_APP_EXCETPION, cStream);
+		}
+	}
+}
+bool CSrmProcMgrImpl::AddProcSomeLogPath(CRdcProc& cRdcProc)
+{
+	
+
+
+
+	return true;
+}
+} // namespace MDbe

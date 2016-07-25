@@ -1,0 +1,190 @@
+#ifndef __ECFRAME_DBE_PCC_COMMUNICATE_H__
+#define __ECFRAME_DBE_PCC_COMMUNICATE_H__
+
+#include <pcc_struct.h>
+#include "frame_interface.h"
+#include "nr_api.h"
+#include "util.h"
+#include "socket_base.h"
+#include "cpf_lock.h"
+#include "IlocalQue.h"
+#include <sys/resource.h>
+
+// #include "virtual_time.h"
+// #include "communicate.h"
+#include "base_func.h"
+
+NAMESPACE_DBE_CPF_BEGIN
+
+void GetCurrentTime(int64 & iTime)
+{
+	iTime = time(NULL);
+}
+
+template<typename T>
+class LockList
+{
+public:
+	LockList<T>(){}
+
+	void Push_back(const T &value)
+	{
+		CAutoLock cAutoLock(m_lock);
+		m_list.push_back(value);
+	}
+
+	void Push_front(const T &value)
+	{
+		CAutoLock cAutoLock(m_lock);
+		m_list.push_front(value);
+	}
+
+	T Pop_front()
+	{
+		CAutoLock cAutoLock(m_lock);
+		T tmp;
+		if (m_list.begin() != m_list.end()) tmp = m_list.front();
+		m_list.pop_front();
+		return tmp;
+	}
+
+	int32 Size()
+	{
+		CAutoLock cAutoLock(m_lock);
+		return m_list.size();
+	}
+
+private:
+	std::list<T> 	m_list;
+	CLock  			m_lock;
+};
+
+class NetWriteData
+{
+public:
+	NetWriteData()
+	:pSendData(NULL), nLen(0)
+	{
+
+	}
+
+	NetWriteData(const NetWriteData &target)
+	{
+		nLen = target.nLen;
+		pSendData = new char[target.nLen];
+		memset(pSendData, 0, nLen);
+		memcpy(pSendData, target.pSendData, target.nLen);
+	}
+
+	NetWriteData & operator=(const NetWriteData &target)
+	{
+		if((this != &target) && (NULL != pSendData))
+		{
+			delete []pSendData;
+		}
+
+		nLen = target.nLen;
+		pSendData = new char[target.nLen];
+		memset(pSendData, 0, nLen);
+		memcpy(pSendData, target.pSendData, target.nLen);
+		return *this;
+	}
+
+	~NetWriteData()
+	{
+		if(pSendData != NULL)
+		{
+			delete [] pSendData;
+		}
+	}
+
+	char*	pSendData;
+	int32 	nLen;
+};
+
+class CTimeOdFrame : public NAMESPACE_BILLING40_FRAME CTime
+{
+public:
+	int64 m_iSecModify;
+
+};
+
+
+class CPccCommunicate : 
+	public NAMESPACE_BILLING40_FRAME CThread,
+	public NAMESPACE_BILLING40_FRAME IProcessMessage
+{
+public:
+	CPccCommunicate()
+	: m_iSd(-1)
+	, m_ullLastInVolume(0ULL)
+ 	, m_ullLastOutVolume(0ULL)
+	, m_queue(NULL)
+	, m_nCountQueue(0)
+	{ 
+		int64 llCurTime;
+		GetCurrentTime(llCurTime);
+		m_lastTime.m_tmVal.tv_sec = llCurTime;
+		m_lastTime.m_iSecModify = 0;
+
+		m_pLastUsage = &m_stUsage1;
+		m_pCurrUsage = &m_stUsage2;
+	}
+
+	virtual int32 init();
+	virtual int32 destroy();
+	virtual int32 run(NAMESPACE_BILLING40_FRAME CData *p);
+
+	virtual void send_processStopped();
+	virtual int32 send_message(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg);
+	virtual NAMESPACE_BILLING40_FRAME CControlPkg * receive_message();
+	virtual int32 send_startProcess(int32 iPid, int32 iResult);
+	virtual int32 control(NAMESPACE_BILLING40_FRAME CControlPkg& controlPkg);
+
+private:
+	int32 push_message_list(int32 iMsgType,const char *pData, int32 iSize);
+	void real_send_message();
+	int32 connect();
+    int32 send_msg3501(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg);
+    int32 send_msg3502(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg);
+	int32 send_msg3025(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg);
+    int32 send_msgCommon(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg);
+
+	int write_procRes();
+		
+private:
+	// 进程信息
+	uint64						m_ullLastInVolume;
+	uint64						m_ullLastOutVolume;
+	struct rusage				m_stUsage1;
+	struct rusage				m_stUsage2;
+	struct rusage *				m_pLastUsage;
+	struct rusage *				m_pCurrUsage;
+	struct timeval				m_stLastTime;
+
+	CProcPid					m_objProcUpdStatus;
+	CNrApi *					m_pNrApi;
+	int32 						m_iSd;
+	int32 						m_iPort;
+	CTimeOdFrame 				m_lastTime;
+	int32						m_iPageSize;
+
+	IlocalQue 					*m_queue;
+	int32 						m_nCountQueue;
+
+	LockList<NetWriteData>		m_msgQList;
+};
+
+NAMESPACE_DBE_CPF_END
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	NAMESPACE_BILLING40_FRAME CThread *create_pccCommunicateInstance();
+
+#ifdef __cplusplus
+}
+#endif
+#endif //_ECFRAME_DBE_PCC_COMMUNICATE_H_
+

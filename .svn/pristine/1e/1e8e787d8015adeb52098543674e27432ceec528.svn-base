@@ -1,0 +1,58 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_deploy_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_DEPLOY_MGR_IMPL_H___
+#define __SRM_DEPLOY_MGR_IMPL_H___
+
+#include "srm_deploy_mgr.h"
+
+namespace MDbe
+{
+
+class CSrmDeployMgrImpl : public ISrmDeployMgr
+{
+protected:
+	CSrmDeployMgrImpl();
+	friend class ISrmDeployMgr;
+public:
+	 /**
+     * 初始化
+     * @exception 初始化异常
+     */
+    void Init(CMgrInitHelper & cMgrInitHelper);
+	
+	//调用前要查询改应用下是否有事务正在处理
+    void DeployApp(const int32& iAppId,CRdcProcTransOperateList& rcProcTransOperateList);
+	void DeployIncreaseProc(const int32& iAppId,int32 iProcNum,CRdcProcTransOperateList& rcProcTransOperateList);
+    void DeployMigrateProc(int32 iAppId,CRdcProcList& rProcList,CRdcProcTransOperateList& rcProcTransOperateList);
+private:
+	int32 AcquireDeployPolicy(CRdcApp &rRdcApp);
+	void  BuildToLuaVmInfo(int32 iClusterId,SToLuaVmInfoList &rVmInfoList,int32 iExcluded =0);
+	void BuildToLuaAppInfo(CRdcApp &rRdcApp,SDeployToLuaSrvInfo& cToLuaAppInfo);
+	void  PackTrans(CRdcApp &rRdcApp,SLuaReturnProcInfoList& rLuaReturnProcInfoList,
+		CRdcProcTransOperateList& rcProcTransOperateList);
+	void CallLuaDeploy(SToLuaVmInfoList& rToLuaVmInfoList,SDeployToLuaSrvInfo& cToLuaAppInfo,
+		SLuaReturnProcInfoList& rLuaReturnProcInfoList);
+	void SetMigProcId(CRdcProcTransOperateList& rcProcTransOperateList,AISTD set<int32>& rsetProcId);
+};
+
+} // namespace MDbe
+
+
+
+#endif /* __SRM_DEPLOY_MGR_IMPL_H___ */

@@ -1,0 +1,96 @@
+#ifndef __UDP_SEARCH_H__
+#define __UDP_SEARCH_H__
+
+#include <public/common/base/aitypes.h>
+#include <public/common/communicate/nwsock.h>
+#include <public/odframe/frame_interface.h>
+#include <public/common/base/ailist.h>
+#include "public/app_intf/app_config/app_config.h"
+
+namespace MDbe
+{
+
+class CUdpServer
+{
+public:
+	CUdpServer();
+	virtual ~CUdpServer();
+
+public:
+	bool CreateServer(const char* _ip_mask, ushort _port = 0);
+//	bool CreateClient(const char* _ip_mask, ushort _port = 0);
+	bool Close();
+
+	bool Listen();
+
+	//bool send(sockaddr* _addr, MDbe:: SRM_UDP_BROADCAST_PKG* _pkg);
+
+    bool SetIp(const char* szIp, uint16 usPort);
+
+//    bool Request();
+    bool ResponseAddress();
+    bool DeliverAddress();
+protected:
+	virtual bool OnSrmAddressChanged(const char* _addr);
+	virtual bool OnGetSrmAddress(char* _buffer, size_t* _length);
+
+private:
+	void OnReceived(MDbe:: SRM_UDP_BROADCAST_PKG* _pkg);
+	void OnDeliver(MDbe:: SRM_UDP_BROADCAST_PKG* _pkg);
+
+private:
+	typedef ailist<CSocket*>	sockets_t;
+private:
+	CSocket		socket_;
+	ushort		port_;
+	char		ip_[32];
+
+	char		srm_address_[64];
+
+	sockaddr_in	broadcast_;
+	sockets_t	senders_;
+};
+
+class CAUdpThread : public NAMESPACE_OD_FRAME CThread, public CUdpServer
+{
+public:
+	struct CAConfig 
+	{
+		APP_READ_CONFIG_BEGIN
+//		    APP_READ_VALUE(is_server_ip_, "is_server_ip", 0, NAMESPACE_OD_APP_CFG emValueOptional);
+			APP_READ_VALUE(udp_port_, "udp_port", 0, NAMESPACE_OD_APP_CFG emValueOptional);
+			APP_READ_VALUE(udp_ip_mask_, "udp_ip_mask", "255.255.255.255", NAMESPACE_OD_APP_CFG emValueOptional);
+		APP_READ_CONFIG_END
+
+        
+		ushort	udp_port_;
+		char	udp_ip_range_[32];
+		char	udp_ip_mask_[32];
+//		int32   is_server_ip_;
+	};
+public:
+	CAUdpThread();
+	virtual ~CAUdpThread();
+public:
+	virtual int32 run(NAMESPACE_OD_FRAME CData* p);
+	virtual int32 init();
+	virtual int32 stop();
+	virtual int32 destroy();
+
+protected:
+	//virtual bool on_srm_address_changed(const char* _addr);
+	//virtual bool on_get_srm_address(char* _buffer, size_t* _length);
+    bool QueryUdpServer(void);
+private:
+	CAConfig	config_;
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+od_frame:: CThread *create_caUdpInstance();
+#ifdef __cplusplus
+}
+#endif
+}
+#endif // __CA_UDP_H__

@@ -1,0 +1,101 @@
+#include <unittest_cp_dbe2_ca_main.h>
+
+SUITE(SUITE_dbe_communicate_client_cpp)
+{
+	//Fuction: NAMESPACE_OD_CA CDbeCommunicateClient :: ~ CDbeCommunicateClient ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_CA CDbeCommunicateClient :: CDbeCommunicateClient ( ) : m_pCommunicateApi ( 0 ) , m_tLastConnTime ( 0 )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_CDbeCommunicateClient)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_FRAME CThread * create_dbeCommunicateClient ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_create_dbeCommunicateClient)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateClient :: destroy ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_destroy)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void NAMESPACE_OD_CA CDbeCommunicateClient :: find_ipAndPortByUdp ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_find_ipAndPortByUdp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateClient :: init ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool NAMESPACE_OD_CA CDbeCommunicateClient :: register_commClient ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_register_commClient)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateClient :: run ( NAMESPACE_OD_FRAME CData * p )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_run)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateClient :: stop ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_stop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void NAMESPACE_OD_CA CDbeCommunicateClient :: updateSerIp ( char cszSerIp [ ] , int32 iPort )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateClient_updateSerIp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: AISTD string GetTempFileName ( )
+	TEST_FIXTURE(TestFixture,TestGetTempFileName)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 shellCommed ( const char * szCommd , AISTD string & strGetString )
+	TEST_FIXTURE(TestFixture,TestshellCommed)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

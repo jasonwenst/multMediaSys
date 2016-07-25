@@ -1,0 +1,903 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_vm_mgr_impl.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，louxiao）
+/// date		（文件创建日期，eg：2012-5-8）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+
+#include "nrm_vm_mgr_impl.h"
+#include "dbe2_util.h"
+#include "nrm_util.h"
+#include "nrm_proc_mgr.h"
+#include "nrm_nr_mgr.h"
+#include <algorithm>
+#include <list>
+#include <vector>
+#include <map>
+#include <public/common/base/virtual_time.h>
+
+#ifdef AIXV5
+#include <libperfstat.h>
+#endif
+
+namespace MDbe
+{
+
+using namespace common_base;
+
+struct CVmInfo {
+    double m_dbMemLeft; 
+    double m_dbMemUseRatio;
+    double m_dbCpuLeft;
+    double m_dbCpuUseRatio;
+    double m_dbMemTotal;
+    double m_dbCpuTotal;
+    double m_dbNetTotal;
+    double m_fNetUse;
+    float m_fNetUseRatio;
+    int64 m_dbCpu;
+    int32 m_iCpuNum;
+    int32 m_iCpuCoreNum;
+};
+
+
+static double busy_time = 0.0;
+static double idle_time = 0.0;
+static double total_time = 0.0;
+static double total_pkgs = 0.0;
+
+#ifdef SOLARIS
+static int64 get_vmNetInfoHelp()
+{
+    #ifdef SOL7
+	#define LRX "rbytes"
+	#define LTX "obytes"
+	#define LIPACKETS "ipackets"
+	#define LOPACKETS "opackets"
+	#define VALTYPE value.ui32
+	#else
+	#define LRX "rbytes64"
+	#define LTX "obytes64"
+	#define LIPACKETS "ipackets64"
+	#define LOPACKETS "opackets64"
+	#define VALTYPE value.ui64
+	#endif
+    kstat_ctl_t *kc;
+	kstat_t *ksp;
+	kstat_named_t *knp;
+
+	if ((kc = kstat_open()) == NULL) {
+		return 0;
+	}
+	int64 itotal_bytes = 0;
+
+	for (ksp = kc->kc_chain; ksp; ksp = ksp->ks_next) {
+		if (strcmp(ksp->ks_class, "net") == 0) {
+			kstat_read(kc, ksp, NULL);
+			/* Read rx */
+			if((knp=(kstat_named_t*)kstat_data_lookup(ksp, (char*)LRX))==NULL){
+				/* This is a network interface, but it doesn't
+				 * have the rbytes/obytes values; for instance,
+				 * the loopback devices have this behaviour
+				 * (although they do track packets in/out). */
+				/* FIXME: Show packet counts when byte counts
+				 * not available. */
+				continue;
+			}
+
+			/* Finish reading rx */
+			itotal_bytes+=knp->VALTYPE;
+
+			/* Read tx */
+			if((knp=(kstat_named_t*)kstat_data_lookup(ksp, (char*)LTX))==NULL){
+				continue;
+			}
+			itotal_bytes+=knp->VALTYPE;
+
+			/* Read ipackets */
+			if((knp=(kstat_named_t*)kstat_data_lookup(ksp, (char*)LIPACKETS))==NULL){
+				continue;
+			}
+			//network_stat_ptr->ipackets=knp->VALTYPE;
+			itotal_bytes+=knp->VALTYPE;
+
+			/* Read opackets */
+			if((knp=(kstat_named_t*)kstat_data_lookup(ksp, (char*)LOPACKETS))==NULL){
+				continue;
+			}
+			//network_stat_ptr->opackets=knp->VALTYPE;
+			itotal_bytes+=knp->VALTYPE;
+
+			/* Read ierrors */
+			if((knp=(kstat_named_t*)kstat_data_lookup(ksp, (char*)"ierrors"))==NULL){
+				continue;
+			}
+			//network_stat_ptr->ierrors=knp->value.ui32;
+			itotal_bytes+=knp->value.ui32;
+
+			/* Read oerrors */
+			if((knp=(kstat_named_t*)kstat_data_lookup(ksp, (char*)"oerrors"))==NULL){
+				continue;
+			}
+			//network_stat_ptr->oerrors=knp->value.ui32;
+			itotal_bytes+=knp->value.ui32;
+
+			/* Read collisions */
+			if((knp=(kstat_named_t*)kstat_data_lookup(ksp, (char*)"collisions"))==NULL){
+				continue;
+			}
+			//network_stat_ptr->collisions=knp->value.ui32;
+			itotal_bytes+=knp->value.ui32;
+		}
+	}
+	kstat_close(kc);
+    return itotal_bytes;
+}
+#endif
+
+/* Get the system memory information, actually is the average information */
+static int32 get_vmMemInfo(CVmInfo& objVmUpInfo)
+{
+// chengl2, 2010-7-6
+#if defined(LINUX)
+	std:: ifstream memInfo("/proc/meminfo");
+	if (!memInfo) {
+		return -1;
+	}
+
+	aistring line;
+	aistring::iterator it;
+	uint32 memTotal = 0, memFree = 0, memCached = 0, memBuffer = 0, count = 0;
+	while (std:: getline(memInfo, line)) {
+		if (count >= 4)
+			break;
+		it = std:: find(line.begin(), line.end(), ':');
+		aistring name(line.begin(), it);
+		aistring value(++it, line.end());
+		if (name == "MemTotal") {
+			std:: istringstream iss(value);
+			iss >> memTotal;
+			count++;
+		} else if (name == "MemFree") {
+			std:: istringstream iss(value);
+			iss >> memFree;
+			count++;
+		} else if (name == "Buffers") {
+			std:: istringstream iss(value);
+			iss >> memBuffer;
+			count++;
+		} else if (name == "Cached") {
+			std:: istringstream iss(value);
+			iss >> memCached;
+			count++;
+		}
+	}
+	memInfo.close();
+	// 上报的单位:MB
+	double dbMemTotal = (double)memTotal / 1024;
+	objVmUpInfo.m_dbMemLeft       = (double)(memFree + memBuffer + memCached) / 1024;
+	objVmUpInfo.m_dbMemUseRatio    = (double)(memTotal - memFree - memBuffer - memCached) / memTotal;
+    objVmUpInfo.m_dbMemTotal = dbMemTotal;
+
+#elif defined(HPUX)
+	static struct pst_static pst;
+	static struct pst_dynamic pdy;
+	double dbMemTotal = 0.0;
+	long long pagesize = sysconf(_SC_PAGESIZE);
+	if (pstat_getdynamic(&pdy, sizeof pdy, 1, 0) == -1) {
+		return -1;
+	}
+	if (pstat_getstatic(&pst, sizeof pst, 1, 0) == -1) {
+		return -1;
+	}
+	dbMemTotal = (double)pst.physical_memory * pagesize/1024/1024;
+	objVmUpInfo.m_dbMemLeft       = (double)pdy.psd_free * pagesize/1024/1024;
+	objVmUpInfo.m_dbMemUseRatio    = (dbMemTotal - objVmUpInfo.m_dbMemLeft)/dbMemTotal;
+	objVmUpInfo.m_dbMemTotal = dbMemTotal;
+
+#elif defined(AIXV5)
+	int32 iRet;
+	double dbMemTotal = 0.0;
+	long long pagesize = sysconf(_SC_PAGESIZE);
+	perfstat_memory_total_t memtotal;
+	iRet = perfstat_memory_total(NULL,&memtotal,sizeof(perfstat_memory_total_t),1);
+	if(iRet == -1)
+	{
+		return -1;
+	}
+	dbMemTotal = (double)memtotal.real_total * 4096/1024/1024;
+	objVmUpInfo.m_dbMemLeft      = (double)memtotal.real_free  * 4096/1024/1024;
+    objVmUpInfo.m_dbMemTotal = dbMemTotal;
+	objVmUpInfo.m_dbMemUseRatio   = (double)((dbMemTotal - objVmUpInfo.m_dbMemLeft)/dbMemTotal);
+#elif defined(SOLARIS)
+	kstat_ctl_t *kc;
+	kstat_t *ksp;
+	kstat_named_t *kn;
+	double dbMemTotal;
+	long totalmem;
+	int pagesize;
+	char szks_module[] = "unix";
+	char szks_name[]   = "system_pages";
+	if((pagesize=sysconf(_SC_PAGESIZE)) == -1){
+		return -1;
+	}
+
+	if((totalmem=sysconf(_SC_PHYS_PAGES)) == -1){
+		return -1;
+	}
+
+	if ((kc = kstat_open()) == NULL) {
+		return -1;
+	}
+	if((ksp=(kstat_t*)kstat_lookup(kc,szks_module, 0,szks_name)) == NULL){
+		return -1;
+	}
+	if (kstat_read(kc, ksp, 0) == -1) {
+		return -1;
+	}
+	if((kn=(kstat_named_t*)kstat_data_lookup(ksp, (char*)"freemem")) == NULL){
+		return -1;
+	}
+	kstat_close(kc);
+
+	dbMemTotal = (long long)totalmem * (long long)pagesize;
+	objVmUpInfo.m_dbMemLeft      = ((long long)kn->value.ul) * (long long)pagesize;
+	objVmUpInfo.m_dbMemUseRatio   = (dbMemTotal - objVmUpInfo.m_dbMemLeft)/dbMemTotal;
+    objVmUpInfo.m_dbMemTotal = dbMemTotal;
+#endif
+	return 0;
+}
+
+static int32 get_vmCpuInfo(CVmInfo& objVmUpInfo, bool bRegister)
+{
+	aistring strGetString;
+	char szmvBuf[1024]={0};
+#if defined(LINUX)
+    int32 cpuNum;
+    int64 dbCpu;
+    uint32 count = 0;
+    uint32 cores = 0;
+    static double freq = 0;
+	if ( bRegister ) {
+		std:: ifstream cpuInfo("/proc/cpuinfo");
+		if (!cpuInfo)
+			return -1;
+		aistring line, field;
+		aistring::iterator itb, ite;
+		while (std:: getline(cpuInfo, line)) {
+			itb = std:: find(line.begin(), line.end(), ':');
+			if (itb != line.end())
+				*itb = ' ';
+			std:: istringstream iss(line);
+			iss >> field;
+			if (field == "processor") {
+				count++;
+			}
+			if (field == "cpu") {
+				iss >> field;
+				if (field == "MHz") {
+					iss >> freq;
+				}
+				if (field == "cores") {
+					iss >> cores;
+				}
+			}
+		}
+		cpuInfo.close();
+
+		cpuNum = count;
+		dbCpu = (int64)freq;
+        int cpuCoreNum = 0;
+		if(0 == cores)
+		{
+			cpuCoreNum = count;
+		}
+		else
+		{
+			cpuCoreNum = cores;
+		}
+        objVmUpInfo.m_iCpuCoreNum = cores == 0 ? count : cores;
+        objVmUpInfo.m_iCpuNum  = count;
+	}
+
+	std:: ifstream cpuStat("/proc/stat");
+	if (!cpuStat)
+		return -1;
+
+	aistring line;
+	if (!std:: getline(cpuStat, line)) {
+		cpuStat.close();
+		return -1;
+	}
+	std:: istringstream iss(line);
+	aistring strCpuName;
+	uint64 userTime = 0, niceTime = 0, systemTime = 0, idleTime = 0;
+	uint64 iowaitTime = 0, irqTime = 0, softIrqTime = 0;
+
+	iss >> strCpuName
+		>> userTime
+		>> niceTime
+		>> systemTime
+		>> idleTime
+		>> iowaitTime
+		>> irqTime
+		>> softIrqTime;
+	cpuStat.close();
+
+	uint64 totalTime = userTime + \
+		niceTime + \
+		systemTime + \
+		idleTime + \
+		iowaitTime + \
+		irqTime + \
+		softIrqTime;
+
+	uint64 busyTime = userTime + \
+		niceTime + \
+		systemTime;
+
+	objVmUpInfo.m_dbCpuUseRatio = (float)(busyTime - busy_time) / (totalTime-total_time);
+	objVmUpInfo.m_dbCpuLeft = (1 - objVmUpInfo.m_dbCpuUseRatio) * freq;
+    objVmUpInfo.m_iCpuCoreNum = cores == 0 ? count : cores;
+    objVmUpInfo.m_iCpuNum  = count;
+    objVmUpInfo.m_dbCpu = dbCpu;
+
+	total_time = totalTime;
+	busy_time = busyTime;
+
+#elif defined(HPUX)
+	//cacl cpu
+	int64 total = 0;
+	static struct pst_dynamic psd;
+	static struct pst_processor *psp;
+    static double freq = 0.0;
+    int cpuNum = 0;
+    int cpuCoreNum = 0;
+    double dbCpu;
+	if (pstat_getdynamic(&psd, sizeof(psd), (size_t)1, 0) != -1)
+	{
+		size_t nspu = psd.psd_proc_cnt;
+		cpuNum = nspu;
+		cpuCoreNum = mpctl(MPC_GETNUMSPUS, NULL, NULL);
+		cpuCoreNum = psd.psd_max_proc_cnt / 2;
+		psp = (struct pst_processor *)malloc(nspu * sizeof(*psp));
+		if (pstat_getprocessor(psp, sizeof(*psp), nspu, 0) != -1)
+		{
+			dbCpu = psp[0].psp_iticksperclktick/1000000*530;
+		}
+		else
+		{
+			/* free the allocated memory */
+			free(psp);
+			return -1;
+		}
+	}
+	for (int i = 0; i < PST_MAX_CPUSTATES; i++) {
+		total += psd.psd_cpu_time[i];
+	}
+
+	double psd_idleTime 		= psd.psd_cpu_time[CP_IDLE];
+	double oppu_time 		= total - psd.psd_cpu_time[CP_IDLE];
+	double iTdle_time		= psd_idleTime - idle_time;
+	objVmUpInfo.m_dbCpuLeft = iTdle_time /(total - total_time);
+	objVmUpInfo.m_dbCpuUseRatio = ( oppu_time - busy_time )/(total - total_time);
+    objVmUpInfo.m_iCpuCoreNum = cpuCoreNum;
+    objVmUpInfo.m_iCpuNum  = cpuNum;
+    objVmUpInfo.m_dbCpu = dbCpu;
+
+	total_time = total;
+	idle_time  = psd_idleTime;
+	busy_time  = oppu_time;
+
+	/* free the allocated memory */
+	free(psp);
+
+#elif defined(AIXV5)
+	int64 total = 0;
+	int retcode, i;
+	perfstat_cpu_t *cpu;
+	perfstat_cpu_total_t *cputotal;
+    double dbCpu;
+    int cpuNum;
+    int cpuCoreNum;
+	//char szmvBuf[1024];
+
+	/* Get the system cpu information, actually is the average information */
+	cputotal = (perfstat_cpu_total_t *)malloc(sizeof(perfstat_cpu_total_t));
+	memset(cputotal, 0, sizeof(perfstat_cpu_total_t));
+	retcode = perfstat_cpu_total(NULL, cputotal, sizeof(perfstat_cpu_total_t), 1);
+
+	if (retcode == -1) {
+	}
+
+	/* Get all processor frequency,unit as MHz*/
+	cpuNum = cputotal->ncpus;
+	strGetString = "";
+	memset(szmvBuf,0x00,sizeof(szmvBuf));
+	sprintf(szmvBuf,"lsdev -Cc processor| awk 'END {print NR}'");
+	ShellCmd(szmvBuf, strGetString);
+	cpuCoreNum = atoi(strGetString.c_str());
+	dbCpu = cputotal->processorHZ/1000000;
+
+	total = cputotal->user + cputotal->sys + cputotal->idle + cputotal->wait;
+	double oppu_time 		= total - cputotal->idle;
+	double iTdle_time		= cputotal->idle - idle_time;
+	objVmUpInfo.m_dbCpuLeft = iTdle_time /(total - total_time);
+	objVmUpInfo.m_dbCpuUseRatio = ( oppu_time - busy_time )/(total - total_time);
+    objVmUpInfo.m_iCpuCoreNum = cpuCoreNum;
+    objVmUpInfo.m_iCpuNum  = cpuNum;
+    objVmUpInfo.m_dbCpu = dbCpu;
+
+	total_time = total;
+	idle_time  = cputotal->idle;
+	busy_time  = oppu_time;
+
+	/* free the allocated memory */
+	free(cputotal);
+
+#elif defined(SOLARIS)
+	int64 user = 0,kernel = 0,idle = 0,iowait = 0,swap = 0;
+	kstat_ctl_t *kc;
+	kstat_t *ksp;
+	cpu_stat_t cs;
+
+	if ((kc = kstat_open()) == NULL) {
+		return 0;
+	}
+	for (ksp = kc->kc_chain; ksp!=NULL; ksp = ksp->ks_next) {
+		if ((strcmp(ksp->ks_module, "cpu_stat")) != 0) continue;
+		if (kstat_read(kc, ksp, &cs) == -1) {
+			continue;
+		}
+		user+=(long long)cs.cpu_sysinfo.cpu[CPU_USER];
+		kernel+=(long long)cs.cpu_sysinfo.cpu[CPU_KERNEL];
+		idle  +=(long long)cs.cpu_sysinfo.cpu[CPU_IDLE];
+		iowait+=(long long)cs.cpu_sysinfo.wait[W_IO]+(long long)cs.cpu_sysinfo.wait[W_PIO];
+		swap+=(long long)cs.cpu_sysinfo.wait[W_SWAP];
+	}
+
+	double total 	= user + iowait + kernel + idle + swap;
+	double oppu_time = total - idle;
+    int32 iCpuNum = 0;
+    int32 iCpuCoreNum = 0;
+
+    aistring strRet;
+    ShellCmd("psrinfo -p", strRet);
+    iCpuNum = atoi(strRet.c_str());
+
+    ShellCmd("psrinfo -v", strRet);
+    const char *tmp = strRet.c_str();
+    while ( strstr(tmp, "MHz") ) 
+	{
+        tmp += 3;
+        iCpuCoreNum++;
+    }
+
+	objVmUpInfo.m_dbCpuLeft = (idle - idle_time)/(total - total_time);
+	objVmUpInfo.m_dbCpuUseRatio = ( oppu_time -  busy_time)/(total - total_time);
+    objVmUpInfo.m_iCpuCoreNum = iCpuCoreNum;
+    objVmUpInfo.m_iCpuNum  = iCpuNum;
+
+
+	idle_time = idle;
+	total_time = total;
+	busy_time  = oppu_time;
+	kstat_close(kc);
+
+#endif
+	return 0;
+}
+
+
+static int32 get_vmNetInfo(CVmInfo& objVmUpInfo)
+{
+#if defined(LINUX)
+	AISTD ifstream netInfo("/proc/net/dev");
+	if (!netInfo) {
+		return -1;
+	}
+
+	uint32 count = 0;
+	uint64 totalBytes = 0;
+	uint64 recvBytes, recvPkts, recvErrors, recvDrops;
+	uint64 tranBytes, tranPkts, tranErrors, tranDrops;
+	while(1) {
+		AISTD string line;
+		if (!AISTD getline(netInfo, line))
+			break;
+		AISTD string::iterator itb, ite;
+		itb = find(line.begin(), line.end(), ':');
+		if (itb == line.end())
+			continue;
+		*itb = ' ';
+		AISTD istringstream lineStream(line);
+		AISTD string cardName;
+		lineStream >> cardName;
+		if (!cardName.compare(0, 3, "eth")) {
+			lineStream >>recvBytes
+					>> recvPkts
+					>> recvErrors
+					>> recvDrops
+					>> tranBytes
+					>> tranPkts
+					>> tranErrors
+					>> tranDrops;
+			totalBytes += (recvBytes + tranBytes);
+			count++;
+		}
+	}
+	netInfo.close();
+
+	if (count == 0) {
+		count = 1;
+	}
+	uint64 totalBits = (recvBytes + tranBytes) * 8 / 2 /count;
+    usleep(100000);
+
+    while(1) {
+		AISTD string line;
+		if (!AISTD getline(netInfo, line))
+			break;
+		AISTD string::iterator itb, ite;
+		itb = find(line.begin(), line.end(), ':');
+		if (itb == line.end())
+			continue;
+		*itb = ' ';
+		AISTD istringstream lineStream(line);
+		AISTD string cardName;
+		lineStream >> cardName;
+		if (!cardName.compare(0, 3, "eth")) {
+			lineStream >>recvBytes
+					>> recvPkts
+					>> recvErrors
+					>> recvDrops
+					>> tranBytes
+					>> tranPkts
+					>> tranErrors
+					>> tranDrops;
+			totalBytes += (recvBytes + tranBytes);
+			count++;
+		}
+	}
+	netInfo.close();
+
+	if (count == 0) {
+		count = 1;
+	}
+
+    totalBits = (recvBytes + tranBytes) * 8 / 2 / count - totalBits;
+
+
+    objVmUpInfo.m_dbNetTotal = 1000 * 1024 * 1024;
+	objVmUpInfo.m_fNetUseRatio = (totalBits - total_pkgs)/objVmUpInfo.m_dbNetTotal;
+	objVmUpInfo.m_fNetUse	    = totalBits/1024;
+
+	total_pkgs = totalBits;
+#elif defined(HPUX)
+	int64 m_nspeed = 0 ;
+	int32 iRet = 0;
+	char szTarBuf[1024]={0};
+	int64 netbandwidth = 0;
+	int64 tatol = 0;
+	netbandwidth = m_nspeed;
+	if(netbandwidth == 0)
+	{
+		netbandwidth = 10000000000;
+	}
+////////////////////////////////////////////////////////////////////////////////
+
+	objVmUpInfo.m_dbNetTotal = netbandwidth;
+	objVmUpInfo.m_fNetUseRatio = (tatol - total_pkgs)*1024*8/netbandwidth;
+	if (objVmUpInfo.m_fNetUseRatio > 1) {
+		objVmUpInfo.m_fNetUseRatio = 1;
+	}
+	objVmUpInfo.m_fNetUse	    =  (tatol - total_pkgs)*8;
+	total_pkgs = tatol;
+
+#elif defined(AIXV5)
+#if 0
+	int i, ret;
+	perfstat_netinterface_t *statp = NULL;
+	perfstat_id_t first;
+	perfstat_netinterface_total_t ntotalinfo;
+	int rc;
+	rc = perfstat_netinterface_total(NULL, &ntotalinfo, sizeof(perfstat_netinterface_total_t), 1);
+	if (rc != 1)
+	{
+		perror("perfstat_netinterface_total");
+	}
+	/* allocate enough memory for all the structures */
+	//(perfstat_netinterface_t *)calloc(tot, sizeof(perfstat_netinterface_t));
+	statp = new perfstat_netinterface_t[ntotalinfo.number];
+	if(statp == NULL)
+		return -1;
+
+	/* set name to first interface */
+	strncpy(first.name, FIRST_NETINTERFACE,sizeof(first.name) - 1);
+
+	/* ask to get all the structures available in one call */
+	/* return code is number of structures returned */
+	int64 netbandwidth = 0;
+	ret = perfstat_netinterface(&first, statp, sizeof(perfstat_netinterface_t), ntotalinfo.number);
+	for (int i = 0; i < ntotalinfo.number; i++)
+	{
+		netbandwidth = statp[i].bitrate;
+	}
+
+	int64 tot;
+	tot = ntotalinfo.ipackets + ntotalinfo.ierrors + ntotalinfo.ibytes +
+		ntotalinfo.opackets + ntotalinfo.obytes + ntotalinfo.oerrors;
+
+	objVmUpInfo.m_fNetUseRatio = (tot - total_pkgs)/netbandwidth;
+	objVmUpInfo.m_fNetUse	    =  (tot - total_pkgs)/1024;
+
+	objVmUpInfo.m_dbNetTotal = netbandwidth;
+	total_pkgs = tot;
+#else
+    // 暂时不计算，后期考虑如何准确计算
+	objVmUpInfo.m_fNetUseRatio = 0;
+	objVmUpInfo.m_fNetUse	   = 0;
+	objVmUpInfo.m_dbNetTotal   = 10000000000;
+#endif
+
+#elif defined(SOLARIS)
+    
+    int64 itotal_bytes = 0;
+    itotal_bytes = get_vmNetInfoHelp();
+    usleep(100000);
+    itotal_bytes = get_vmNetInfoHelp() - itotal_bytes;
+
+    objVmUpInfo.m_dbNetTotal = 10000000000;
+    objVmUpInfo.m_fNetUseRatio = (itotal_bytes) * 10/objVmUpInfo.m_dbNetTotal;
+	objVmUpInfo.m_fNetUse	    =  (itotal_bytes)/1024;
+
+#endif
+	return 0;
+}
+
+
+CNrmVmMgrImpl::CNrmVmMgrImpl()
+    : m_cObjCfg(GetNrmConfig())
+{
+}
+
+CNrmVmMgrImpl::~CNrmVmMgrImpl()
+{
+}
+
+void CNrmVmMgrImpl::GetVmStaticInfo(SBaseVmStaticInfo &rcVmStaticInfo)
+{
+    CVmInfo vminfo;
+    if ( get_vmMemInfo(vminfo) < 0 ) 
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_VMMGR_GETINFOMATION_ERROR, "get static infomation error");
+    }
+    if ( get_vmCpuInfo(vminfo, true) < 0 ) 
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_VMMGR_GETINFOMATION_ERROR, "get static infomation error");
+    }
+    if ( get_vmNetInfo(vminfo) < 0 )
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_VMMGR_GETINFOMATION_ERROR, "get static infomation error");
+    }
+
+    aistring strUserName = GetUserName();
+
+    rcVmStaticInfo.set_cpuNumber(vminfo.m_iCpuNum);
+    rcVmStaticInfo.set_cpuCoreNumber(vminfo.m_iCpuCoreNum);
+    rcVmStaticInfo.set_memTotal((int64)vminfo.m_dbMemTotal);
+    rcVmStaticInfo.set_cpuFrequency((int64)vminfo.m_dbCpu);
+    rcVmStaticInfo.set_netBandwidth((int64)vminfo.m_dbNetTotal);
+    rcVmStaticInfo.set_vmId(GetIpAddr(GetHostIp().c_str()));
+    rcVmStaticInfo.set_vmIp(GetHostIp());
+//   rcVmStaticInfo.set_vmId(od_system::get_vmId());
+    rcVmStaticInfo.set_sshuserName(strUserName);
+    
+	aistring strBuf = FormatString("uname -a | awk '{ print $2 }'");
+    aistring strHostName;
+
+	ShellCmd(strBuf, strHostName);
+    strBuf = FormatString("uname -a | awk '{print $1}'");
+
+    aistring strOsName;
+    ShellCmd(strBuf, strOsName);
+
+    strBuf = FormatString("uname -a | awk '{print $3}'");
+    aistring strOsVersion;
+    ShellCmd(strBuf, strOsVersion);
+
+    rcVmStaticInfo.set_vmName(strHostName);
+    rcVmStaticInfo.set_osVesion(strOsVersion);
+    rcVmStaticInfo.set_operateSystem(strOsName);
+    rcVmStaticInfo.set_cpfVersion(GetCpfVersion());
+}
+
+void CNrmVmMgrImpl::ChangeVmTime(CModifyTime &rcModifyTime)
+{
+	char szYYYYMMDDHH24MISS[16] ={0};
+    memset(szYYYYMMDDHH24MISS, 0, sizeof(szYYYYMMDDHH24MISS));
+    if ( CModifyTime::OFFSET_TYPE_ADD == rcModifyTime.m_iOffsetType )
+    {
+        set_vtSecModify(rcModifyTime.m_iOffsetTime);
+    }
+    else if ( CModifyTime::OFFSET_TYPE_SUB == rcModifyTime.m_iOffsetType )
+    {
+        set_vtSecModify(0 - rcModifyTime.m_iOffsetTime);
+    }
+    else if ( CModifyTime::OFFSET_TYPE_RECOVER == rcModifyTime.m_iOffsetType )
+    {
+        set_vtSecModify(0);
+    }
+    aistring strTime;
+    get_vtCharFormat(VT_FORMAT_YYYYMMDDHH24MISS, strTime);
+
+
+    strncpy(rcModifyTime.m_szCurrentTime, strTime.c_str(),sizeof(rcModifyTime.m_szCurrentTime));
+
+    time_t t;
+    struct tm *area;
+	char buf[16]={0};
+    t = time(NULL);
+    area = localtime(&t);
+    strftime(buf, sizeof(buf), "%Y%m%d%H%M%S", area);
+    strncpy(rcModifyTime.m_szRealTime, buf,sizeof(rcModifyTime.m_szRealTime));
+
+    DBE2_LOG(TRACE_LOGGER, "OffsetType %d, SecModify %lld, RealTime %s", 
+                            rcModifyTime.m_iOffsetType,
+	                        get_vtSecModify(),
+	                        rcModifyTime.m_szRealTime); 
+}
+
+extern aistring GetHostIp();
+
+void CNrmVmMgrImpl::GetVmStatus(SSrmVmProcStatus & rcSrmVmStatus)
+{
+    CVmInfo vminfo;
+    if ( get_vmMemInfo(vminfo) < 0 ) 
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_VMMGR_GETINFOMATION_ERROR, "get static infomation error");
+    }
+    if ( get_vmCpuInfo(vminfo, false) < 0 ) 
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_VMMGR_GETINFOMATION_ERROR, "get static infomation error");
+    }
+    if ( get_vmNetInfo(vminfo) < 0 )
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_VMMGR_GETINFOMATION_ERROR, "get static infomation error");
+    }
+
+    rcSrmVmStatus.vmInfo().set_cpuLeft(vminfo.m_dbCpuLeft);
+    rcSrmVmStatus.vmInfo().set_memLeft(vminfo.m_dbMemLeft);
+    rcSrmVmStatus.vmInfo().set_netUse(vminfo.m_fNetUse);
+    rcSrmVmStatus.vmInfo().set_cpuUseRatio(vminfo.m_dbCpuUseRatio);
+    rcSrmVmStatus.vmInfo().set_memUseRatio(vminfo.m_dbMemUseRatio);
+    rcSrmVmStatus.vmInfo().set_netUseRatio(vminfo.m_fNetUseRatio);
+    rcSrmVmStatus.vmInfo().set_status(1);
+    rcSrmVmStatus.vmInfo().set_vmId(od_system::get_vmId());
+
+
+    int64 time;
+    GetCurrentTime(time);
+    rcSrmVmStatus.vmInfo().set_updateTime(time);
+    
+    
+    INrmNrMgr::GetInstance().GetVmProcListInfo(rcSrmVmStatus.procStatusList());
+    rcSrmVmStatus.vmInfo().set_runningCount(rcSrmVmStatus.procStatusList().size());
+    
+}
+
+//7122
+void CNrmVmMgrImpl::UpdateProcess(SNrmUpdateProcess &rcNrmUpdateProcess)
+{
+	SSrmUpGradeProcess cSrmUpGradeProcess;
+	int32 iOpId = rcNrmUpdateProcess.get_opId();
+	cSrmUpGradeProcess.set_vmId(rcNrmUpdateProcess.get_vmId());
+
+	try 
+	{	
+		ReadUpdateProcess(cSrmUpGradeProcess);
+		
+		if (iOpId != cSrmUpGradeProcess.get_opId())
+		{
+			DBE2_LOG(TRACE_LOGGER, "get update process file opid:%d ,srm current opid:%d",iOpId,cSrmUpGradeProcess.get_opId());
+			return;
+		}
+		
+
+	} catch ( ... )  {
+		return;
+	}
+
+	// send 4122
+	CSendTarget sendTarget = GetSrmAddress();
+	cSrmUpGradeProcess.set_msgHead(GetMsgHead(4122));
+	obb_stream stream = Sdl2Obbstream(cSrmUpGradeProcess);
+	LogSdl(cSrmUpGradeProcess);
+	GetMsgHelper()->Send(sendTarget, 4122, stream);
+}
+
+// 7121
+void CNrmVmMgrImpl::NotifyUpdate(SNrmSoftWareUpdate &rcNrmSoftWareUpdate)
+{
+    const char *pszScriptName = rcNrmSoftWareUpdate.get_scriptName().c_str();
+    const char *pszUpdateScript = rcNrmSoftWareUpdate.get_updateScript().c_str();
+    const char *pszUpdateCommand = rcNrmSoftWareUpdate.get_updateCommand().c_str();
+
+	char szPath[1024] = {0};
+    int32 iLen;
+
+    snprintf(szPath,sizeof(szPath) ,"%s/ipc/cpf_upgrade/", getenv("CPF_HOME")); // 修改升级路径
+
+    if ( CheckDir(szPath) < 0 )
+    {
+        if ( mkdir(szPath, 0776) < 0 ) 
+        {
+            THROW_CAIEXCEPTION(DBE2_NRM_UPDATE_CANNOT_CREATE_DIR, "cannot create the update dir to save the script, either disk is full or the permission is deny would cause this");
+            return;
+        }
+    }
+
+    iLen = strlen(szPath);
+	if ((sizeof(szPath) - iLen-1)< strlen(pszScriptName))
+	{
+		THROW_CAIEXCEPTION(DBE2_NRM_UPDATE_CANNOT_CREATE_UPDATE_SCRIPT, "script name too long");
+		return;
+	}
+    char *pszPathName = strcat(szPath, pszScriptName);
+    
+	FILE *fp = fopen(pszPathName, "w+");
+    if ( !fp ) 
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_UPDATE_CANNOT_CREATE_UPDATE_SCRIPT, "cannot create the script file, either disk is full or the permission is deny would cause this");
+        return;
+    } 
+
+    iLen = strlen(pszUpdateScript);
+    int32 iReal = fwrite(pszUpdateScript, 1, iLen, fp) ;
+    if (iReal != iLen ) 
+    {
+        fclose(fp);
+        THROW_CAIEXCEPTION(DBE2_NRM_UPDATE_CANNOT_WRITE_UPDATE_SCRIPT, "cannot write the script file, may be the disk is full");
+        return;
+    }
+
+    fclose(fp);
+
+    //加执行权限
+    chmod(pszPathName, 0755);
+    iLen = strlen(pszPathName);
+    pszPathName[iLen] = ' ';
+    pszPathName[iLen + 1] = '\0';
+
+	if ((sizeof(szPath) - iLen - 1)< strlen(pszUpdateCommand))
+	{
+		THROW_CAIEXCEPTION(DBE2_NRM_UPDATE_CANNOT_CREATE_UPDATE_SCRIPT, "update command too long");
+		return;
+	}
+
+	int32 iRet = ShellCmdNoReturn(strcat(pszPathName, pszUpdateCommand));
+	
+	if ((WIFEXITED(iRet) == 0))
+	{
+		THROW_CAIEXCEPTION(DBE2_NRM_UPDATE_SCRIPTS_RUN_ERROR, "exec update command  error, errno(?), errstring(?)")
+			<<errno
+			<<strerror(errno);
+		return;
+	}
+}
+
+}
+

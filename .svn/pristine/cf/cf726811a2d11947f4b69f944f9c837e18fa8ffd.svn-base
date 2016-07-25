@@ -1,0 +1,77 @@
+#include <unittest_cp_dbe2_msg_dispatch_main.h>
+
+SUITE(SUITE_time_frame_cpp)
+{
+	//Fuction: CTimerThread :: ~ CTimerThread ( )
+	TEST_FIXTURE(TestFixture,TestCTimerThread)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CTimerThread :: CTimerThread ( ) : m_pcMsgHelper ( 0 )
+	TEST_FIXTURE(TestFixture,TestCTimerThread_CTimerThread)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CTimerThread :: ReadTimerInfo ( )
+	TEST_FIXTURE(TestFixture,TestCTimerThread_ReadTimerInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CTimerThread :: Timer ( )
+	TEST_FIXTURE(TestFixture,TestCTimerThread_Timer)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CTimerThread :: UpdateTimerInfo ( int32 iMsg , uint64 ui64TimeInterval )
+	TEST_FIXTURE(TestFixture,TestCTimerThread_UpdateTimerInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: od_frame :: CThread * create_timerInstance ( )
+	TEST_FIXTURE(TestFixture,TestCTimerThread_create_timerInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CTimerThread :: destroy ( )
+	TEST_FIXTURE(TestFixture,TestCTimerThread_destroy)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CTimerThread :: init ( )
+	TEST_FIXTURE(TestFixture,TestCTimerThread_init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CTimerThread :: run ( NAMESPACE_OD_FRAME CData * p )
+	TEST_FIXTURE(TestFixture,TestCTimerThread_run)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

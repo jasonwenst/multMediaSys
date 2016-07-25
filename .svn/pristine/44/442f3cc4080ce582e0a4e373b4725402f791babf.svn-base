@@ -1,0 +1,441 @@
+#include "dispatch_frame.h"
+#include "dbe2_srm_msg_interface.h"
+#include "dbe2_ca_msg_interface.h"
+#include "dbe_frame_def_sdl_c.h"
+#include "dbe2_lock.h"
+#include "dbe2_util.h"
+#include <algorithm>
+
+#define DISPATCH_TRY try {
+#define DISPATCH_CATCH(msg, ret_code)  } catch(err_info_service::CAIException exception) { \
+        DBE2_LOG_EXCEPTION(exception); \
+        return ret_code; \
+    } \
+    catch(...) { DBE2_LOG(ERROR_LOGGER, "dbe2_exception:catch unknown exception!"); return ret_code; }
+
+namespace MDbe
+{
+
+CInt32Vec  CMsgDispatchThread::m_cInt32Vec;
+CLock CMsgDispatchThread::m_cLock;
+CCommunicateApiExpirePool CMsgDispatchThread::m_cCommunicateApiExpirePool;
+
+CCommunicateApiExpirePool::CCommunicateApiExpirePool()
+{
+    m_iExpireSec = 1 * 60 * 60; //默认1小时
+}
+
+void CCommunicateApiExpirePool::SetExpireSec(int32 iExpireSec)
+{
+    m_iExpireSec = iExpireSec;
+}
+
+void CCommunicateApiExpirePool::Add(CCommunicateApi * pCommunicateApi)
+{
+    if(pCommunicateApi == NULL)
+        return;
+    //把对象放入池中,定时删除
+    Close(pCommunicateApi);
+    //释放失效的
+    ReleaseExpire();
+}
+
+void CCommunicateApiExpirePool::Close(CCommunicateApi * pCommunicateApi)
+{
+    int64 llCurUs = GetMicroSecTime();
+    CAutoLock cAutoLock(m_cLock);
+    //先关闭链接
+    m_mapCommunicateApi[llCurUs] = pCommunicateApi;
+    DBE2_LOG(INFO_LOGGER, "communicate api will close,and insert into pool![pool size:%d, pCommunicateApi:%p, local ip: %s, peer ip:%s, socket:%d]",
+             m_mapCommunicateApi.size(),
+             pCommunicateApi,
+             pCommunicateApi->get_local(),
+             pCommunicateApi->get_peer(),
+             pCommunicateApi->get_socket());
+    pCommunicateApi->close();
+}
+
+
+void CCommunicateApiExpirePool::ReleaseExpire()
+{
+    //找指定时间之外的做删除
+    CAutoLock cAutoLock(m_cLock);
+    int32 iBeforeSize = m_mapCommunicateApi.size();
+    time_t tCurrent = time(NULL);
+    aimap<int64, CCommunicateApi *>::iterator itr = m_mapCommunicateApi.begin();
+    for(; itr != m_mapCommunicateApi.end();)
+    {
+        if(tCurrent - (itr->first/1000000) < m_iExpireSec)
+            break; //因为map是排过序的,所以未达到时间,就break了
+        //删除这个数据,释放空间
+        DBE2_LOG(INFO_LOGGER, "communicate api expire, will delete from pool![pCommunicateApi:%p, socket:%d, add time:%lld]",
+                 itr->second,
+                 itr->second->get_socket(),
+                 itr->first);
+        delete itr->second;
+        m_mapCommunicateApi.erase(itr++);
+    }
+    int32 iAfterSize = m_mapCommunicateApi.size();
+    int32 iCloseSize = iBeforeSize - iAfterSize;
+    if(iCloseSize > 0)
+    {
+        DBE2_LOG(WARN_LOGGER, "communicate api pool release expire finish![pool size:%d, close size:%d, expire time:%d]",
+                 iAfterSize, iCloseSize, m_iExpireSec);
+    }
+}
+
+
+CMsgDispatchThread::CMsgDispatchThread()
+    : m_pcMsgHelper(NULL),
+      m_cMyDispatchConfig()
+{
+}
+
+CMsgDispatchThread::~CMsgDispatchThread()
+{
+}
+
+int32 CMsgDispatchThread::init()
+{
+    DISPATCH_TRY
+    int32 iRet = -1;
+    iRet = read_config(m_cMyDispatchConfig);
+    if(iRet != 0)
+    {
+        //读取配置失败
+        return iRet;
+    }
+    if(NULL == m_pcMsgHelper)
+    {
+        m_pcMsgHelper = new CMsgHelper(this, m_cMyDispatchConfig.m_iDumpSendObbstream == 1);
+    }
+    CMgrInitHelper cMgrInitHelper(this);
+    aistring strLibName = m_cMyDispatchConfig.m_szDispatchLib;
+    //加载库,绑定并初始化
+    MDbe::IMsgDispatchMgr::GetInstance().BindLib(strLibName, cMgrInitHelper);
+
+    m_objPKey.m_objSKey.m_iFlowId = get_flowId();
+    m_objPKey.m_objSKey.m_iSrvId = get_serviceId();
+    m_objPKey.m_iProcId = get_procId();
+    m_cCommunicateApiExpirePool.SetExpireSec(m_cMyDispatchConfig.m_iCommunicateApiPoolExpireSec);
+    InitVmInfo();
+
+    return iRet;
+    DISPATCH_CATCH(0, -1)
+}
+
+int32 CMsgDispatchThread::stop()
+{
+    MDbe::IMsgDispatchMgr::GetInstance().Destroy();
+    if(m_pcMsgHelper)
+    {
+        delete m_pcMsgHelper;
+        m_pcMsgHelper = NULL;
+    }
+    return 0;
+}
+
+int32 CMsgDispatchThread::destroy()
+{
+    return 0;
+}
+
+int32 CMsgDispatchThread::run(od_frame:: CData * p)
+{
+
+    if(NULL == p) return 0;
+    int32 iHandleType = -1;
+    DISPATCH_TRY
+    int32 iRet = -1;
+    od_frame:: CCommData * pCommData = (od_frame:: CCommData *)p;
+    iHandleType = pCommData->get_type();
+    //DBE2_LOG(TRACE_LOGGER, "recv msg from previous node![msg_type:%d]", iHandleType);
+    if(1 == m_cMyDispatchConfig.m_iDumpNotifyFile) //需要dump cnotify
+    {
+        array_t<char> buf;
+        pCommData->dump(buf);
+        DBE2_LOG(TRACE_LOGGER, "%s,m_iType = %d,dump = %s", __FUNCTION__, pCommData->get_type(), buf.ptr());
+    }
+
+    //注册
+    if(MSG_DBE_COMM_REG/*150*/ == iHandleType)
+    {
+        return ProcLogin(pCommData);
+    }
+    else if(MDbe:: MSG_RSP_DBE_COMM_REG/*151*/ == iHandleType) //注册回应
+    {
+        return ResponseProcLogin(pCommData);
+    }
+    else if(MSG_COMMON_DISCONNECT == iHandleType) //链接断开消息
+    {
+        return ProcDisconnect(pCommData);
+    }
+    else if (MSG_PROC_STATE == iHandleType)
+    {
+        return send_data(pCommData, 1);
+    }
+    
+    //断开在104消息中
+
+    //    else if (MDbe:: MSG_REQ_VMID/*6102*/ == iHandleType)
+    //    {
+    //        return VmLogin(pCommData);
+    //    }
+
+    MDbe:: CRouteData rRouteData;
+    obb_stream cInObbStream;//声明
+    //解析消息包
+    if(!ParserNotify(pCommData, rRouteData, cInObbStream))
+    {
+        return 0;
+    }
+    CMsgAddr cSendSource, cSendTarget;
+    SetSourceMsgAddr(rRouteData, cSendSource, cSendTarget);
+    //定时消息
+    if(MDbe:: MSG_PROC_INTER/*104*/ == iHandleType)
+    {
+        DealInsideMsg(cSendSource, cSendTarget, iHandleType, cInObbStream);
+        return 0;
+    }
+
+    MDbe::IMsgDispatchMgr::GetInstance().Dispatch(*m_pcMsgHelper, cSendSource, cSendTarget, iHandleType, cInObbStream);
+
+    return 0;
+    DISPATCH_CATCH(iHandleType, 0)
+}
+
+//int32 CMsgDispatchThread::stop()
+//{
+//}
+
+
+
+
+int32 CMsgDispatchThread::ProcLogin(od_frame:: CCommData * pCommData)
+{
+    DBE2_LOG(TRACE_LOGGER, "into function ProcLogin msg %d", pCommData->get_type());
+    pCommData->TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+    MDbe:: CRouteData * pRouteData
+        = pCommData->TEMPLATE_MEMBER(CNotify) get_object<MDbe:: CRouteData>();
+
+    if(pRouteData->m_iSVmId == 0)
+    {
+        //如果为0,那么获取本机的VM_ID
+        pRouteData->m_iSVmId = od_system::get_vmId();
+    }
+    DBE2_LOG(TRACE_LOGGER, "get id addr %d!parse CDbeCommApi proc_key:%d-%d-%d, srv_type:%d",
+             pRouteData->m_iSVmId, pRouteData->m_iSFlowId, pRouteData->m_iSSrvId, pRouteData->m_iSProcId, pRouteData->m_iSSrvType);
+
+    pCommData->set_type(MDbe:: MSG_RSP_DBE_COMM_REG/*151*/);
+
+
+    m_pcMsgHelper->SetSocket(*pRouteData, pCommData->m_uCommApi.m_pCommunicateApi, false);
+
+    //传递连接(注册)消息
+    obb_stream out;
+    CSendTarget cSendTarget(pRouteData->m_iTFlowId, pRouteData->m_iTSrvId,
+                            pRouteData->m_iTProcId, pRouteData->m_iTVmId, pRouteData->m_iTSrvType);
+    CMsgAddr rMsgAddr = m_pcMsgHelper->Connect(pCommData->m_uCommApi.m_pCommunicateApi);
+    MDbe::IMsgDispatchMgr::GetInstance().Dispatch(*m_pcMsgHelper,
+            rMsgAddr,
+            cSendTarget,
+            MDbe::MSG_DBE_COMM_REG,
+            out);
+
+    m_pcMsgHelper->SendIntraMsg(rMsgAddr, pCommData->m_uCommApi.m_pCommunicateApi, MSG_RSP_DBE_COMM_REG);
+
+    od_frame:: CCommData::dealloc(pCommData);
+
+    return 0;
+}
+
+int32 CMsgDispatchThread::ProcDisconnect(od_frame:: CCommData * pCommData)
+{
+    CSendTarget cSendSource = m_pcMsgHelper->Delete(pCommData->m_uCommApi.m_pCommunicateApi);
+    DBE2_LOG(INFO_LOGGER, "proc disconnect! %s to %s!proc-key:%d-%d-%d vm_id:%d",
+             pCommData->m_uCommApi.m_pCommunicateApi->get_local(),
+             pCommData->m_uCommApi.m_pCommunicateApi->get_peer(),
+             cSendSource.m_iFlowId, cSendSource.m_iSrvId, cSendSource.m_iProcId, cSendSource.m_iVmId);
+    //通过池的模式来延时释放内存
+    m_cCommunicateApiExpirePool.Add(pCommData->m_uCommApi.m_pCommunicateApi);
+    //释放CNotify
+    od_frame:: CCommData::dealloc(pCommData);
+
+
+    if(!cSendSource.IsEmpty())
+    {
+        //传递连接(注册响应)消息
+        obb_stream out;
+        CSendSource cSendTarget(0, 0, 0, 0, 0);
+        MDbe::IMsgDispatchMgr::GetInstance().Dispatch(*m_pcMsgHelper,
+                cSendSource,
+                cSendTarget,
+                MDbe::MSG_COMMON_DISCONNECT,
+                out);
+    }
+    return 0;
+}
+
+int32 CMsgDispatchThread::ResponseProcLogin(od_frame:: CCommData * pCommData)
+{
+    DBE2_LOG(TRACE_LOGGER, "into function ProcLogin msg %d", pCommData->get_type());
+    pCommData->TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+    MDbe:: CRouteData * pRouteData
+        = pCommData->TEMPLATE_MEMBER(CNotify) get_object<MDbe:: CRouteData>();
+
+    if(pRouteData->m_iSVmId == 0)
+    {
+        //如果为0,那么获取本机的VM_ID
+        pRouteData->m_iSVmId = od_system::get_vmId();
+    }
+    DBE2_LOG(TRACE_LOGGER, "get id addr %u", pRouteData->m_iSVmId);
+
+    CCommunicateApi * pCommunicateApi = pCommData->m_uCommApi.m_pCommunicateApi;
+
+    if(0 != m_pcMsgHelper->SetSocket(*pRouteData, pCommData->m_uCommApi.m_pCommunicateApi, true))
+    {
+        //关闭socket
+        pCommData->m_uCommApi.m_pCommunicateApi->close();
+    }
+
+
+    //传递连接(注册响应)消息
+    obb_stream out;
+    CSendTarget cSendTarget(pRouteData->m_iTFlowId, pRouteData->m_iTSrvId,
+                            pRouteData->m_iTProcId, pRouteData->m_iTVmId, pRouteData->m_iTSrvType);
+    CSendSource cSendSource(pRouteData->m_iSFlowId, pRouteData->m_iSSrvId,
+                            pRouteData->m_iSProcId, pRouteData->m_iSVmId, pRouteData->m_iSSrvType);
+
+    //释放CNotify
+    od_frame:: CCommData::dealloc(pCommData);
+
+    MDbe::IMsgDispatchMgr::GetInstance().Dispatch(*m_pcMsgHelper,
+            cSendSource,
+            cSendTarget,
+            MDbe::MSG_RSP_DBE_COMM_REG,
+            out);
+
+
+    return 0;
+}
+
+void CMsgDispatchThread::DealInsideMsg(CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    cInObbStream.begin_stream("DealInsideMsg");//参数 只是一个标识
+    MDbe::SInsideMessage stSInsideMessage(cInObbStream); //反序列化
+    DBE2_LOG(TRACE_LOGGER, "into function DealInsideMsg msg %d intra msg type %d",
+             iMsgType, stSInsideMessage.get_intraMsgType());
+    if(InsertRecvTimerMsg(stSInsideMessage.get_intraMsgType()))
+    {
+        //没有使用
+        try
+        {
+            MDbe::IMsgDispatchMgr::GetInstance().Dispatch(*m_pcMsgHelper, cSendSource,
+                    cSendTarget, stSInsideMessage.get_intraMsgType(),
+                    cInObbStream);
+            RemoveRecvTimerMsg(stSInsideMessage.get_intraMsgType());
+        }
+        catch(CAIException & e)
+        {
+            //出异常删除这个定时消息,再抛到外层
+            RemoveRecvTimerMsg(stSInsideMessage.get_intraMsgType());
+            throw e;
+        }
+        catch(...)
+        {
+            RemoveRecvTimerMsg(stSInsideMessage.get_intraMsgType());
+            THROW_CAIEXCEPTION(E_MSG_DISPATCH_UNKNOWN_EXCEPTION, "timer catch unknow exception");
+        }
+
+    }
+}
+
+bool CMsgDispatchThread::ParserNotify(od_frame:: CCommData * pCommData,
+                                      MDbe:: CRouteData & rRouteData,
+                                      obb_stream & cInObbStream)
+{
+    if(NULL == pCommData) return false;
+    pCommData->TEMPLATE_MEMBER(CNotify) seek<MDbe:: CRouteData>(0, SEEK_SET);
+    MDbe:: CRouteData * pRouteData
+        = pCommData->TEMPLATE_MEMBER(CNotify) get_object<MDbe:: CRouteData>();
+    if(pRouteData->m_iSVmId == 0)
+    {
+        //如果为0,那么获取本机的VM_ID
+        pRouteData->m_iSVmId = od_system::get_vmId();
+    }
+    rRouteData = *pRouteData;
+    int32 iLen = 0;
+    char * pszStream
+        = pCommData->TEMPLATE_MEMBER(CNotify) get_object(iLen);
+    AISTD string strData;
+    strData.assign(pszStream, iLen);
+    cInObbStream.import_data(strData);//导入，注意，该方法必须在begin_stream之前调用
+    cInObbStream.begin_stream(0);
+
+    if(m_cMyDispatchConfig.m_iDumpRecvObbstream)
+    {
+        LogObbstream(cInObbStream);
+    }
+
+    //释放CNotify
+    od_frame:: CCommData::dealloc(pCommData);
+
+    return true;
+}
+
+bool CMsgDispatchThread::InsertRecvTimerMsg(int32 iMsg)
+{
+    //锁
+    CAutoLock cAutoLock(m_cLock);
+    CInt32Vec::iterator it
+        = find(m_cInt32Vec.begin(), m_cInt32Vec.end(), iMsg);
+    if(it != m_cInt32Vec.end())
+    {
+        return false;
+    }
+    //保存
+    m_cInt32Vec.push_back(iMsg);
+    return true;
+}
+
+bool CMsgDispatchThread::RemoveRecvTimerMsg(int32 iMsg)
+{
+    //锁
+    CAutoLock cAutoLock(m_cLock);
+    CInt32Vec::iterator it
+        = find(m_cInt32Vec.begin(), m_cInt32Vec.end(), iMsg);
+    if(it != m_cInt32Vec.end())
+    {
+        m_cInt32Vec.erase(it);
+    }
+    return true;
+}
+
+void CMsgDispatchThread::SetSourceMsgAddr(CRouteData & rRouteData, CSendSource & cSendSource, CSendTarget & cSendTarget)
+{
+    cSendSource.m_iFlowId = rRouteData.m_iSFlowId;
+    cSendSource.m_iSrvId = rRouteData.m_iSSrvId;
+    cSendSource.m_iProcId = rRouteData.m_iSProcId;
+    cSendSource.m_iVmId = rRouteData.m_iSVmId;
+    //采用服务类型当做数据路由信息，跟DBE_PROC_TYPE对应
+    cSendSource.m_iSrvType = rRouteData.m_iSSrvType;
+
+    cSendTarget.m_iFlowId = rRouteData.m_iTFlowId;
+    cSendTarget.m_iSrvId = rRouteData.m_iTSrvId;
+    cSendTarget.m_iProcId = rRouteData.m_iTProcId;
+    cSendTarget.m_iVmId = rRouteData.m_iTVmId;
+    //采用服务类型当做数据路由信息，跟DBE_PROC_TYPE对应
+    cSendTarget.m_iSrvType = rRouteData.m_iTSrvType;
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+    od_frame:: CThread * create_dispatchInstance()
+    {
+        return new CMsgDispatchThread();
+    }
+#ifdef __cplusplus
+}
+#endif
+}//end namespace

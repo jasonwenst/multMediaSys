@@ -1,0 +1,24 @@
+#ifndef _NR_LOCK_H
+#define _NR_LOCK_H
+#include "dbe2_common_struct.h"
+#include "dbe2_lock.h"
+
+namespace MDbe
+{
+const static int32 LOCK_SIZE = 20;
+extern CLock g_cNrLock[LOCK_SIZE];
+
+class CNrAutoLock
+{
+public:
+	CNrAutoLock(CProcKey &rPk);
+	~CNrAutoLock();
+
+private:
+
+	CLock & m_cLock;
+};
+
+}
+
+#endif

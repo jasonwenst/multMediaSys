@@ -1,0 +1,103 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_base_mgr.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-21）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#include "dbe2_base_mgr.h"
+#include "dbe2_base_error_code.h"
+
+namespace MDbe
+{
+
+
+#ifdef AIXV3
+pthread_key_t  g_tlsThreadKeyMsgHelper;
+pthread_key_t  g_tlsThreadKeySendSource;
+pthread_key_t  g_tlsThreadKeySendTarget;
+
+class CTlsInit
+{
+public:
+    CTlsInit()
+    {
+        pthread_key_create(&g_tlsThreadKeyMsgHelper, NULL);
+        pthread_key_create(&g_tlsThreadKeySendSource, NULL);
+        pthread_key_create(&g_tlsThreadKeySendTarget, NULL);
+    }
+};
+
+#else
+AL_THREAD_LOCAL CMsgHelper * g_tlsMsgHelper = NULL;
+AL_THREAD_LOCAL CSendSource * g_tlsSendSource = NULL;
+AL_THREAD_LOCAL CSendTarget * g_tlsSendTarget = NULL;
+AL_THREAD_LOCAL const char * g_tlsProcTypeLog = NULL;
+#endif
+
+CMsgHelper * IBaseMgr::GetMsgHelper()
+{
+#ifdef AIXV3
+    return (CMsgHelper *)pthread_getspecific(g_tlsThreadKeyMsgHelper);
+#else
+	if(g_tlsMsgHelper == NULL)
+	{
+		THROW_CAIEXCEPTION(E_BASE_MGR_MSGHELPER_IS_NULL, "mgr get msg helper is null!");
+	}
+	return g_tlsMsgHelper;
+#endif
+}
+
+CSendSource * IBaseMgr::GetSendSource()
+{
+#ifdef AIXV3
+    return (CSendSource *)pthread_getspecific(g_tlsThreadKeySendSource);
+#else
+	if(g_tlsSendSource == NULL)
+	{
+		THROW_CAIEXCEPTION(E_BASE_MGR_SEND_SOURCE_IS_NULL, "mgr get msg send source is null!");
+	}
+	return g_tlsSendSource;
+#endif
+}
+
+CSendTarget * IBaseMgr::GetSendTarget()
+{
+#ifdef AIXV3
+    return (CSendTarget *)pthread_getspecific(g_tlsThreadKeySendTarget);
+#else
+    if(g_tlsSendTarget == NULL)
+	{
+		THROW_CAIEXCEPTION(E_BASE_MGR_SEND_SOURCE_IS_NULL, "mgr get msg send source is null!");
+	}
+	return g_tlsSendTarget;
+#endif
+}
+
+void IBaseMgr::SetTlsVal(CMsgHelper * pMsgHelper, CSendSource * pSendSource, CSendTarget * pSendTarget)
+{
+#ifdef AIXV3
+    static CTlsInit cTlsInit;
+    pthread_setspecific(g_tlsThreadKeyMsgHelper, (void*)pMsgHelper);
+    pthread_setspecific(g_tlsThreadKeySendSource, (void*)pSendSource);
+    pthread_setspecific(g_tlsThreadKeySendTarget, (void*)pSendTarget);
+#else
+    g_tlsMsgHelper = pMsgHelper;
+    g_tlsSendSource = pSendSource;
+    g_tlsSendTarget = pSendTarget;
+#endif
+}
+
+} // namespace MDbe
+
+

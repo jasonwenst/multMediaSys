@@ -1,0 +1,105 @@
+/* $Id: */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：cpf_common_struct.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：Aug 26, 2013）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __CPF_COMMON_STRUCT_H__
+#define __CPF_COMMON_STRUCT_H__
+
+#include "base.h"
+
+namespace cpf
+{
+
+class CSrvKey
+{
+public:
+    CSrvKey():m_iFlowId(-1),m_iSrvId(0){}
+    CSrvKey(int32 iSrvId): m_iFlowId(0), m_iSrvId(iSrvId) {}
+    CSrvKey(int32 iFlowId, int32 iSrvId): m_iFlowId(iFlowId), m_iSrvId(iSrvId) {}
+
+    int32 m_iFlowId;
+    int32 m_iSrvId;
+
+    //()操作符
+    bool operator() (const CSrvKey &rSk);
+    bool operator< (const CSrvKey &rSk) const;
+    bool operator== (const CSrvKey& rSk) const;
+};
+
+//进程唯一标识类
+class CProcKey
+{
+public:
+    CProcKey():m_iProcId(-1){}
+    CProcKey(int32 iFlowId, int32 iSrvId, int32 iProcId)
+    {
+        m_objSKey.m_iFlowId = iFlowId;
+        m_objSKey.m_iSrvId = iSrvId;
+        m_iProcId = iProcId;
+    }
+
+    CSrvKey m_objSKey;
+    int32 m_iProcId;
+
+    //()操作符
+    bool operator()(const CProcKey &rPk) const;
+    bool operator<(const CProcKey &rPk) const;
+    bool operator==(const CProcKey &rPk) const;
+    bool operator!=(const CProcKey &rPk) const;
+};
+
+typedef AISTD vector<CProcKey> CProcKeyVec;
+
+class CProcUpdStatus : public CProcKey
+{
+public:
+	CProcUpdStatus ()
+	    : m_dbCpuUse(0.0f),
+        m_dbMemUse(0.0f),
+        m_llUpdateTime(0),
+        m_iSecModify(0),
+        m_dbHandleRate(0.0f),
+        m_fNetUse(0.0f)
+	    { }
+        //占用的CPU频率*使用率，单位：MHZ
+        double m_dbCpuUse;
+        //占用的内存，单位：M
+        double m_dbMemUse;
+        int64 m_llUpdateTime;
+        //主机虚拟机时间偏移量
+        int64 m_iSecModify;
+        //处理任务的速度(NRM上报上来的为0，采用CProcHandleRate::m_dbHandleRate)
+        double m_dbHandleRate;
+        //占用的网络，单位：?
+        double m_fNetUse;
+};
+
+/*!
+        包含pid的进程状态信息类
+*/
+class CProcPid : public CProcUpdStatus
+{
+public:
+    CProcPid() : m_iPid(0)
+    {}
+    int32 m_iPid;
+};
+
+};
+
+#endif /* __CPF_COMMON_STRUCT_H__ */

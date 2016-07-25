@@ -10,7 +10,12 @@ public class IndexController {
 
 	  @RequestMapping(method = RequestMethod.GET)
 	    public String getIndexPage() {
-	        return "UserManagement";
+	        return "index";
 	    }
 
+	  @RequestMapping(value = "index",method = RequestMethod.GET)
+	    public String getIndex() {
+	        return "index";
+	    }
+	  
 }

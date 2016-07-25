@@ -1,0 +1,38 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_log.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-16）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_LOG_H___
+#define __DBE2_LOG_H___
+
+#include "public/common/log/oderr.h"
+
+namespace MDbe
+{
+#ifndef AIXV3
+extern AL_THREAD_LOCAL const char * g_tlsProcTypeLog;
+#endif
+}
+#ifdef AIXV3
+#define DBE2_LOG REPORT_LOGGER
+#else
+#define DBE2_LOG(level, format, ...) REPORT_LOGGER(level, "%s" format, MDbe::g_tlsProcTypeLog != 0? MDbe::g_tlsProcTypeLog:"", ##__VA_ARGS__)
+#endif
+#define DBE2_LOG_EXCEPTION(exception) DBE2_LOG(ERROR_LOGGER, "dbe2_exception:%lld:%s", exception.get_code(), exception.get_message().c_str())
+#define DBE2_LOG_SDL(sdl) LogSdl(sdl)
+
+#endif /* __DBE2_LOG_H___ */

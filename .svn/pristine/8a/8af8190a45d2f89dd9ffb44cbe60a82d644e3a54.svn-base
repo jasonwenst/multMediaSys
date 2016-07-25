@@ -1,0 +1,199 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_msg_process_send.cpp）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+#include "srm_util.h"
+#include "dbe2_util.h"
+
+#include "srm_msg_process_dbe.h"
+#include "srm_app_mgr.h"
+#include "srm_proc_mgr.h"
+#include "srm_vm_mgr.h"
+#include "srm_record_mgr.h"
+#include "srm_other_mgr.h"
+#include "dbm_def_sdl_c.h"
+#include "nrm_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include "rdc_table_def_sdl_c.h"
+
+namespace MDbe
+{
+void CMsgProcess3006::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+		int32 iMsgType, obb_stream &cInObbStream)
+{
+	SSrmVmProcStatus cVmAndProc(cInObbStream);
+	ISrmRecordMgr &rRecordMgr = ISrmRecordMgr::GetInstance();
+	// 调用记录管理器更新内存信息
+	rRecordMgr.UpdateVmAndProcoInfo(cVmAndProc);
+}
+void CMsgProcess3008::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+		int32 iMsgType, obb_stream &cInObbStream)
+{
+	SSrmRepExeProc cProcExeResult(cInObbStream);
+	ISrmProcTransMgr &rProcTransMgr = ISrmProcTransMgr::GetInstance();
+	ISrmAppMgr &rAppMgr = ISrmAppMgr::GetInstance();
+    ISrmProcMgr &rProcMgr = ISrmProcMgr::GetInstance();
+	LogSdl(cProcExeResult);
+	SBaseProcKey &rcProKey = cProcExeResult.procExeResult().baseExeProc().baseProcKey();
+	int32 iVmId = cSendSource.m_iVmId;
+	if (-3008 == iMsgType)
+	{
+		iVmId = cProcExeResult.get_pid();			// -3008消息虚拟机ID无法获取，有此传入
+	}
+	
+	int32 iProcExeType = cProcExeResult.procExeResult().baseExeProc().get_flag();
+	int32 iExeResult = cProcExeResult.procExeResult().get_result();
+    aistring strFailReason = "";
+	if (OPERATE_SUCCESS != iExeResult)
+	{
+		if (cProcExeResult.procExeResult().failReason().size()==0)
+		{
+			strFailReason="proc report platform start failed,without nothing error info";
+		}
+		else
+		{
+			strFailReason = rProcTransMgr.DetailProcErrInfo(rcProKey,
+				iVmId, cProcExeResult.procExeResult().failReason());
+		}
+	}
+	
+    try
+    {
+        // 进程管理器更新进程状态
+        rProcMgr.UpdateProcState(rcProKey,iVmId, iProcExeType,
+            iExeResult, cProcExeResult.get_pid());
+    }
+    catch (CAIException & e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+    	iExeResult = OPERATE_FAIL;
+        strFailReason += e.get_message();
+    }
+
+	// 回复进程执行完成状态
+	CRdcAppOperate cAppOperate;
+	if (rAppMgr.GetAppOperateByProcOperate(cProcExeResult.procExeResult().baseExeProc(),
+            iVmId, cAppOperate))
+	{
+		// 消息5023，发送进程完成进度
+		SDbmProcExeResult cReportResult;
+		cReportResult.set_msgHead(GetMsgHead(5023, cAppOperate.get_sequence()));
+
+		cReportResult.set_procKey(rcProKey);
+        cReportResult.set_exeType(cProcExeResult.procExeResult().baseExeProc().get_flag());
+		cReportResult.set_result(iExeResult);
+		if (OPERATE_FAIL == iExeResult)
+		{
+			cReportResult.set_errInfo(strFailReason);
+		}
+        LogSdl(cReportResult);
+		CSendTarget cSendDbm = GetDbmTarget();
+		obb_stream cStream = Sdl2Obbstream(cReportResult);
+		try
+		{
+			cMsgHelper.Send(cSendDbm, 5023, cStream);
+		}
+		catch (CAIException & e)
+		{
+			DBE2_LOG_EXCEPTION(e);
+		}
+	}
+
+    // 调用事务管理器进行下一步操作
+	rProcTransMgr.CompleteOpera(rcProKey, iVmId, iProcExeType, iExeResult,
+        strFailReason);
+}
+
+void CMsgProcess3010::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource,
+							  CSendTarget & cSendTarget, int32 iMsgType, obb_stream &cInObbStream)
+{
+	SSrmProcNeedMigrate cSrmProc(cInObbStream);
+	LogSdl(cSrmProc);
+	
+	ISrmProcMgr &rProcMgr = ISrmProcMgr::GetInstance();
+	rProcMgr.HandleExceptProc(cSrmProc.procKey(), cSendSource.m_iVmId);
+
+}
+
+void CMsgProcess3025::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+		int32 iMsgType, obb_stream &cInObbStream)
+{
+    SSrmProReqExit cProcReqExit(cInObbStream);
+    LogSdl(cProcReqExit);
+	ISrmProcMgr &rcProcMgr = ISrmProcMgr::GetInstance();
+	CRdcProcList cTbProcList;
+    
+    DBE2_LOG(DEBUG_LOGGER, "the cSendSource.m_iVmId is:%d", cSendSource.m_iVmId);
+	rcProcMgr.ProcActiveExit(cProcReqExit.procKey(), cSendSource.m_iVmId);
+}
+
+//软件升级消息处理
+void CMsgProcess4122::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+	int32 iMsgType, obb_stream &cInObbStream)
+{
+	SSrmUpGradeProcess cUpInfo(cInObbStream);
+	LogSdl(cUpInfo);
+	ISrmOtherMgr &rcOtherMgr = ISrmOtherMgr::GetInstance();
+	rcOtherMgr.HandleVmUpgradeProgress(cUpInfo);
+}
+
+void CMsgProcess3501::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SProcBackLog cProcBackLog(cInObbStream);
+    LogSdl(cProcBackLog);
+    cProcBackLog.set_vmId(cSendSource.m_iVmId);
+    ISrmProcMgr::GetInstance().UpdateProcBackInfo(cProcBackLog);
+}
+
+void CMsgProcess3502::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SProcHandleRate cProcHandleRate(cInObbStream);
+    LogSdl(cProcHandleRate);
+    ISrmProcMgr::GetInstance().UpdateProcHandleRate(cProcHandleRate);
+}
+
+void CMsgProcess5017::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+	int32 iMsgType, obb_stream &cInObbStream)
+{	
+	SDbmWarnInfo cWarnInfo(cInObbStream);
+	LogSdl(cWarnInfo);
+	ISrmOtherMgr &rcOtherMgr = ISrmOtherMgr::GetInstance();
+	rcOtherMgr.SendWarnInfo(cWarnInfo);	
+}
+
+void CMsgProcess6102::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+							  int32 iMsgType, obb_stream &cInObbStream)
+{
+	SSrmNrmRegister cNrmRegister(cInObbStream);
+	LogSdl(cNrmRegister);
+	ISrmVmMgr &rVmMgr = ISrmVmMgr::GetInstance();
+
+	// 发送7007消息给NRM
+	SNrmResponseRegister cRepRegister;
+	cRepRegister.set_msgHead(GetMsgHead(7007, cNrmRegister.msgHead().get_sequence()));
+	//加上枚举值 等待同步
+	cRepRegister.set_regResult(3);
+
+	obb_stream cStream = Sdl2Obbstream(cRepRegister);
+	cMsgHelper.Send(cSendSource, 7007, cStream);
+	rVmMgr.HandleNrmRegister(cNrmRegister);
+}
+
+}
+
+ // namespace MDbe

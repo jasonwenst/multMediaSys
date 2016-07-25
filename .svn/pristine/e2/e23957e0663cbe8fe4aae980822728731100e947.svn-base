@@ -1,0 +1,171 @@
+#include "cron_base.h"
+
+NAMESPACE_OD_CRON_BEGIN
+
+int32 CCronItem::setValueType(VALUE_TYPE em)
+{
+	m_emValueType = em;
+	m_mapItemValue.clear();
+	m_iCarry = 0;
+	m_bNeedAnalyze = false;
+	return 0;
+}
+
+int32 CCronItem::LoadCronExpression(const char* szExpress, struct tm &tmInput)
+{
+	if (!CheckExpressValidity(szExpress))
+	{
+		THROW_CAIEXCEPTION(E_BASE_CRON_EXPRESS_INVAILD, "check cron expression,part type:(?),invalid characters(?)")
+			<<m_emValueType
+			<<szExpress;
+		return -1;
+	}
+
+	m_strCronExpress = szExpress;
+	if(!DispatchCronExpression(szExpress, m_emValueType, tmInput))
+	{
+		THROW_CAIEXCEPTION(E_BASE_CRON_EXPRESS_PARSE_ERROR, "parse cron expression error,part type:(?),invalid characters(?)")
+			<<m_emValueType
+			<<szExpress;
+		return -1;
+	}
+
+	return 0;
+}
+
+int32 CCronItem::RedoCronExpression(struct tm &tmInput)
+{
+	return LoadCronExpression(m_strCronExpress.c_str(), tmInput);
+}
+
+int32 CCronItem::SeekBegin(struct tm &tmNextTime)
+{
+	if(m_mapItemValue.size() == 0)
+	{
+		return 2; // all allow
+	}
+
+	ItemValueMap::iterator it = m_mapItemValue.begin();
+	SetValue(tmNextTime, it->first, m_emValueType);
+	for(AISTD vector<CCronItem*>::iterator it = m_vecChildCronItem.begin();
+		it != m_vecChildCronItem.end();
+		++it)
+	{
+		if(NULL != *it) (*it)->SeekBegin(tmNextTime);
+	}
+	return 0;
+}
+
+int32 CCronItem::SeekEnd(struct tm &tmNextTime)
+{
+	if(m_mapItemValue.size() == 0)
+	{
+		SetValue(tmNextTime, GetValue(tmNextTime, m_emValueType), m_emValueType);
+		return 2; // all allow
+	}
+	ItemValueMap::iterator it = m_mapItemValue.end();
+	--it;
+	SetValue(tmNextTime, it->first, m_emValueType);
+	 
+	for(AISTD vector<CCronItem*>::iterator it = m_vecChildCronItem.begin();
+		it != m_vecChildCronItem.end();
+		++it)
+	{
+		if(NULL != *it) (*it)->SeekEnd(tmNextTime);
+	}
+	return 0;
+}
+
+int32 CCronItem::IsCarry(struct tm &tmNextTime, int32 iCarry, int32 iSeek)
+{
+	int32 iRet = -1;
+	if(1 == iCarry)
+	{
+		for(AISTD vector<CCronItem*>::iterator it = m_vecChildCronItem.begin();
+			it != m_vecChildCronItem.end();
+			++it)
+		{
+			if(NULL != *it)
+			{
+				if(0 == iSeek)
+				{
+					(*it)->SeekBegin(tmNextTime);
+					iRet = 1;
+				}
+				else
+				{
+					(*it)->SeekEnd(tmNextTime);
+					iRet = 1;
+				}
+			}
+		}
+	}
+	return iRet;
+}
+
+int32 CCronItem::SetChildItem(CCronItem *pChild)
+{
+	if(NULL == pChild)
+	{
+		return -1;
+	}
+	
+	for(AISTD vector<CCronItem*>::iterator it = m_vecChildCronItem.begin();
+		it != m_vecChildCronItem.end();
+		++it)
+	{
+		if(*it == pChild)
+		{
+			return 0;
+		}
+	}
+	m_vecChildCronItem.push_back(pChild);
+	return 0;
+}
+
+int32 CCronItem::GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance)
+{
+	if(m_mapItemValue.size() == 0)
+	{
+		SetValue(tmNextTime, GetValue(tmNextTime, m_emValueType) + iCarry, m_emValueType);
+		iCarry = m_iCarry;
+		++iBalance;
+		return 2; // all allow
+	}
+
+	ItemValueMap::iterator it = m_mapItemValue.begin();
+	for(; it != m_mapItemValue.end(); ++it)
+	{
+		//之前已经进位
+		if(1 <= iBalance)
+		{
+			if(it->first >= (GetValue(tmNextTime, m_emValueType) + iCarry))
+			{
+				SetValue(tmNextTime, it->first, m_emValueType);
+				iCarry = m_iCarry;
+				return 0;
+			}
+		}
+		if(it->first > GetValue(tmNextTime, m_emValueType))
+		{
+			SetValue(tmNextTime, it->first, m_emValueType);
+			iCarry = m_iCarry;
+			++iBalance;
+			return 0;
+		}
+	}
+	
+	//找不到 标记进位
+	it = m_mapItemValue.begin();
+	SetValue(tmNextTime, it->first, m_emValueType);
+	SetCarryValue(tmNextTime, m_emValueType);
+	iCarry = m_iCarry;
+	++iBalance;
+	return 1;
+}
+
+int32 CCronItem::ChangeValueMap(ItemValueMap& rItemValueMap)
+{
+	return ChangeValueMapTool(rItemValueMap);
+}
+NAMESPACE_OD_CRON_END

@@ -1,0 +1,228 @@
+module MDbe
+{
+    list vector<string> StringList;
+
+    // 消息头
+    struct SBaseHead
+    {
+        int32 command;  // 消息类型
+        int64 sequence; // 消息序列
+        int64 id;       // 消息编号
+    }
+
+    struct SBaseProcKey
+    {
+        int32 app_id;	// 应用id
+        int32 proc_id;	// 进程id
+    }
+    list vector<SBaseProcKey> SBaseProcKeyList;
+	
+	// 进程操作（上报DBM用）
+    struct SBaseProcOperate
+    {
+        SBaseProcKey proc_key;          // 进程key
+        int32 operate_type;             // 进程操作类型
+    }
+    list vector<SBaseProcOperate> SBaseProcOperateList;
+
+	//起停进程类
+    struct SBaseExeProc
+    {
+        SBaseProcKey    base_proc_key;  //进程唯一标识
+        int32           flag;           //跟EXE_TYPE对应
+    }
+
+	//起停进程操作结果类
+    struct SBaseExeProcResult
+    {
+        SBaseExeProc    base_exe_proc;  //进程启停信息对象
+        int32            result;         //跟EXE_RESULT_TYPE对应
+        string          fail_reason;	// 错误原因
+    }
+    
+	//虚拟机静态信息类
+    struct SBaseVmStaticInfo
+    {
+        string  vm_ip;              // 虚拟机IP
+        string  vm_mac;             // 虚拟机mac
+        int64	cpu_frequency;		// CPU频率
+        int64	mem_total;			// 内存总量（单位：M）
+        int64	net_bandwidth;		//网络带宽
+        int32	vm_id;				//虚拟机id
+        int32	cpu_number;			//cpu个数
+        int32	cpu_core_number;	//cpu的核个数
+        string  vm_name; 			//虚拟机名称
+		string  operate_system;		// 操作系统
+		string  os_vesion;			// 操作系统版本号
+		string  cpf_version;		// 平台的版本
+		string  sshuser_name;       //ssh 用户名称
+    }
+    
+   //虚拟机状态信息更新类
+    struct SBaseVmUpdInfo
+    {
+        double			cpu_left;		//cpu剩余百分比
+        double			mem_left;		//内存剩余量，单位：M
+        double			net_use;		//一段时间网络使用量
+        int64			update_time;	//刷新时间
+        double			htask_volume;	//任务容量
+		int64			xc_use;			//XC使用量
+		double			xc_use_ratio;	//cpu使用率
+        double			cpu_use_ratio;	//cpu使用率
+        double			mem_use_ratio;	//内存使用率
+        double			net_use_ratio;	//一段时间网络使用量/总网络带宽量
+        int32			vm_id;			//虚拟机id
+        int32			running_count;	//虚拟机运行进程数
+        int32			status;			//虚拟机上报状态，跟VM_STATUS_TYPE对应
+    }
+    
+	//进程基本(静态)信息类   
+    struct SBaseProcInfo
+    {
+        SBaseProcKey    base_proc_key;      //进程唯一标识
+        int64           update_time;        //状态最后更新时间
+        int32           proc_type;          //进程类型，对应DBE_PROC_TYPE
+        int32           vm_id;              //虚拟机id
+        int32           pid;                //进程pid
+        int32           opera_status;       //进程操作状态，跟PROC_OPERATE_STATUS对应
+    }
+    
+    //进程状态更新信息类
+    struct SBaseProcUpdStatus
+    {
+        SBaseProcKey base_proc_key; 	// 进程唯一标识类
+        int64 			 cpu_use; 		// 占用的CPU频率*使用率，单位：MHZ
+        int64			 mem_use; 		// 占用的内存，单位：M
+        int64			 update_time;	// 进程状态最后更新时间
+        int64			 sec_modify;	// 主机虚拟机时间偏移量
+        double			 handle_rate;	// 处理任务的速度(NRM上报上来的为0，采用CProcHandleRate::m_dbHandleRate)
+        int32			 net_use;		// 占用的网络，单位：%(百分比)
+    }
+    list vector<SBaseProcUpdStatus> SBaseProcUpdStatusList;
+    
+    struct SBaseDateTime
+	{
+		datetime data_time;
+	}
+	
+	struct SBaseStopProcessProg
+    {
+        int32	stop_progress;	//进程停止进度值
+    }
+    
+	list vector<int32>  Sint32List;
+	map aimap<int32, SBaseDateTime> SBaseDateTimeMap;
+    /**************************************job struct**************************************/
+    struct SJobId
+    {
+        int32 jobins_id;//job实例id
+        int32 jobtmp_id;//job模板id
+        string job_name;
+    }
+    list vector<SJobId> SJobIdList;
+    
+    struct SStepId
+    {
+        int32 jobins_id;
+        int32 stepins_id;//step实例id
+        int32 steptmp_id;//step模板id
+    }
+    list vector<SStepId> SStepIdList;
+    list set<SStepId> SStepIdSet;
+    
+    struct SJobAppId
+    {
+        int32 jobins_id;
+        int32 stepins_id;
+        int32 app_id;//就是appinsid
+    }
+    list vector<SJobAppId> SJobAppIdList;
+    
+    //任务流程组控制信息
+    struct SStepContrlInfo
+    {
+      	SStepId step_id;
+        int32 operate_result; 	//0 非法 1 合法
+    };
+    list vector<SStepContrlInfo> SStepContrlInfoList;    
+
+    //任务控制信息
+    struct SJobContrlInfo
+    {
+        int32 jobins_id;
+        int32 operate_type; 	//操作类型
+        SStepContrlInfoList step_ctrlinfolist;
+        int32 oper_result;		//0 非法 1 合法
+        string error_info;		// 错误信息
+    };
+    list vector<SJobContrlInfo> SJobContrlInfoList;
+    //流程控制信息
+    struct SJobAppContrlInfo
+    {
+    	int32 jobins_id;
+    	int32 stepins_id;
+    	int32 appins_id;
+    	int32 operate_type; //1启动，0停止，2强停
+    };
+    list vector<SJobAppContrlInfo> SJobAppContrlInfoList;
+    
+    //流程进度信息
+    struct SAppProgressInfo
+    {
+        int32 jobins_id;
+  	int32 stepins_id;
+  	int64 jobseq_id;
+  	int32 appins_id;
+  	int32 status;
+  	int64 start_time;
+  	int64 end_time;
+  	string error_info;	
+  		
+    };
+    list vector<SAppProgressInfo> SAppProgressInfoList;
+  	
+    //流程组进度信息
+    struct SStepProgressInfo
+    {
+        int32  stepins_id;
+        int32  status;				//step状态
+        int64  start_time;		        //step 启动时间
+        int64  end_time;			//step 停止时间
+        //SFlowProgressInfoList flow_progress_list;
+    };
+    list vector<SStepProgressInfo> SStepProgressInfoList;
+    
+    //任务进度信息
+    struct SJobProgressInfo
+    {
+        int32 jobins_id;
+        int32 status; 			//job状态
+        int32 remove_flag; 	        //删除标志
+        int64 job_sequnce;	        //job sequnce
+        int64 start_time;		//job启动时间
+        int64 end_time;			//job结束时间
+        string error_info;
+        SStepProgressInfoList step_progress_list;
+    };
+    list vector<SJobProgressInfo> SJobProgressInfoList;
+
+    /*!
+        消息确认类
+    */
+    struct SBaseMsgConfirm
+    {
+        int64   msg_sequence;       //消息唯一标识，跟m_iMsgType组合成唯一标识
+        int32   msg_type;           //请求消息类型
+        int32   result;             //跟EXE_RESULT_TYPE对应
+        string  err_info;           //错误信息，当m_iResult=EXE_FAIL时候填写
+    }
+
+    //通用回复消息207
+    struct SBaseConfirmRecv
+    {
+        MDbe::SBaseHead msg_head;                   // 消息头
+        // 消息确认
+        MDbe::SBaseMsgConfirm msg_confirm;
+    }
+}
+

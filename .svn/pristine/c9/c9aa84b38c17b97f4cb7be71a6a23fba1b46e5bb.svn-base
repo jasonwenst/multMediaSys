@@ -1,0 +1,45 @@
+#!/bin/bash
+
+TARGET=epa_info_case
+RESULT=result.lib.file
+TESTPATH=testcase
+SYS=`uname`
+
+export CPF_WORK_DIR=`pwd`
+export CPF_FLOW_ID=999
+export CPF_SRV_ID=999
+export CPF_PROC_ID=999
+
+INFOFILE=$CPF_FLOW_ID"_"$CPF_SRV_ID"_"$CPF_PROC_ID".info"
+
+if [ -f $INFOFILE ]; then
+	rm $INFOFILE 
+fi
+if [ -f $RESULT ];then
+	rm $RESULT
+fi
+
+# in AIX -L will not find .so instrad of .a
+if [ ! -f $TARGET ];then
+	cd ../
+	if [ $SYS = "AIX" ];then 
+		gmake -f Makefile_LIB_AIX install
+		cd $TESTPATH 
+		gmake -f Makefile_TEST_AIX
+	else
+		gmake -f Makefile_LIB
+		cd $TESTPATH
+		g++ epa_info_case.cpp -L../  -lepa_infoD -o  $TARGET
+	fi
+fi
+
+./$TARGET &
+
+for i in $(seq 1 50)
+do
+        echo `ps -ef|grep $TARGET|grep -v grep|wc -l`
+        sleep 1
+        if [ -f $INFOFILE ]; then
+                cat $INFOFILE >> $RESULT
+        fi
+done

@@ -1,0 +1,114 @@
+/*
+   NRM.
+   */
+
+#include "nrm_config_data.h"
+#include "nrm_util.h"
+
+#define NRM_OB_REL "$OB_REL/"
+
+namespace MDbe 
+{
+
+CNrmConfig g_objNrmConfig;//NRM配置文件对象
+
+int32 CNrmConfig::initProcKey()
+{
+    /*
+       特殊key，判断NR内容是否为空
+       FlowId = 0
+       SrvId   = 0
+       ProcId  = 0
+       */
+    m_ZeroProcKey.m_objSKey.m_iFlowId = 0;
+    m_ZeroProcKey.m_objSKey.m_iSrvId = 0;
+    m_ZeroProcKey.m_iProcId = 0;
+
+    /*
+       nrm固定为：FlowId = -1
+       SrvId   = 1
+       ProcId  = 1
+       */
+    m_objNrmKey.m_objSKey.m_iFlowId = od_srm:: SPECIAL_FLOW_ID;
+    m_objNrmKey.m_objSKey.m_iSrvId = od_srm:: NRM_SRV_ID;
+    m_objNrmKey.m_iProcId = od_srm:: SPECIAL_PROC_ID;
+
+    return 0;
+}
+
+
+int32 CNrmConfig::init()
+{
+    int32 iRet = 0;
+
+    initProcKey();
+
+    for (CSystemProcessConfigList::iterator it = m_cSystemProcConfigList.begin(); it != m_cSystemProcConfigList.end(); ++it )
+    {
+        if ( it->m_iServId == 0 
+            || it->m_iProcId == 0 
+            || ( strlen(it->m_szXmlPathFile) && access(it->m_szXmlPathFile, F_OK) < 0 ) )
+        {
+            DBE2_LOG(INFO_LOGGER, "read system process config fail %s %d-%d-%d", it->m_szXmlPathFile, it->m_iFlowId, it->m_iServId, it->m_iProcId);
+            it = m_cSystemProcConfigList.erase(it); 
+        } 
+    }
+
+    aistring str_TbTsCgfPath = m_szTbTsCfgPath;
+    if(str_TbTsCgfPath.length() == 0)
+    {
+        str_TbTsCgfPath = aistring(NRM_OB_REL);
+        str_TbTsCgfPath += "config/";
+    }
+    if( str_TbTsCgfPath[str_TbTsCgfPath.length() - 1] != '/' )
+    {
+        str_TbTsCgfPath += "/";
+        strncpy(m_szTbTsCfgPath,str_TbTsCgfPath.c_str(),sizeof(m_szTbTsCfgPath));
+    }
+
+    aistring str_backPath = m_szBackPath;
+    if( str_backPath[str_backPath.length() - 1] != '/' )
+    {
+        str_backPath += "/";
+        strncpy(m_szBackPath,str_backPath.c_str(),sizeof(m_szBackPath));
+    }
+
+    if(CheckDir(m_szBackPath) < 0)
+    {
+        if( CheckPath(m_szBackPath) < 0 )
+        {
+            return -1;
+        }
+    }
+
+    if( CheckDir(m_szTbTsCfgPath) < 0 )
+    {
+        if( CheckPath(m_szTbTsCfgPath) < 0)
+        {
+            return -1;
+        }
+    }
+
+
+    m_vecEnvPath.clear();
+    aistring strEnvPath = getenv("PATH");
+    char *saveptr;
+    char * strPath = strtok_r((char*)strEnvPath.c_str(), ":", &saveptr);
+    m_vecEnvPath.push_back(aistring(strPath));
+    for(;;)
+    {
+        strPath = strtok_r(NULL, ":", &saveptr);
+        if(NULL != strPath)
+        {
+            m_vecEnvPath.push_back(aistring(strPath));
+        }
+        else
+        {
+            break;
+        }
+    }
+    return iRet;
+}
+}
+
+

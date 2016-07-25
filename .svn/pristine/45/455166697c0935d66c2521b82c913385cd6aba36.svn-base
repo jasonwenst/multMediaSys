@@ -1,0 +1,603 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_other_mgr_impl.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "srm_other_mgr_impl.h"
+#include "srm_rdc_mgr.h"
+#include "dbm_def_sdl_c.h"
+#include "nrm_def_sdl_c.h"
+#include "srm_rdc_mgr.h"
+#include "dbe2_common_struct.h"
+#include "srm_vm_mgr.h"
+#include "srm_error_code.h"
+#include "srm_util.h"
+
+namespace MDbe
+{
+
+CSrmOtherMgrImpl::CSrmOtherMgrImpl()
+{
+
+}
+
+void CSrmOtherMgrImpl::Init(CMgrInitHelper & cMgrInitHelper)
+{
+
+}
+
+int32 CSrmOtherMgrImpl::CreateUpgradeInfo(SSrmSoftWareUpdate &rcUpgrade, int32 iSec)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcPuOpList cUpOpList;
+    rcRdcMgr.GetCurrentUpgrateInfo(cUpOpList);
+    // 同一时间只支持一个升级操作
+    if (0 != cUpOpList.size())
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_UPGRADE_FAIL, "there is ? upgrade is doing.") <<
+                cUpOpList.size();
+    }
+
+    // 获取OP_ID
+    int32 iUpId = 0;
+    iUpId = rcRdcMgr.GetPuOpId();
+
+    // 更新主机信息
+    Sint32List &rcVmList = rcUpgrade.vmList();
+    Sint32List::iterator itVm;
+    if (0 == rcVmList.size())
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_UPGRADE_FAIL, "there is no vm do upgrade") <<
+                cUpOpList.size();
+    }
+
+    CBSDateTime cCurTime = GetCurrentTime();
+    CBSDateTime cOutTime = cCurTime.addSecs(iSec);
+
+    CRdcPuOp cUpInfo;
+    cUpInfo.set_opId(iUpId);
+    cUpInfo.set_deployStaff(rcUpgrade.get_deployStaff());
+    cUpInfo.set_exeAction(rcUpgrade.get_exeType());
+    cUpInfo.set_exeResult(UPGRADE_DOING);
+    cUpInfo.set_type(rcUpgrade.get_versionPatchType());
+    cUpInfo.set_versionPatchId(rcUpgrade.get_versionPatchId());
+    cUpInfo.set_domains(rcUpgrade.get_domains());
+    cUpInfo.set_startTime(cCurTime);
+    cUpInfo.set_productCode(rcUpgrade.productCode());
+
+    CRdcPuOpDetailList cVmDetailList;
+    for (itVm = rcVmList.begin(); itVm != rcVmList.end(); ++itVm)
+    {
+        CRdcPuOpDetail cOpDetail;
+        cOpDetail.set_opId(iUpId);
+        cOpDetail.set_vmId(*itVm);
+        cOpDetail.set_progress(0);
+        cOpDetail.set_state(UPGRADE_DOING);
+        cOpDetail.set_deployInfo("srm send upgrade commond");
+        cOpDetail.set_startTime(cCurTime);
+        cOpDetail.set_outTime(cOutTime);
+
+        cVmDetailList.push_back(cOpDetail);
+    }
+
+    rcRdcMgr.InsertUpgradeInfo(cUpInfo, cVmDetailList);
+    return iUpId;
+}
+
+int32 CSrmOtherMgrImpl::TransmitUpgrade(SSrmSoftWareUpdate &rcUpgrade)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CMsgHelper *pMsgHelper = GetMsgHelper();
+    aistring strScriptName = rcUpgrade.get_productCode() + "_upgrade_" +
+                             rcUpgrade.get_versionPatchCode();
+    aistring strProductName = rcUpgrade.get_productCode() + "_upgrade";
+    aistring strDefaultName = "common_upgrade";
+    aistring strScript;
+    // 获取升级脚本
+    if (!rcRdcMgr.GetLuaScript(strScriptName, strScript))
+    {
+        DBE2_LOG(DEBUG_LOGGER, "get upgrade script %s failed", strScriptName.c_str());
+
+        if (!rcRdcMgr.GetLuaScript(strProductName, strScript))
+        {
+            DBE2_LOG(DEBUG_LOGGER, "get upgrade script %s failed", strProductName.c_str());
+
+            if (!rcRdcMgr.GetLuaScript(strDefaultName, strScript))
+            {
+                THROW_CAIEXCEPTION(DBE2_SRM_UPGRADE_FAIL, "get default script ? failed,"
+                                   "please check whether  put script into database") << strDefaultName.c_str();
+            }
+        }
+    }
+
+    aistring temp = UPGRADE_TIME_LIMIT;
+    int32 iTimeOutSec = ModifyNrmTime(rcRdcMgr.GetSysParam(temp, 180));
+    // 创建软件升级管理信息
+    int32 iOpId = CreateUpgradeInfo(rcUpgrade, iTimeOutSec);
+    m_bUpgradeDoing = true;
+
+    SNrmSoftWareUpdate cNrmUpInfo;
+    aistring strMd5 = "0";
+    if(!rcUpgrade.get_md5Value().empty()) strMd5 = rcUpgrade.get_md5Value();
+
+    int32 iActionType;
+    if(3 == rcUpgrade.exeType() || 4 == rcUpgrade.exeType()) iActionType = 2;
+    else iActionType = 1;
+
+    cNrmUpInfo.set_scriptName(rcUpgrade.get_productCode() + "Upgrade");
+    cNrmUpInfo.set_updateVersion(rcUpgrade.get_versionPatchCode());
+    cNrmUpInfo.set_updateScript(strScript);
+    cNrmUpInfo.set_opId(iOpId);
+    // 拼写启动命令
+    cNrmUpInfo.set_updateCommand(itoa(iOpId) + " " +
+                                 itoa(iActionType) + " " +
+                                 itoa(iTimeOutSec) + " " +
+                                 rcUpgrade.get_productCode() + " " +
+                                 rcUpgrade.get_versionPatchCode() + " " +
+                                 rcUpgrade.get_ftpServerIp() + " " +
+                                 rcUpgrade.get_ftpServerUser() + " " +
+                                 rcUpgrade.get_ftpServerPassword() + " " +
+                                 rcUpgrade.get_packagePath() + " " +
+                                 strMd5 + " >>$LOGPATH/dbe/upgrade.log &");
+    CSendTarget cNrmTaget = GetNrmTarget();
+
+    Sint32List::iterator itVm;
+    for (itVm = rcUpgrade.vmList().begin(); itVm != rcUpgrade.vmList().end(); ++itVm)
+    {
+        cNrmUpInfo.set_msgHead(GetMsgHead(7121));
+        cNrmUpInfo.set_vmId(*itVm);
+        cNrmTaget.m_iVmId = *itVm;
+        LogSdl(cNrmUpInfo);
+        obb_stream cStream = Sdl2Obbstream(cNrmUpInfo);
+        try
+        {
+            pMsgHelper->Send(cNrmTaget, 7121, cStream);
+        }
+        catch(CAIException&e)
+        {
+            aistring errorInfo = FormatString("send upgrade info to vm:%d failed, %s",
+                                              *itVm, e.get_message().c_str());
+            DBE2_LOG(WARN_LOGGER, "%s", errorInfo.c_str());
+            try
+            {
+                CRdcPuOpDetail cOpDetail;
+                cOpDetail.set_state(UPGRADE_FAIL);
+                cOpDetail.set_endTime(GetCurrentTime());
+                cOpDetail.set_deployInfo(errorInfo);
+                rcRdcMgr.UpdateUpgradeDetailInfo(iOpId, *itVm, cOpDetail);
+            }
+            catch(CAIException &e)
+            {
+                DBE2_LOG_EXCEPTION(e);
+            }
+        }
+    }
+    return iOpId;
+}
+
+void CSrmOtherMgrImpl::HandleVmUpgradeProgress(SSrmUpGradeProcess &rcUpInfo )
+{
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	CRdcPuOpDetail cVmOp;
+	CRdcPuOp cPuOpInfo;
+	bool bGet = rcRdcMgr.QueryUpgrateInfoByOpId(rcUpInfo.get_opId(), cPuOpInfo);
+	// 上报的OPID对应升级操作找不到或者已经升级完成
+	if (!bGet || UPGRADE_DOING != cPuOpInfo.get_exeResult()) return;
+
+	// 升级或者回退完成
+	if (UPGRADE_SUCCESS == rcUpInfo.state())
+	{
+		CPdcPuVmVersion cUpVersion;
+		if (1 == cPuOpInfo.get_exeAction() || 2 == cPuOpInfo.get_exeAction())
+		{
+			cUpVersion.set_vmId(rcUpInfo.vmId());
+			cUpVersion.set_productCode(cPuOpInfo.productCode());
+			cUpVersion.set_type(cPuOpInfo.get_type());
+			cUpVersion.set_versionPatchId(cPuOpInfo.get_versionPatchId());
+			cUpVersion.set_isManual(0);
+			cUpVersion.set_isHis(0);
+			rcRdcMgr.UpdateVmVersion(cUpVersion);
+		}
+		else if(3 == cPuOpInfo.get_exeAction() || 4 == cPuOpInfo.get_exeAction())
+		{
+			cUpVersion.set_vmId(rcUpInfo.vmId());
+			cUpVersion.set_productCode(cPuOpInfo.productCode());
+			cUpVersion.set_type(cPuOpInfo.get_type());
+			cUpVersion.set_versionPatchId(cPuOpInfo.get_versionPatchId());
+			rcRdcMgr.DeleteVmVersion(cUpVersion);
+		}
+	}
+
+	if (UPGRADE_DOING != rcUpInfo.state())
+	{
+		cVmOp.set_endTime(GetCurrentTime());
+		cVmOp.set_state(rcUpInfo.state());
+	}
+	cVmOp.set_deployInfo(rcUpInfo.get_processDesc());
+	if(rcUpInfo.restartFlowIds().length() > 3999){
+		cVmOp.set_restartFlowIds(rcUpInfo.get_restartFlowIds().substr(0, 3990) + "...");
+	}else{
+		cVmOp.set_restartFlowIds(rcUpInfo.get_restartFlowIds());
+	}
+	if(rcUpInfo.get_updateFiles().length() > 3999){
+		cVmOp.set_rollbackFiles(rcUpInfo.get_updateFiles().substr(0,3990) + "...");
+	}else{
+		cVmOp.set_rollbackFiles(rcUpInfo.get_updateFiles());
+	}
+	
+	cVmOp.set_progress(rcUpInfo.get_process());
+	rcRdcMgr.UpdateUpgradeDetailInfo(rcUpInfo.get_opId(), rcUpInfo.get_vmId(), cVmOp);
+}
+
+void CSrmOtherMgrImpl::QueryUpgradeProgress( void )
+{
+	// 不在软件升级期间，不处理
+	if (!m_bUpgradeDoing) return;
+	
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	CMsgHelper *pMsgHelper = GetMsgHelper();
+	CRdcPuOpList cUpOpList;
+	rcRdcMgr.GetCurrentUpgrateInfo(cUpOpList);
+	// 没有正在做软件升级的数据
+	if (0 == cUpOpList.size()) 
+	{
+		m_bUpgradeDoing = false;
+		return;
+	}
+	DBE2_LOG(INFO_LOGGER, "there are %d upgrade doing", cUpOpList.size());
+	CRdcPuOpList::iterator itPuOp;
+	for (itPuOp = cUpOpList.begin(); itPuOp != cUpOpList.end(); ++itPuOp)
+	{
+		CRdcPuOpDetailList cVmUpList;
+		CRdcPuOpDetailList::iterator itUpDetail;
+		bool bTimeOut = false;
+		rcRdcMgr.QueryUpgradeDetail(itPuOp->get_opId(), cVmUpList);
+		if (0 == cVmUpList.size())
+		{
+			// 没有操作详细的升级认为成功
+			CRdcPuOp cUpdatePuInfo;
+			cUpdatePuInfo.set_endTime(GetCurrentTime());
+			cUpdatePuInfo.set_exeResult(UPGRADE_SUCCESS);
+			try{
+				rcRdcMgr.UpdateUpgradeInfo(itPuOp->get_opId(), cUpdatePuInfo);
+				continue;
+			}
+			catch(CAIException &e){
+				DBE2_LOG_EXCEPTION(e);
+			}
+		}
+		// 判断超时
+		CBSDateTime cCurrTime = GetCurrentTime();
+		if (cCurrTime > cVmUpList[0].outTime())
+		{
+			bTimeOut = true;
+		}
+		
+		int32 iUpResult = UPGRADE_SUCCESS;
+		aistring strErrorVm;
+		for (itUpDetail = cVmUpList.begin(); itUpDetail != cVmUpList.end(); ++itUpDetail)
+		{
+			if (UPGRADE_DOING == itUpDetail->get_state())
+			{
+				if (bTimeOut)
+				{
+					CRdcPuOpDetail cVmOp;
+					cVmOp.set_endTime(cCurrTime);
+					cVmOp.set_state(UPGRADE_FAIL);
+					cVmOp.set_deployInfo("upgrade time out");
+					rcRdcMgr.UpdateUpgradeDetailInfo(itUpDetail->get_opId(),
+						itUpDetail->get_vmId(), cVmOp);
+					strErrorVm += itoa(itUpDetail->vmId()) + " ";
+					iUpResult = UPGRADE_FAIL;
+					continue;
+				}
+				iUpResult = UPGRADE_DOING;
+				// 向正在升级的主机查询
+				SNrmUpdateProcess cUpdateProgress;
+				cUpdateProgress.set_msgHead(GetMsgHead(7122));
+				cUpdateProgress.set_opId(itUpDetail->get_opId());
+				cUpdateProgress.set_vmId(itUpDetail->get_vmId());
+				obb_stream cStream = Sdl2Obbstream(cUpdateProgress);
+				CSendTarget cVmTarget = GetNrmTarget(itUpDetail->get_vmId());
+				try{
+					pMsgHelper->Send(cVmTarget, 7122, cStream);
+				}
+				catch(CAIException &e){
+					DBE2_LOG_EXCEPTION(e);
+				}
+			}
+			else if(UPGRADE_FAIL == itUpDetail->get_state())
+			{
+				if(UPGRADE_SUCCESS == iUpResult) iUpResult = UPGRADE_FAIL;
+				strErrorVm += itoa(itUpDetail->vmId()) + " ";
+			}
+		}
+		CRdcPuOp cPuResult;
+		cPuResult.set_endTime(cCurrTime);
+		cPuResult.set_opId(itPuOp->opId());
+		// 最终结果判断
+		if (bTimeOut && UPGRADE_SUCCESS != iUpResult)
+		{
+			cPuResult.set_exeResult(UPGRADE_FAIL);
+			HandleUpgradeEnd(cPuResult, strErrorVm);
+			continue;
+		}
+		if (UPGRADE_DOING == iUpResult) continue;
+		cPuResult.set_exeResult(iUpResult);
+		HandleUpgradeEnd(cPuResult, strErrorVm);
+	}
+}
+
+void CSrmOtherMgrImpl::HandleUpgradeEnd(CRdcPuOp &rcPuOp, aistring &rstrErrorVm)
+{
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	try{
+		rcRdcMgr.UpdateUpgradeInfo(rcPuOp.opId(), rcPuOp);
+	}
+	catch(CAIException &e){
+		DBE2_LOG_EXCEPTION(e);
+		return;
+	}
+
+	CMsgHelper *pMsgHelper = GetMsgHelper();
+	SDbmUpdateFeedback cFeedback;
+	cFeedback.set_msgHead(GetMsgHead(5121));
+	cFeedback.set_opId(rcPuOp.opId());
+	cFeedback.set_result(rcPuOp.get_exeResult());
+	if (!rstrErrorVm.empty()) cFeedback.set_errInfo("upgrade failed vm_id have " + rstrErrorVm);
+	
+	CSendTarget cDbmTarget = GetDbmTarget();
+	obb_stream cstream = Sdl2Obbstream(cFeedback);
+	try{
+		pMsgHelper->Send(cDbmTarget, 5121, cstream);
+	}
+	catch(CAIException &e){
+		DBE2_LOG_EXCEPTION(e);
+	}
+}
+
+void CSrmOtherMgrImpl::SendWarnInfo(SDbmWarnInfo &rcWarnInfo)
+{
+
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+
+	CBSDateTime rcTime;
+	GetCurrentTime(rcTime);
+	CAmWarnRecordOri cRecordOri;
+	
+		cRecordOri.set_warnId(rcWarnInfo.warnId());
+		cRecordOri.set_warnTime(rcTime);
+		cRecordOri.set_vmId(rcWarnInfo.get_vmId());
+		cRecordOri.set_appId(rcWarnInfo.get_procKey().get_appId());
+		cRecordOri.set_procId(rcWarnInfo.get_procKey().get_procId());
+		cRecordOri.set_message(rcWarnInfo.get_message());
+		cRecordOri.set_errorStack(rcWarnInfo.get_description());
+		CRdcJobRunStepApp cJobStepApp;
+		
+		bool bJobApp = rcRdcMgr.QueryJobAppInfo(cRecordOri.appId(), cJobStepApp);
+
+		if (bJobApp)
+		{
+			cRecordOri.set_jobInsId(cJobStepApp.jobInsId());
+			cRecordOri.set_jobSeqId(cJobStepApp.jobInsSequence());
+		}
+		else
+		{
+			cRecordOri.set_jobInsId(0);
+			cRecordOri.set_jobSeqId(0);
+		}
+		DBE2_LOG(DEBUG_LOGGER, "ready SendWarnInfo");
+		LogSdl(cRecordOri);
+		InsertWarnDetail(cRecordOri);
+		SendWarnInfo(cRecordOri);
+
+}
+
+void CSrmOtherMgrImpl::SendWarnInfo(CAmWarnRecordOri &rcWarnOri)
+{
+	m_cWarnMsgLockList.PushBack(rcWarnOri);
+
+	RealSendWarnInfo();
+}
+void CSrmOtherMgrImpl::InsertWarnDetail(CAmWarnRecordOri &rcWarnOri)
+{
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	CRdcApp cApp;
+	rcRdcMgr.QueryApp(rcWarnOri.appId(), cApp);
+	CPdcVm  cVm;
+	rcRdcMgr.GetPdcVm(rcWarnOri.vmId(), cVm);
+
+	CAmWarnInsDefine cWarnIns;
+	rcRdcMgr.GetWarnInsDefine(rcWarnOri.warnId(), cWarnIns);
+	CAmWarnLevelDefine cWarnLevel;
+	rcRdcMgr.GetWarnLevelDefine(cWarnIns.levelId(), cWarnLevel);
+	CAmWarnSmsDetail cSmsDetail;
+	CRdcJobIns cJobIns;
+	CRdcJobRunStepApp cRunStepApp;
+	CSoStep cStep;
+	if (0 == rcWarnOri.jobInsId())
+	{
+
+	}
+	else
+	{
+	rcRdcMgr.GetJobInfo(rcWarnOri.jobInsId(), cJobIns);
+	rcRdcMgr.QueryJobAppInfo(rcWarnOri.appId(), cRunStepApp);
+	rcRdcMgr.GetStep(cRunStepApp.jobRunStepId(), cStep);
+	cSmsDetail.set_jobId(cJobIns.jobId());
+	cSmsDetail.set_jobName(cJobIns.jobName());
+	cSmsDetail.set_stepId(cRunStepApp.jobRunStepId());
+	cSmsDetail.set_stepName(cStep.stepName());
+	}
+
+	cSmsDetail.set_appId(rcWarnOri.appId());
+	cSmsDetail.set_appName(cApp.appName());
+	cSmsDetail.set_errorStack(rcWarnOri.errorStack());
+	cSmsDetail.set_jobInsId(rcWarnOri.jobInsId());
+	cSmsDetail.set_levelName(cWarnLevel.levelName());
+	cSmsDetail.set_message(rcWarnOri.message());
+	cSmsDetail.set_sshuser(cVm.sshuser());
+	cSmsDetail.set_vmId(rcWarnOri.vmId());
+	cSmsDetail.set_vmIp(cVm.vmIp());
+	cSmsDetail.set_vmName(cVm.vmName());
+	cSmsDetail.set_warnName(cWarnIns.warnName());
+	cSmsDetail.set_warnTime(rcWarnOri.warnTime());
+	ISrmRdcMgr::GetInstance().InsertWarnSmsDetail(cSmsDetail);
+
+}
+void InsertMergerWarn(CAmWarnRecordOri &rcWarnOri)
+{
+
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	int64 i64OriId;
+	bool bEverWarn;
+	CAmWarnRecord cWarnRecord;
+	CAmWarnRecord cKey;
+	cKey.set_appId(rcWarnOri.appId());
+	cKey.set_procId(rcWarnOri.procId());
+	cKey.set_warnId(rcWarnOri.warnId());
+	CBSDateTime &rcTime = rcWarnOri.warnTime();
+	CAmWarnMergerHisDetail cMergeDetail;
+
+	bEverWarn=rcRdcMgr.QueryWarnRecord(cWarnRecord, cKey);    // 判断是否为第一次告警 ,第一次 false，否则 true
+
+	if (bEverWarn)//非第一次
+	{
+		DBE2_LOG(DEBUG_LOGGER, "record ori is not first");
+	
+		i64OriId = rcRdcMgr.InsertWarnOri(rcWarnOri);	// 插入原始记录表
+		// 跟新record的信息
+		CAmWarnRecord cUpRecord;
+		cUpRecord.set_mergeTime(rcTime);
+		//cUpRecord.set_taskStatus();
+		cUpRecord.set_mergeNum(cWarnRecord.mergeNum() + 1);
+		if (AUTO_MERGE != cWarnRecord.recordStatus())
+		{
+			cUpRecord.set_recordStatus(AUTO_MERGE);
+			cUpRecord.set_mergeDesc("AUTO MERGE");
+		}
+		rcRdcMgr.UpdateWarnRecord(cUpRecord, cWarnRecord.logId());
+
+		//插入CAmWarnRecordDetail
+		CAmWarnRecordDetail cDetail;
+		cDetail.set_logId(cWarnRecord.logId());
+		cDetail.set_oriId(i64OriId);
+		rcRdcMgr.InsertWarnDetail(cDetail);
+
+		
+		CAmWarnMergerHis cMergeHis;
+		cMergeHis.set_logId(cWarnRecord.logId());
+		cMergeHis.set_mergeNum(1);
+		cMergeHis.set_mergeDesc("AUTO MERGE");
+		cMergeHis.set_mergeTime(rcTime);
+		int64 i64mergeId=rcRdcMgr.InsertMergeInfo(cMergeHis);
+		
+		CAmWarnMergerHisDetail cMergeHisDetail;
+		cMergeHisDetail.set_mergeId(i64mergeId);
+		cMergeHisDetail.set_oriId(i64OriId);
+		cMergeHisDetail.set_isTarget(1);
+		rcRdcMgr.InsertMergeDetail(cMergeHisDetail);
+		
+	}
+	else  //第一次
+	{
+		DBE2_LOG(DEBUG_LOGGER, "record ori first");
+		i64OriId = rcRdcMgr.InsertWarnOri(rcWarnOri);	// 插入原始记录表
+
+		if (0 != rcWarnOri.jobInsId())
+		{
+			CRdcJobIns cjobIns;
+			rcRdcMgr.GetJobInfo(rcWarnOri.jobInsId(), cjobIns);
+			cWarnRecord.set_warnObj(cjobIns.jobName());
+			DBE2_LOG(DEBUG_LOGGER, "ori set obj is jobname");
+		}
+		else
+		{
+			CRdcApp cApp;
+			if (rcRdcMgr.QueryApp(rcWarnOri.appId(), cApp))
+			{
+				cWarnRecord.set_warnObj(cApp.appName());
+				DBE2_LOG(DEBUG_LOGGER, "ori set obj is appname");
+			}
+			else
+			{
+				cWarnRecord.set_warnObj("platform");
+
+				DBE2_LOG(DEBUG_LOGGER, "ori set obj is platform");
+			}
+		}
+		cWarnRecord.set_appId(rcWarnOri.appId());
+		cWarnRecord.set_currentMergeNum(0);
+		cWarnRecord.set_firstTime(rcTime);
+		cWarnRecord.set_jobInsId(rcWarnOri.jobInsId());
+		cWarnRecord.set_jobSeqId(rcWarnOri.jobSeqId());
+		cWarnRecord.set_mergeDesc("no merge");
+		cWarnRecord.set_mergeNum(0);
+		cWarnRecord.set_mergeTime(rcTime);
+		cWarnRecord.set_procId(rcWarnOri.procId());
+		cWarnRecord.set_recordStatus(ORI_STATUS);
+		cWarnRecord.set_sourceKey(FormatString("%d_%d_%d", rcWarnOri.warnId(), rcWarnOri.appId(), rcWarnOri.procId()));
+		cWarnRecord.set_taskStatus(1);//......................
+		cWarnRecord.set_vmId(rcWarnOri.vmId());
+		cWarnRecord.set_warnId(rcWarnOri.warnId());
+		rcRdcMgr.InsertWarnRecord(cWarnRecord);
+		DBE2_LOG(DEBUG_LOGGER, "insert record !!!!!!!!!!!!");
+
+		CAmWarnRecordDetail cDetail;
+		cDetail.set_logId(cWarnRecord.logId());
+		cDetail.set_oriId(i64OriId);
+		rcRdcMgr.InsertWarnDetail(cDetail);
+
+
+
+	}
+	
+}
+void CSrmOtherMgrImpl::RealSendWarnInfo(void)
+{
+
+	CMsgHelper *pMsgHelper = GetMsgHelper();
+	CWarnMsgOriList cWarnMsgList;
+	m_cWarnMsgLockList.PopAll(cWarnMsgList);
+	CWarnMsgOriList::iterator itWarn;
+	CSendTarget cSendDbm = GetDbmTarget();
+	for (itWarn = cWarnMsgList.begin(); itWarn != cWarnMsgList.end(); ++itWarn)
+	{
+		try
+		{
+			InsertMergerWarn(*itWarn);
+		}
+		catch (CAIException&e)
+		{
+			DBE2_LOG_EXCEPTION(e);
+		}
+	}
+}
+void CWarnMsgLockList::PushBack(CAmWarnRecordOri &rcWarnMsg)
+{
+	CAutoLock cAutoLock(m_clock);
+	m_cWarnMsgList.push_back(rcWarnMsg);
+}
+
+void CWarnMsgLockList::PopAll(CWarnMsgOriList &rcWarnList)
+{
+	CAutoLock cAutoLock(m_clock);
+	rcWarnList = m_cWarnMsgList;
+	m_cWarnMsgList.clear();
+}
+
+} // namespace MDbe

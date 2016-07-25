@@ -1,0 +1,168 @@
+package Cpf_console_query;
+
+sub new {        
+    my ($class)= shift;
+    my ($name,$type);   
+    if(@_==3){
+        $name =shift;
+        $type =shift;
+     }
+     else{
+         die "[fatal]:query param num error!@_\n";
+     }
+     
+    my $self = {
+            _Name     =>$name,
+            _Type     =>$type,
+            _Usename  =>undef,
+            _Password =>undef,
+            _Database =>undef,
+            _Space    =>undef,
+    };  
+    return bless($self,$class);
+}
+
+sub run{
+    my ($self ,$extra_data) = @_; 
+	my $name = $self->{'_Name'};
+	my $type = $self->{'_Type'};
+   
+   	if($type ==3){
+		set_data( $self);
+	    $extra_data->{'query'}->{'_Usename'}  =$self->{_Usename}; 
+		$extra_data->{'query'}->{'_Password'} =$self->{_Password};
+		$extra_data->{'query'}->{'_Database'} =$self->{_Database};
+		$extra_data->{'query'}->{'_Space'}    =$self->{_Space};
+		
+		return 0;
+	}
+   
+    if(defined ($extra_data->{'query'}->{'_Usename'})){
+        $self->{_Usename} = $extra_data->{'query'}->{'_Usename'};
+        $self->{_Password}= $extra_data->{'query'}->{'_Password'};
+        $self->{_Database}= $extra_data->{'query'}->{'_Database'};
+        $self->{_Space}   = $extra_data->{'query'}->{'_Space'};
+    }
+    else{       
+	    set_data( $self);
+	    $extra_data->{'query'}->{'_Usename'}  =$self->{_Usename}; 
+		$extra_data->{'query'}->{'_Password'} =$self->{_Password};
+		$extra_data->{'query'}->{'_Database'} =$self->{_Database};
+		$extra_data->{'query'}->{'_Space'}    =$self->{_Space};
+    }
+	my $usename =$self->{_Usename};
+	my $password=$self->{_Password};
+	my $database=$self->{_Database};
+	my $debug =$self->{_Space};
+	if($type==1){
+		querylike($name,$usename,$password,$database,$debug);
+	}
+	if($type==2){
+		query($name,$usename,$password,$database,$debug);
+	}
+	
+	return 0;
+}
+
+sub set_data{
+	my $self=shift;
+    print "Enter user-name:";
+    chomp($self->{_Usename}=<STDIN>);
+    system "stty -echo";
+    print "Enter password:";
+    chomp($self->{_Password}=<STDIN>);
+    system "stty echo";
+    print "******\nEnter database:";
+    chomp($self->{_Database}=<STDIN>);
+    print "Enter schema,default id:";
+    chomp($self->{_Space}=<STDIN>);
+}
+sub querylike{
+	my($name,$usename,$password,$database,$debug) =@_;
+	my $table ="";
+	if($debug eq ""){
+		$table ="rdc_flow";
+	}
+	else{
+		$table =$debug.".rdc_flow";
+	}
+my @command =`sqlplus $usename\/$password\@$database<<ENDCMD
+select flow_name from $table where flow_name like '%$name%';
+exit;
+ENDCMD
+`;
+
+	my $command = "@command";
+	$command =~ m#SQL>\s*(.*)\n\s*SQL>#s;
+	my $result = $1;
+	 
+	if(defined $result){
+		print "$result\n";
+	}
+	else{
+		print @command ;
+	}
+}
+
+sub query{
+	my($name,$usename,$password,$database,$debug) =@_;
+	my $table ="";
+	if($debug eq ""){
+		$table ="rdc_flow";
+	}
+	else{
+		$table =$debug."rdc_flow";
+	}
+my @command =`sqlplus $usename\/$password\@$database<<ENDCMD
+select flow_id from $table where flow_name ='$name';
+exit;
+ENDCMD
+`;
+
+	my $command = "@command";
+	$command =~ m#SQL>\s*(.*)\n\s*SQL>#s;
+	my $result = $1; 
+
+	if(defined $result){
+		print "$result\n";
+	}
+	else{
+		print @command ;
+	}
+}
+
+sub usage_note{
+my $poper =shift;
+$poper->{'fuzzy_query_flow'}->{'type'}=1;
+$poper->{'fuzzy_query_flow'}->{'lib'} ="Cpf_console_query";
+$poper->{'fuzzy_query_flow'}->{'num'} =1;
+$poper->{'fuzzy_query_flow'}->{'help'}="fuzzy_query_flow  flow_name";
+
+$poper->{'query_flow_id'}->{'type'}=2;
+$poper->{'query_flow_id'}->{'lib'} ="Cpf_console_query";
+$poper->{'query_flow_id'}->{'num'} =1;
+$poper->{'query_flow_id'}->{'help'}="query_flow_id flowname";
+
+$poper->{'query_reset'}->{'type'}=3;
+$poper->{'query_reset'}->{'lib'} ="Cpf_console_query";
+$poper->{'query_reset'}->{'num'} =1;
+$poper->{'query_reset'}->{'help'}="query_reset oracle";
+
+
+my $usage_note = <<END_OF_STRING;
+|--------------------------------------------------------------------------------------------------
+|Command                |describe
+|--------------------------------------------------------------------------------------------------
+|fuzzy_query_flow  name |fuzzy query flow name 
+|--------------------------------------------------------------------------------------------------
+|query_flow_id	   name |accurate query flow id 
+|--------------------------------------------------------------------------------------------------
+|query_reset      oracle|reset oracle login info
+|--------------------------------------------------------------------------------------------------
+|help Command           |view command,such as help fuzzy_query_flow
+|--------------------------------------------------------------------------------------------------
+END_OF_STRING
+return $usage_note;
+}
+
+1;

@@ -1,0 +1,365 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_deploy_mgr_impl_cpp)
+{
+	//Fuction: CSrmDeployMgrImpl :: CSrmDeployMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_CSrmDeployMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmDeployMgrImpl :: AdjustSrvStart ( int32 iSrvId )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_AdjustSrvStart)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmDeployMgrImpl :: CheckConnect ( CRdcFlowSrv & rFlowSrv )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_CheckConnect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmDeployMgrImpl :: CheckDomainConn ( int32 iDomainId )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_CheckDomainConn)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmDeployMgrImpl :: CheckVmconn ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_CheckVmconn)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DealRelySrv ( int32 iSrvId , SDeploySrv & rSDeploySrv )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DealRelySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DeployFlow ( const int32 & iFlowId , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DeployFlow)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DeploySrv ( const SBaseSrvKey & rcSrvKey , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DeploySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: GetFlowRecord ( int32 iFlowId , CRdcFlow & rcFlow )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_GetFlowRecord)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: GetRdcFlowSrvList ( int32 iFlowId , CRdcFlowSrvList & rlstFlowSrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_GetRdcFlowSrvList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: GetSrvRecord ( int32 iSrvId , CRdcFlowSrv & rFlowSrv )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_GetSrvRecord)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: GetVmList ( SDeploySrvList & rDelpySrvList , CPdcVmList & rPdcVmList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_GetVmList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackProcTransOperateList ( SDeploySrvList & rDelpySrvList , SDeploySrvList & rNoDeploySrvList , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackProcTransOperateList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackSDeploySrv ( CRdcFlowSrv & rFlowSrv , SDeploySrv & rSDeploySrv , bool bRelyFlag )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackSDeploySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackSDeploySrvList ( CRdcFlowSrvList & rlstFlowSrvList , SDeploySrvList & rDelpySrvList , SDeploySrvList & rNoDeploySrvList , bool bRelyFlag )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackSDeploySrvList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: ScreenNoDeployList ( SDeploySrvList & robjNoDeploySrvList , SDeploySrvList & robjDelpySrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_ScreenNoDeployList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: SelectSuitVm ( CPdcVmList & rPdcVmList , SDeploySrvList & rDelpySrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_SelectSuitVm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DealSysRelySrv ( int32 iSrvId , SDeploySrv & rSDeploySrv )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DealSysRelySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DealVMRelySrv ( int32 iSrvId , CRdcFlowSrvList & rFlowSrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DealVMRelySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DeployBylua ( SToLuaVmInfoList & rToLuaVmInfoList , SDpeloySrvInfoList & rDpeloySrvInfoList , SLuaReturnSrvInfoList & rLuaReturnSrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DeployBylua)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: GetDomainSet ( SDeploySrv & robjDelpySrv , CIntSet & rDomainSet )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_GetDomainSet)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackAssignedVmSrv ( CRdcFlowSrv & rFlowSrv , SDeploySrv & rDelpySrv , SDeploySrv & rNoDeploySrv , bool bRelyFlag )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackAssignedVmSrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackNoAssignedVmSrv ( CRdcFlowSrv & rFlowSrv , SDeploySrv & rDelpySrv , bool bRelyFlag )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackNoAssignedVmSrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackSDpeloySrvInfoList ( SDeploySrv & robjDelpySrv , SDpeloySrvInfoList & rDpeloySrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackSDpeloySrvInfoList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackSToLuaVmInfoList ( CIntSet & rDomainSet , SToLuaVmInfoList & rToLuaVmInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackSToLuaVmInfoList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackProcTransOperateListSrv ( int32 iVmId , int32 iSrvId , CRdcFlowSrv & rcRdcFlowSrv , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackProcTransOperateListSrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackProcTransOperateListSrvList ( int32 iVmId , int32 iSrvId , CRdcFlowSrvList & rcRdcFlowSrvList , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackProcTransOperateListSrvList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackSDeployToLuaSrvInfoList ( SDeploySrv & robjDelpySrv , SDeployToLuaSrvInfoList & rDeploySrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackSDeployToLuaSrvInfoList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackTrans ( int32 iFlowId , SDeploySrv & rDelpySrv , SDeploySrv & rNoDeploySrv , SLuaReturnSrvInfoList & rSLuaReturnSrvInfoList , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackTrans)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DealAssignedVMRelySrv ( int32 iSrvId , int32 iVmId , CRdcFlowSrvList & rFlowSrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DealAssignedVMRelySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DealUnAssignedVMRelySrv ( int32 iSrvId , int32 iDomainId , CRdcFlowSrvList & rFlowSrvList , bool & bNoDeploy )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DealUnAssignedVMRelySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmDeployMgrImpl :: JudgeSrvStart ( int32 iSrvId , int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_JudgeSrvStart)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: AdjustProcId ( CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_AdjustProcId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CSrmDeployMgrImpl :: GetDeployType ( AISTD string & rScritpContent )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_GetDeployType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: Init ( CMgrInitHelper & cMgrInitHelper )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_Init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackProcTransOperateListProc ( int32 iVmId , int32 iProcId , CRdcFlowSrv & rcRdcFlowSrv , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackProcTransOperateListProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackToLuaProcInfoList ( SDeploySrv & robjDelpySrv , SDeployToLuaSrvInfoList & rDeploySrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackToLuaProcInfoList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackTransListByProc ( int32 iVmId , int32 iProcId , CRdcFlowSrvList & rcRdcFlowSrvList , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackTransListByProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: DeployMigrateProc ( int32 iFlowId , CRdcProcList & rProcList , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_DeployMigrateProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CSrmDeployMgrImpl :: GetDelpoyPolicy ( )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_GetDelpoyPolicy)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: GetMigDomainSet ( int32 iOldVmId , SDeploySrv & rDelpySrv , CIntSet & rDomainSet )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_GetMigDomainSet)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackMigDeploySrv ( CRdcFlowSrvList & rFlowSrvList , SDeploySrv & rDelpySrv )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackMigDeploySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: ShiftMigrateSrvList ( CRdcProcList & rProcList , CRdcFlowSrvList & rFlowSrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_ShiftMigrateSrvList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: PackMigSrv ( CRdcFlowSrv & rFlowSrv , SDeploySrv & rDelpySrv )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_PackMigSrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmDeployMgrImpl :: SetMigProcId ( CRdcProcTransOperateList & rcProcTransOperateList , AISTD map < int32 , AISTD vector < int32 > > & rmSrvPrcId )
+	TEST_FIXTURE(TestFixture,TestCSrmDeployMgrImpl_SetMigProcId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

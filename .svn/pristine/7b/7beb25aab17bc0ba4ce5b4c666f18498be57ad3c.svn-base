@@ -1,0 +1,81 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_error_code.h）
+/// brief	 
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_ERROR_CODE_H___
+#define __SRM_ERROR_CODE_H___
+
+#include "dbe2_base_def.h"
+namespace MDbe
+{
+
+enum
+{
+    //app
+    DBE2_SRM_START_APP_ILLEGAL,
+    DBE2_SRM_NOT_EXE_APP,
+    DBE2_SRM_STOP_APP_ILLEGAL,
+    DBE2_SRM_CREATE_TRANS_FAILED,
+	//deploy
+	DBE2_SRM_DEPLOY_APP_FAILED,
+	//vm
+	DBE2_SRM_VM_REQ_FAILED,
+	DBE2_SRM_VM_MIGRATE_FAILED,
+	DBE2_SRM_VM_MIGRATE_ILLEGAL,
+	DBE2_SRM_VM_MODIFY_ILLEGAL,
+	DBE2_SRM_VM_SYNC_ERROR,
+	//srm util
+	DBE2_SRM_CANNOT_CREATE_DIR,
+	DBE2_SRM_CANNOT_WRITE_FILE,
+	DBE2_SRM_CANNOT_EXCUTE_SCRIPTS,
+    // proc
+    DBE2_SRM_OPERATE_PROC_ILLEGAL,
+    DBE2_SRM_OPERATE_PROC_FAILED, 
+	// srm
+	DBE2_SRM_DETECT_DB_EXIT,
+
+	// job
+	DBE2_SRM_OPER_JOB_ILLEGAL = DBE2_SRM_START_ERROR_CODE,
+	DBE2_SRM_GET_JOBINFO_FAILED,
+	DBE2_SRM_SET_JOBSTATUS_FAILED,
+	DBE2_SRM_BACKUP_JOBINFO_FAILED,
+	DBE2_SRM_SET_STEPSTATUS_FAILED,
+	DBE2_SRM_FORCE_STOP_JOB_FAILED,
+	DBE2_SRM_START_APP_EXCEPTION,
+	DBE2_SRM_END_APP_EXCEPTION,
+	DBE2_SRM_JOB_INS_STEP_EMPTY,
+	DBE2_SRM_JOB_INS_STEP_APP_EMPTY,
+	DBE2_SRM_CAN_NOT_FIND_JOB_STEP_INFO,
+	DBE2_SRM_GET_JOB_STEP_BY_STATUS_FAILED,
+	DBE2_SRM_GET_PROVIOUS_STEP_FAILED,
+	DBE2_SRM_GET_NEXT_STEP_FAILED,
+	DBE2_SRM_GET_HEAD_STEP_FAILED,
+	DBE2_SRM_GET_STEP_FLOW_BY_STATUS_FAILED,
+	DBE2_SRM_JOB_APP_BY_STATUS_FAILED,
+	DBE2_SRM_SET_JOBFLOWSTATUS_FAILED,
+	DBE2_SRM_PARASE_CROMEXPRESS_FAILED,
+	DBE2_SRM_START_REMOVED_STEP,
+
+	// upgrade
+	DBE2_SRM_UPGRADE_FAIL,
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_ERROR_CODE_H___ */

@@ -1,0 +1,62 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_error_code.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-22）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __NRM_ERROR_CODE_H___
+#define __NRM_ERROR_CODE_H___
+
+#include "dbe2_base_def.h"
+#include "nrm_error_code.h"
+namespace MDbe
+{
+
+enum
+{
+	DBE2_NRM_NR_PROC_INFO_IS_NULL = DBE2_NRM_START_ERROR_CODE,
+    DBE2_NRM_PROCMGR_CREATE_XML_FAIL,
+    DBE2_NRM_PROCMGR_WRITE_XML_FAIL,
+    DBE2_NRM_PROCMGR_TBTS_CONFIG_PATH_NOT_EXIST,
+    DBE2_NRM_PROCMGR_START_CMD_IS_NULL,
+    DBE2_NRM_PROCMGR_PROC_RUN_START_CMD_ERROR,
+    DBE2_NRM_PROCMGR_PROC_START_PROC_FAIL,
+    DBE2_NRM_PROCMGR_PROC_ALREAD_STARTED,
+    DBE2_NRM_NRMGR_PROC_INFO_IS_NULL,
+    DBE2_NRM_NRMGR_CREATE_NR_FAIL,
+    DBE2_NRM_PROCMGR_PROC_ALREADY_STOPED,
+    DBE2_NRM_PROCMGR_PROC_STOPED_FAILED,
+    DBE2_NRM_XC_STARTUP_FAIL,
+    DBE2_NRM_PROCMGR_CHECK_CMD_IS_NULL,
+    DBE2_NRM_PROCMGR_STOP_CMD_IS_NULL,
+    DBE2_NRM_PROCMGR_FORCE_STOP_CMD_IS_NULL,
+    DBE2_NRM_NRMGR_HOLD_NR_FAIL,
+    DBE2_NRM_PROCMGR_RESTART_CMD_IS_NULL,
+    DBE2_NRM_VMMGR_GETINFOMATION_ERROR,
+    DBE2_NRM_UPDATE_PROCESS_INFORMATION_CANNOT_GET,
+    DBE2_NRM_UPDATE_PROCESS_INFOMATION_ERROR,
+    DBE2_NRM_UPDATE_CANNOT_CREATE_DIR,
+    DBE2_NRM_UPDATE_CANNOT_CREATE_UPDATE_SCRIPT,
+    DBE2_NRM_UPDATE_CANNOT_WRITE_UPDATE_SCRIPT,
+	DBE2_NRM_UPDATE_SCRIPTS_RUN_ERROR,
+    // XXX add error enum here
+    DBE2_NRM_END_ERROR_CODE
+};
+
+} // namespace MDbe
+
+
+#endif /* __NRM_ERROR_CODE_H___ */
+

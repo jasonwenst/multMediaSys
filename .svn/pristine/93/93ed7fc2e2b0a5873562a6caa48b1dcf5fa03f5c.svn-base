@@ -1,0 +1,23 @@
+CPPFLAGS+= -g -std=c++0x 
+LINKFILE= -lpthread -ldl -L~/lib 
+TARGET = testque 
+INCLUDE  = -I. -I../include  -I../../warnApiClient/pub
+
+
+MYOBJECTS =main.o 
+
+OBJECTS =  $(MYOBJECTS) 
+CC=g++ $(CPPFLAGS) $(LINKFILE) $(INCLUDE)
+%.o:%.cpp
+	$(CC) -c $<  -o $@	
+%.o:%.c
+	gcc  $(INCLUDE)    -c $<  -o $@	
+	
+ALL:$(OBJECTS)
+	$(CC) $(CPPFLAGS) $(LINKFILE) $(INCLUDE)  $(OBJECTS)  ~/lib/libLocalQue.so -o  $(TARGET)
+
+clean:
+	rm -rf  $(TARGET)
+cleanall:
+	rm -rf $(TARGET) $(OBJECTS)
+	

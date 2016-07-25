@@ -1,0 +1,710 @@
+#!/usr/bin/env perl
+use warnings;
+use strict;
+use File::Path;
+use Net::FTP;
+use POSIX;
+
+&log("cpf upgrade start !");
+&log("$0 @ARGV");
+
+my $homePath = $ENV{HOME};
+my($opId, $actType, $timeOutSec, $product, $version, $server, $ftpUsr, $ftpPwd, $ftpPath, $md5Rel) = @ARGV;
+my $updateProcess = 0;
+&writeProcess(2, "prepare upgrade!");
+my $effetFlows = '';
+my $effetFiles = '';
+
+#flag value
+my $srmRestart = 0;
+my $nrmRestart = 0;
+#for rollback
+my $srmRollback = 0;
+my $nrmRollback = 0;
+my %libBaks = ();
+my %binBaks = ();
+my @addLibs = ();
+my @addBins = ();
+my @addScripts = ();
+
+#env or get value
+my $relPath = "$ENV{OB_REL}/";
+my $workPath = $relPath.'upgrade/';
+my $usr = $ENV{USER};
+
+my $grepUsr = "\"$usr \"";
+my $unameAll = `uname -a`;
+my $osType;
+my $oldVersion = &readVersion;
+my $osVersion;
+if ($unameAll =~ m#(\S+)\ +\S+\ +(\S+).*#){
+    $osType = $1;
+    $osVersion = $2;
+    &log("os type:$osType version:$osVersion");
+}else{
+    &exit(0, "get operate system info whith commond('uname -a') failed")
+}
+my $psCmd = "ps -ef";
+if ($osType eq "SunOS") {$psCmd = "/usr/ucb/ps -auxww ";}
+my $suffix = '.so';
+if ($osType eq "HP-UX") {$suffix = '.sl'}
+
+if ($relPath eq '/'){&exit(0, "get env(OB_REL) failed")}
+if ($workPath eq ''){&exit(0, "get env(USR) failed")}
+#machine file path
+my $binPath = $relPath.'bin/';
+my $libPath = $relPath.'lib/';
+my $cfgPath = undef;
+my $scriptsPath = $relPath.'scripts/';
+
+#bakup path
+my $bakLibPath = "${libPath}cpf_bak/$product/";
+my $bakBinPath = "${binPath}cpf_bak/$product/";
+my $bakCfgPath;
+&getCfgPath;
+my $bakScriptsPath = "${scriptsPath}cpf_bak/$product/";
+
+my $ftpFile = "${product}_${version}_${osType}_${osVersion}.tar.gz";
+my $localFile = $workPath.$ftpFile;
+
+if(2 ==  $actType){
+    &rollBack;
+    $updateProcess = 100;
+    &log("rollBack end!");
+    &writeProcess(1, "version rollback success!");
+    exit;
+}
+
+&log("current cpf verion is $oldVersion upgrade version is $version");
+&log("upgrade package is $ftpFile");
+
+&log("updgrate started.\nwork path is $workPath");
+&checkPath;
+
+#Step 1 Ftp get update package
+&getUpgradePkg;
+chomp(my $md5Get = `aimd5sum $localFile`);
+if ($md5Rel ne '0' && $md5Get ne $md5Rel) {
+    &exit(0, 'md5 value not equal,package is incompleted');
+}
+$updateProcess = 20;
+&writeProcess(2, "ftp get packge successed");
+
+#step 2 
+my $tarPath = $workPath.'tarPath/';
+mkdir $tarPath or &exit(0, "make path $tarPath failed:$!");
+chdir $tarPath or &exit(0, "change path $tarPath failed:$!");
+!system "tar -zxvf $localFile" or &exit(0, "extract file $localFile failed:$!");
+$updateProcess = 30;
+&writeProcess(2, "extract file successed");
+
+#step 3
+my @upDirs = glob "*";
+mkdir $workPath."bak" or &exit(0, "make path ${workPath}bak failed:$!");
+foreach my $upDir(@upDirs){
+    &log($upDir);
+    if ($upDir eq "lib"){&updateLib; next}
+    elsif ($upDir eq "bin"){&updateBin; next}
+    elsif ($upDir eq "config"){&updateConfig; next}
+    elsif ($upDir eq "scripts"){&updateScripts; next}
+    else{
+        &exit(0, "unkown file $upDir, please check upgrade package!");
+    }
+}
+$updateProcess = 50;
+&writeProcess (2, "replace file success");
+
+#step 4 restart
+&log("srm need restart flag is $srmRestart");
+&log("nrm need restart flag is $nrmRestart");
+
+&writeVersion($version);
+
+if("cpf" eq $product){
+&restart;
+$updateProcess = 70;
+&writeProcess (2, "restart proc success");
+
+#step 5 check restart
+&log("srm restarted flag is $srmRollback");
+&log("nrm restarted flag is $nrmRollback");
+&checkProc;
+$updateProcess = 90;
+&writeProcess (2, "check proc start success");
+
+}
+
+&checkFlowEffect;
+
+#step 6 clear trace
+&clearTrace;
+
+$updateProcess = 100;
+&writeProcess (1, "upgrade successed");
+&log("cpf upgrade success!!!");
+
+sub exit{
+    &writeProcess(@_);
+    &rollBack;
+    die "$_[1]\n";
+}
+
+sub writeProcess{
+    open PROCESSFILE, ">$homePath/ipc/upgrade_process.cpf";
+    print PROCESSFILE "op_id=$opId\nstate=$_[0]\nprocess=$updateProcess\ndesc=$_[1]\n";
+    close PROCESSFILE;
+}
+
+sub writeUpgradeDesc{
+    open PROCESSFILE, ">$_[0]cpf_bak/${product}_upgrade_desc";
+    print PROCESSFILE "version=$oldVersion\naddfiles=$_[1]\nrestart_flow_ids=$effetFlows\nupdate_files=$effetFiles\n";
+    close PROCESSFILE;
+}
+
+sub readUpgradeDesc{
+    unless(-e "$_[0]cpf_bak/${product}_upgrade_desc") {return ""};
+    my $read =  `cat "$_[0]cpf_bak/${product}_upgrade_desc"`;
+}
+
+sub updateBin{
+    &log("update bin start");
+    chdir $tarPath."bin" or &exit(0, "change path ${tarPath}bin failed:$!");
+    my @binFiles = glob '*';
+    &log("binFile no is ".@binFiles);
+    foreach my $binFile(@binFiles){
+        my $binName;
+        &log("update bin: $binFile");
+        # reject link
+        if(-l $binFile) {&log("$binFile is a link ,pass");next};
+
+        # check file authoruty
+        &chmodAuthority($binFile);
+
+        # bin select
+        if ($binFile =~ m#(\S+)\.\w+\.\w+\.\w+\.\w+#){
+            $binName = $1;
+        }
+        else{
+            $binName = $binFile;
+        } 
+        &log("bin name is: $binName");
+        &updateLinkFileBak('bin', $binFile, $binName, $tarPath."bin/", $binPath, $bakBinPath);
+    }
+
+    my $addBin = "";
+    if(@addBins){$addBin = join(",", @addBins);}
+    &writeUpgradeDesc("${binPath}", $addBin);
+}
+
+#update link or not link file  
+sub updateLinkFileBak{
+    (my $fileType, my $fileName,my $linkName, my $srcPath, my $destPath, my $bakPath) = @_;
+    #bakup old file
+    my $linkFile = readlink $destPath.$linkName;
+    if (defined($linkFile)){
+        # link file may not exits ,rename failed do nothing
+        rename($destPath.$linkFile, $bakPath.$linkFile);
+    }else{
+        if (-e $destPath.$linkName){
+            rename ($destPath.$linkName, $bakPath.$linkName) or &exit(0, "move file $destPath$linkName failed:$!");;
+        }else {
+            if ($fileType eq 'lib') {
+                push @addLibs, $linkName;
+                if ($fileName ne $linkName) {push @addLibs, $fileName;}
+            }
+            if ($fileType eq 'bin') {
+                push @addBins, $linkName;
+                if ($fileName ne $linkName) {push @addBins, $fileName;}
+            }
+        }
+    }
+    # update new file 
+    rename($srcPath.$fileName ,$destPath.$fileName) or &exit(0, "move file $srcPath$fileName failed:$!");
+    if ($fileName ne $linkName){
+        # lib name not equal lib file add link
+        unlink ($destPath.$linkName);  #file may not exits, unlink error do not exit.
+        symlink ($fileName, $destPath.$linkName) or &exit(0,"link file $fileName failed:$!");
+    }
+}
+
+sub updateLib{
+    &log("update lib start");
+    chdir $tarPath."lib" or &exit(0, "change work path $tarPath failed:$!");
+    my @libFiles = glob '*';
+    &log("libFile no is ".@libFiles);
+    chdir $libPath or &exit(0, "change work path $libPath failed:$!");
+    foreach my $libFile(@libFiles){
+        my $libName;
+        &log("update lib: $libFile");
+        # reject link
+        if(-l $tarPath."lib/".$libFile) {&log("$libFile is a link ,pass");next};
+
+        # lib select
+        if ($libFile =~ m#(\S+$suffix)#){
+            $libName = $1;
+        }
+        else{&log("unkown lib");next;}
+        &updateLinkFileBak('lib', $libFile, $libName, $tarPath."lib/", $libPath, $bakLibPath);
+        # set restart flag
+        if ($libFile =~ /dbe2?_(srm|obb_adapter|base|udp|pcc|msg_dispatch|ca)/) {$srmRestart = 1;}
+        if ($libFile =~ /dbe2?_(nrm|obb_adapter|base|nr|pcc|msg_dispatch|ca)/) {$nrmRestart = 1;}
+    }
+    my $addLib = "";
+    if(@addLibs){$addLib = join(",", @addLibs);}
+    &writeUpgradeDesc("${libPath}", $addLib);
+}
+
+sub updateConfig{
+    &log("update config start");
+    chdir $tarPath."config" or &exit(0, "change path ${tarPath}config failed:$!"); 
+    my @cfgFiles = glob 'srm/*';
+    push @cfgFiles, glob 'nrm/*'; 
+    push @cfgFiles, glob 'logqry/*';
+    foreach my $cfgName(@cfgFiles){
+        my $cfgFile;
+        if ($cfgName =~ m#/(\S+)#){
+            $cfgFile = $1;
+        }else{
+            next;
+        }
+        if ($cfgFile =~ /srm/ && -e ${cfgPath}.'srm/'.$cfgFile){
+            # get database connect from srm config file
+            my $oldSrmCfg = `cat ${cfgPath}srm/$cfgFile`;
+            my $db;
+            my $schema;
+            unless (defined $oldSrmCfg) {&exit(0, "srm config is exists,but read failed");}
+            if ($oldSrmCfg =~ m#<databases>(.*?)</databases>#s){
+                $db = $1;
+                &log("DB connect is :$db");
+            }
+            if($oldSrmCfg =~ m#<db_schema_mapping>(.*?)</db_schema_mapping>#){
+                $schema = $1;
+                &log("schema is :$schema");
+            }
+            rename ("${cfgPath}srm/$cfgFile", "$bakCfgPath$cfgFile")  or &exit(0, "move ${cfgPath}srm/$cfgFile failed:$!");
+            my $newSrmCfg = `cat ${tarPath}config/$cfgName`;
+            unless ($newSrmCfg =~ s#<databases>(.*?)</databases>#<databases>$db</databases>#s) {&exit(0, "replace db info failed");}
+            unless ($newSrmCfg =~ s#<db_schema_mapping>(.*?)</db_schema_mapping>#<db_schema_mapping>$schema</db_schema_mapping>#s){
+                &exit(0, "replace schema info failed");
+            }
+            open (SRMCONFIG, ">${cfgPath}srm/$cfgFile");
+            print SRMCONFIG $newSrmCfg or &exit(0, "write srm config filed:$!");
+            close SRMCONFIG;
+            $srmRestart = 1; 
+        }elsif ($cfgFile =~ /nrm/){
+            rename ("${cfgPath}nrm/$cfgFile", "$bakCfgPath$cfgFile") or &exit(0, "move ${cfgPath}nrm/$cfgFile failed:$!");
+            rename ("${tarPath}config/$cfgName", "${cfgPath}nrm/$cfgFile")  or &exit(0, "move ${tarPath}config/$cfgName failed:$!");
+            $nrmRestart = 1;
+        }
+        elsif ($cfgFile =~ /logqry/){
+            rename ("${cfgPath}logqry/$cfgFile", "$bakCfgPath$cfgFile") or &exit(0, "move ${cfgPath}logqry/$cfgFile failed:$!");
+            rename ("${tarPath}config/$cfgName", "${cfgPath}logqry/$cfgFile")  or &exit(0, "move ${tarPath}config/$cfgName failed:$!");
+        }
+        else {
+            &log("$cfgFile is unknow cfgFile.do not handle it");
+        }
+    }
+    &log("update config end");
+}
+
+sub updateScripts{
+    &log("update scripts start");
+    unless (-e $scriptsPath) {&exit(0, "can not get scripts path!")};
+	unless (-e $bakScriptsPath){
+		mkdir $bakScriptsPath or &exit(0, "make path $bakScriptsPath failed:$!");
+	}
+    &searchAll('');
+    my $addScript = "";
+    if(@addScripts){$addScript = join(",", @addScripts);}
+    &writeUpgradeDesc("${scriptsPath}", $addScript);
+    &log("update scripts end");
+}
+
+sub searchAll{
+    (my $curPath) = @_;
+    chdir $tarPath."scripts/".$curPath or &exit(0, "change work path ${tarPath}scipts${curPath} failed:$!");
+    my @files = glob '*';
+    foreach my $file(@files){
+        &log ("update script $file");
+        if (-d $file) {
+            if (-e ${scriptsPath}.$curPath.$file){
+                mkdir $bakScriptsPath.$curPath.$file;
+            }else{
+                mkdir $scriptsPath.$curPath.$file  or &exit(0, "make path $scriptsPath$curPath$file failed:$!");
+                push @addScripts, $curPath.$file;
+            }
+            &searchAll($curPath.$file.'/');
+            next;
+        }
+
+        if (-e ${scriptsPath}.$curPath.$file){
+            rename (${scriptsPath}.$curPath.$file, ${bakScriptsPath}.$curPath.$file);
+        }else{
+            push @addScripts, $curPath.$file;
+        }
+        rename (${tarPath}.'scripts/'.$curPath.$file, ${scriptsPath}.$curPath.$file);
+
+        # check file authoruty
+        &chmodAuthority($scriptsPath.$curPath.$file);
+    }
+}
+
+sub restart{
+    my $nrmStop = 1;
+    my $srmStop = 1;
+    #srm not allow restart by scripts self set $srmRestart=0;
+    $srmRestart = 0;
+    if ($nrmRestart){
+        my @stopNrms = &stopProc("nrm/nrm", "-9");
+        if (@stopNrms){
+            $nrmStop = 0;
+        }else{
+            $nrmRestart = 0;
+        }
+    }
+    if ($srmRestart){
+        my @stopSrms = &stopProc("srm/srm", "-9");
+        if (@stopSrms){
+            $srmStop = 0;
+        }else{
+            $srmRestart = 0;
+        }
+    }
+    &log("nrm restart is $nrmRestart,srm restart is $srmRestart");
+    &log("nrm stop is $nrmStop,srm stop is $srmStop");
+    if($nrmRestart || $srmRestart){
+        my $count = 120;
+        while ($count > 0){
+            if ($nrmRestart && !$nrmStop){
+                my @nrmList = `$psCmd| grep odframe | grep $grepUsr | grep nrm/nrm  | grep -v grep`;
+                if (0 == @nrmList){$nrmStop = 1;}
+            }
+            if ($srmRestart && !$srmStop){
+                my @srmList = `$psCmd| grep odframe | grep $grepUsr | grep srm/srm  | grep -v grep`;
+                if (0 == @srmList){$srmStop = 1;}
+            }
+            if($nrmStop && $srmStop){last;}
+            $count = $count - 1;
+            sleep(1);
+            &log("time remaining $count seconds,nrm stop flag is $nrmStop, srm stop flag is $srmStop");
+        }
+        if ($nrmRestart){
+            if (0 == $nrmStop){
+                &stopProc("nrm/nrm", "-9");
+            }
+            system "nrm"; $nrmRollback = 1;
+        }
+        if ($srmRestart){
+            if (0 == $srmStop){
+                &stopProc("srm/srm", "-9");
+            }
+            system "srm"; $srmRollback = 1;
+        }
+    }
+}
+
+sub getCfgPath{
+    my @nrms = `$psCmd| grep odframe | grep $grepUsr | grep /nrm/nrm | grep -v grep`;
+    foreach my $nrm(@nrms){
+        if ($nrm =~ m#\s+(\S+)nrm/nrm#){
+            $cfgPath = $1;
+            last;
+        }
+    }
+    unless (defined($cfgPath)) {&exit(0, 'get config path failed')};
+    $bakCfgPath = "${cfgPath}cpf_bak/$product/";
+}
+
+sub getUpgradePkg{
+    my $ftpIp = $server;
+    my $ftpPort = 21;
+    if($server =~ m#(\s+)\:(\w+)#){
+        $ftpIp = $1;
+        $ftpPort = $2;
+    }
+    my $ftp = Net::FTP->new($ftpIp, Port=>$ftpPort, Debug=>0, TimeOut=>600) or &exit(0, "ftp connect $ftpIp:$ftpPort failed:$!");
+    $ftp->login($ftpUsr, $ftpPwd) or &exit(0, "ftp login $ftpUsr/$ftpPwd failed:$!");
+    $ftp->binary or &exit(0, "ftp change binary mode failed:$!");
+    $ftp->cwd($ftpPath) or &exit(0, "ftp change directory $ftpPath failed:$!");
+    $ftp->get($ftpFile, $localFile) or &exit(0, "ftp get remotefile $ftpFile failed:$!");
+    &log("ftp get file success");
+    $ftp->quit;
+}
+
+sub rollBack{
+    &log("roll back start");
+    # 1 stop proc
+    if (1==$srmRollback){
+       stopProc('srm/srm', '-9'); 
+    }
+    if (1==$nrmRollback){
+        stopProc('nrm/nrm', '-9');
+    }
+    # 2 remove upgrade package
+    if ($workPath ne '' && chdir $workPath){
+        system "rm -rf $localFile tarPath";
+    }
+    # 3 clear add files
+    &clearAdd;
+    # 4 bak file restore
+    &restore;
+    # 5 rollback version
+    &writeVersion($oldVersion);
+    # 6 restart srm and nrm
+    if (1==$nrmRollback){
+        system "nrm";
+        &log("rollback.restart nrm");
+    }
+    if (1==$srmRollback){
+       system "srm"; 
+        &log("rollback.restart srm");
+    }
+    # 5 clear trace
+    &clearTrace;
+}
+
+sub stopProc{
+    unless (@_) {return 0;}
+    my $killMode = '-15';
+    if (2 == @_) {$killMode = $_[1];}
+    my @stopList = `$psCmd| grep odframe | grep $grepUsr | grep $_[0]  | grep -v grep`;
+    foreach my $stop(@stopList){
+        if($stop =~ m#\w+\ +([0-9]+).*#){
+            &log("kill $killMode $1");
+            system "kill $killMode $1";
+        }
+    }
+    return @stopList;
+}
+
+sub restore{
+    if (chdir $bakBinPath){
+        my @rollBins = glob '*';
+        foreach (@rollBins){
+            my $binName = $_;
+            if(m#(\S+)\.\w+\.\w+\.\w+\.\w+#){
+                $binName = $1;
+            }
+            &log("bin file: $_, bin name $binName");
+            &updateLinkFileDel($_, $binName, $bakBinPath, $binPath);
+        }
+    }
+    if (chdir $bakLibPath){
+        my @rollLibs = glob '*';
+        foreach (@rollLibs){
+            my $libName = $_;
+            if(m#(\S+$suffix)#){
+                $libName = $1;
+            }
+            &updateLinkFileDel($_, $libName, $bakLibPath, $libPath);
+        }
+    }
+    if (chdir $bakCfgPath){
+        my @bakCfgs = glob '*';
+        foreach my $bakCfg(@bakCfgs){
+            if ($bakCfg =~ /srm/){
+                rename ($bakCfg, $cfgPath.'srm/'.$bakCfg);
+            }
+            if ($bakCfg =~ /nrm/){
+                rename ($bakCfg, $cfgPath.'nrm/'.$bakCfg);
+            }
+        }
+    }
+    if (chdir $bakScriptsPath){
+        &restoreScripts('');
+    }
+}
+
+sub updateLinkFileDel{
+    (my $file,my $link, my $src, my $dest) = @_;
+    #delete old file
+    my $oldFile = readlink $dest.$link;
+    if (defined($oldFile)){
+        # link file may not exits ,rename failed do nothing
+        unlink $dest.$oldFile;
+    }
+    unlink $dest.$link;
+    
+    # update new file 
+    rename($src.$file ,$dest.$file);
+    if ($file ne $link){
+        # lib name not equal lib file add link
+        symlink ($file, $dest.$link);
+    }
+}
+
+sub restoreScripts{
+    my $curPath = $_[0];
+    my @bakFiles = glob '*';
+    foreach my $bakFile(@bakFiles){
+        if (-d $bakFile){
+            if (chdir $bakScriptsPath.$curPath.$bakFile){
+                &restoreScripts($curPath.$bakFile."/");
+            }
+        }else{
+            rename ($bakScriptsPath.$curPath.$bakFile, $scriptsPath.$curPath.$bakFile);
+        }
+    }
+}
+
+sub moveDirToDir{
+    my($src, $dest) = @_;
+    chdir $src;
+    unless (-e $dest){mkdir $dest or &exit(0, "mkdir $dest failed")}
+    my @files = glob '*';
+    foreach (@files){
+        if (-d $_){
+            if (chdir "$src$_"){
+                &moveDirToDir("$src$_/", "$dest$_/");
+            }else {&exit(0, "chdir $src$_ failed");};
+        }else{
+            rename ("$src$_", "$dest$_");
+        }
+    }
+}
+
+
+sub clearAdd{
+    if(2 == $actType)
+    {
+        my $libInfo = &readUpgradeDesc($libPath);
+        if($libInfo =~ m#addfiles=(.+)#){
+            @addLibs = split /,/ , $1;
+        }
+        my $binInfo = &readUpgradeDesc($binPath);
+        if($binInfo =~ m#addfiles=(.+)#){
+            @addBins = split /,/ , $1;
+        }
+        my $scriptInfo = &readUpgradeDesc($scriptsPath);
+        if($scriptInfo =~ m#addfiles=(.+)#){
+            @addScripts = split /,/ , $1;
+        }
+    }
+    foreach my $addLib(@addLibs){
+        &log("remove added lib $addLib");
+        unlink "$libPath$addLib";
+    }
+    foreach my $addBin(@addBins){
+        &log("remove added bin $addBin");
+        unlink "$binPath$addBin";
+    }
+    foreach my $addScript(@addScripts){
+        &log("remove added scripts $addScript");
+        system "rm -rf $scriptsPath$addScript";
+    }
+
+    unlink "${libPath}cpf_bak/${product}_upgrade_desc";
+    unlink "${binPath}cpf_bak/${product}_upgrade_desc";
+    unlink "${scriptsPath}cpf_bak/${product}_upgrade_desc";
+}
+
+sub clearTrace{
+    if ($workPath ne '' && chdir $workPath){
+        system 'rm -rf *';
+    }
+}
+
+sub checkProc{
+    if (1 != $srmRollback && 1 != $nrmRollback) { return;}
+    sleep 1;
+    if (1 == $srmRollback){
+        my @srmProcs = `$psCmd| grep odframe | grep $grepUsr | grep srm/srm  | grep -v grep`;
+        unless (@srmProcs) {&exit(0, "srm restart failed");}
+        &log("check srm restart ok");
+    }
+    if (1 == $nrmRollback){
+        my @nrmProcs = `$psCmd| grep odframe | grep $grepUsr | grep nrm/nrm  | grep -v grep`;
+        unless (@nrmProcs) {&exit(0, "nrm restart failed");}
+        &log("check nrm restart ok");
+    }
+}
+
+sub readVersion{
+    open VERSION, "<$homePath/ipc/vm_version.cpf" or return '';
+    while(<VERSION>){
+        if(/$product=(\S+)/){
+            close VERSION;
+            return $1;
+        }
+    }
+    close VERSION;
+    return '0.0';
+}
+
+sub writeVersion{
+    open VERSION, ">$homePath/ipc/vm_version.cpf";
+    print VERSION "$product=$_[0]\n";
+    close VERSION;
+	sleep 5;
+}
+
+sub log{
+    my $date = localtime;
+    print "$date $_[0]\n";
+}
+
+sub chmodAuthority{
+    unless (-x $_[0]){
+        chmod 0755, $_[0];
+    }
+}
+
+sub checkPath{
+    mkdir $workPath or system "rm -rf $workPath/*";
+    chdir $workPath or &exit(0, "change work path $workPath failed:$!");
+
+    unless(-e "${libPath}cpf_bak/"){mkdir "${libPath}cpf_bak/"}
+	unless(-e $bakLibPath){mkdir $bakLibPath}
+    &moveDirToDir($bakLibPath, "${libPath}cpf_bak/history/");
+
+    unless(-e "${binPath}cpf_bak/"){mkdir "${binPath}cpf_bak/"}
+	unless(-e $bakBinPath){mkdir $bakBinPath}
+    &moveDirToDir($bakBinPath, "${binPath}cpf_bak/history/");
+
+    unless(-e "${scriptsPath}cpf_bak/"){mkdir "${scriptsPath}cpf_bak/"}
+	unless(-e $bakScriptsPath){mkdir $bakScriptsPath}
+    &moveDirToDir($bakScriptsPath, "${scriptsPath}cpf_bak/history/");
+
+    unless(-e "${cfgPath}cpf_bak/"){mkdir "${cfgPath}cpf_bak/"}
+    unless(-e $bakCfgPath){mkdir $bakCfgPath}
+    &moveDirToDir($bakCfgPath, "${cfgPath}cpf_bak/history/");
+
+    unlink "${libPath}cpf_bak/${product}_upgrade_desc";
+    unlink "${binPath}cpf_bak/${product}_upgrade_desc";
+    unlink "${scriptsPath}cpf_bak/${product}_upgrade_desc";
+}
+
+sub checkFlowEffect{
+    chdir $bakLibPath or {&exit(0, "change dir $bakLibPath failed")};
+    my %upLibs;
+    foreach (glob '*'){
+        if (m#(\S+$suffix)#){
+            $upLibs{$1} = $1;
+        }
+    }
+    my @lib  = keys %upLibs;
+    &log("update lib @lib");
+    unless(keys %upLibs) {return}
+
+    foreach (`$psCmd| grep odframe | grep $grepUsr | grep -v grep | awk '{print \$2, \$10}'`){
+        if(m#^(\d+).*?_(-?\d+)_\d+_\d+.xml#){
+            &log("current pid:$1 flowid: $2");
+            my $pid = $1;
+            my $flowid = $2;
+            foreach my $lsofInfo(`lsof -p $1 | grep REG`){
+                if($lsofInfo =~ m#\/([^/]+$suffix)#){
+                    &log("$1");
+                    if(defined $upLibs{$1}){
+                        $effetFlows .= "$flowid,";
+                    }
+                }
+            }
+        }
+        else{
+            &log("$_ is not available format");
+        }
+    }
+    &log("effect flow :$effetFlows");
+}
+
+

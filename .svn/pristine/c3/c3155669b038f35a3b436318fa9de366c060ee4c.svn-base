@@ -1,0 +1,19 @@
+#include "IWarnClient.h"
+#include "WarnClientFileQueImp.h"
+IWarnClient* IWarnClient::getInstance()
+{
+	//static CWarnClientImp ins;
+	static CWarnClientFileQueImp ins;
+	return &ins;
+}
+
+void IWarnClient::setLittleRecordMode(bool bLittle /*= false*/)
+{
+	m_bLittleMode = bLittle;
+}
+
+IWarnClient::IWarnClient()
+:m_bLittleMode(false)
+{
+
+}

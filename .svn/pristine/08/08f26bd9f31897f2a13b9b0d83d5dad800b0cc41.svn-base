@@ -1,0 +1,183 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_nr_mgr.h）
+/// brief
+///				NR管理器
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-7）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __NRM_NR_MGR_H___
+#define __NRM_NR_MGR_H___
+
+#include "dbe2_base_mgr.h"
+#include "nrm_def_sdl_c.h"
+#include "msg_dispatch_mgr.h"
+#include "../nr/nr_api.h"
+
+#include <list>
+#include <vector>
+#include <map>
+
+// TODO NR管理器中，加入命令行参数的保存等API
+
+namespace MDbe
+{
+
+/*
+//nr进程状态
+enum EmNrProcStatus
+{
+    EM_NR_INIT      =   0x00000000,	    //初始状态
+    EM_NR_INIT_END  =   0x10000000,	    //初始状态成功
+    EM_NR_RUN       =   0x80000000,	    //运行标志位
+
+    EM_NR_STOPPING  =   0x00000001,	    //停止中标志位
+    EM_NR_SEND	    =   0x00000002,	    //迁移消息标志位
+    EM_NR_RESTART   =   0x00000004,	    //重启标志位
+
+    EM_NR_UP_SOFT   =   0x00000008,	    //软件安装
+
+    EM_NR_UPING_SOFT=   0x00000100,	    //软件安装
+    EM_NR_RBING_SOFT=   0x00000200,	    //软件回滚
+
+    EM_NR_END       =  	0xffffffff	    //结束
+};
+*/
+
+class CProcAttr
+{
+public:
+    aistring m_strUniqueKey; //唯一 unique_key
+    aistring m_strFilePrefix;//指定配置文件的存放文件夹的前缀 file_prefix
+    aistring m_strtSpecifyClassPath; //指定配置文件存放地(java进程取配置文件的特殊方式) ts_classpath
+    aistring m_strStartCmd; //启动脚本 start_cmd
+    aistring m_strStopCmd; //停止脚本 stop_cmd
+    aistring m_strForcedStopCmd; //强制停止脚本 forced_stop_cmd
+    aistring m_strCheckCmd; //检测脚本 check_cmd
+    aistring m_strRestartCmd; //重启脚本 restart_cmd
+    aistring m_strCfgName;	//配置文件(全路径)
+    int32 m_iNotRestart;	//是否禁止重启(1:是 非1:否)
+    int32 m_iTimeout;
+
+    CProcAttr() {};
+    ~CProcAttr() {};
+};
+
+/**
+ * NR管理器
+ */
+class INrmNrMgr : public IBaseMgr
+{
+public:
+    /**
+     * 获取管理类的实例
+     * @return 返回实例
+     */
+    static INrmNrMgr & GetInstance();
+
+public:
+    /*
+     * @brief   创建一个进程
+     * @param   rcProc 需要创建的进程Key 
+     * @param   strCmd  创建进程的命令行参数
+     */
+    virtual void CreateProcInfo(SBaseProcKey &rcProcKey, const aistring &strCmd) = 0;
+
+    /*
+     * @brief   删除一个进程
+     * @param   rcProc 需要删除的进程的Key 
+     */
+    virtual void DeleteProcInfo(SBaseProcKey &rcProcKey) = 0;
+
+    /*
+     * @brief   更新一个进程的信息（内存，网络，cpu等信息）
+     * @param   rcProc 需要更改信息的进程的Key 
+     * @param   rcProcUpdateInfo 需要更新的进程信息
+     */
+    virtual void UpdateProcInfo(SBaseProcKey &rcProcKey, SBaseProcUpdStatus &rcProcUpdateInfo) = 0;
+
+    /*
+     * @brief   设置进程的Nr信息
+     * @param   rcXmlCommData 进程配置信息
+     * @param   pProcKey 进程key
+     */
+    virtual void UpdateProcAttr(SBaseProcKey &rcProcKey, CProcAttr &rcProcAttr) = 0;
+
+    /*
+     * @brief   设置进程状态
+     * @param   rcProc 需要设置的进程
+     * @param   iStatus 需要设置的状态
+     */
+    virtual void SetProcStatus(SBaseProcKey &rcProcKey, EmNrProcStatus iStatus) = 0;
+
+    /*
+     * @brief   当前nrmgr是否在NR中存在
+     * @param   指定进程的key
+     * @return  true 有进程，false 无进程
+     */
+    virtual int32 IsProcContain(SBaseProcKey &rcProcKey) = 0;
+
+    /*
+     * @brief   获得进程的pid
+     * @param   指定进程的key
+     * @return  进程的pid
+     */
+    virtual int32 GetProcPid(SBaseProcKey &rcProcKey) = 0;
+
+    virtual void SetProcPid(SBaseProcKey & rcProcKey, int32 iPid) = 0;
+
+    /*
+     * @brief   获得指定进程的停止命令
+     * @param   指定进程的key
+     * @return  进程的停止命令
+     */
+    virtual aistring GetProcStopCmd(SBaseProcKey & rcProcKey) = 0;
+    virtual aistring GetProcRestartCmd(SBaseProcKey & rcProcKey) = 0;
+
+    virtual int32 GetProcRestartCount(SBaseProcKey & rcProcKey) = 0;
+
+    /*
+     * @brief   获得指定进程的强制停止命令
+     * @param   指定进程的key
+     * @return  进程强制的停止命令
+     */
+    virtual aistring GetProcForceStopCmd(SBaseProcKey & rcProcKey) = 0;
+    virtual aistring GetProcCheckCmd(SBaseProcKey & rcProcKey) = 0;
+    virtual aistring GetProcStartCmd(SBaseProcKey & rcProcKey) = 0;
+
+    virtual void SetStopProgress(SBaseProcKey & rcProcKey, int32 iStopProgress) = 0;
+
+    virtual void SetLastOperateTime(SBaseProcKey & rcProcKey, int64 lluLastStartOperateTime) = 0;
+	virtual int64 GetLastOperateTime(SBaseProcKey & rcProcKey) = 0;
+
+    virtual void SetProcStartStatus(SBaseProcKey &) = 0;
+    virtual void SetProcStopStatus(SBaseProcKey &) = 0;
+    virtual int32 GetProcMsgType(SBaseProcKey & rcProcKey) = 0;
+    virtual void  SetProcMsgType(SBaseProcKey & rcProcKey, int32) = 0;
+    virtual void SetProcStopStatus(SBaseProcKey &, bool bFalse) = 0;
+    virtual void SetProcTransportStatus(SBaseProcKey &) = 0;
+    virtual void SetProcRestartStatus(SBaseProcKey &) = 0;
+    virtual int GetProcStopTimeout(SBaseProcKey &rcProcKey) = 0;
+    virtual int GetProcStartTimeout(SBaseProcKey &rcProcKey) = 0;
+	virtual void GetBaseProcKeyListInNr(std::list<SBaseProcKey> &rcProcKeyList) = 0;
+    virtual void GetVmProcListInfo(SBaseProcUpdStatusList &rcVmInfo) = 0;
+
+    virtual int GetProcStatus(SBaseProcKey & rcProcKey) = 0;
+    virtual int64 GetLastUpdateTime(SBaseProcKey & rcProcKey) = 0;
+};
+
+} // namespace MDbe
+
+
+#endif /* __NRM_NR_MGR_H___ */
+

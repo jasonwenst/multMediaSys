@@ -1,0 +1,124 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：test_msg_process.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-16）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "msg_dispatch_mgr.h"
+
+namespace MDbe
+{
+
+class CMsgProcessA : public IMsgProcess
+{
+public:
+	CMsgProcessA(){}
+
+	virtual ~CMsgProcessA(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+	{
+		//printf("process a\n");
+		DBE2_LOG(TRACE_LOGGER, "Process CMsgProcessA msg %d", iMsgType);
+	}
+};
+
+class CMsgProcessB : public IMsgProcess
+{
+public:
+	CMsgProcessB(){}
+
+	virtual ~CMsgProcessB(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+	{
+		//printf("process b\n");
+		DBE2_LOG(TRACE_LOGGER, "Process CMsgProcessB msg %d", iMsgType);
+	}
+};
+
+class CMsgProcessC : public IMsgProcess
+{
+public:
+	CMsgProcessC(){}
+
+	virtual ~CMsgProcessC(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+	{
+		//printf("process b\n");
+		DBE2_LOG(TRACE_LOGGER, "Process CMsgProcessC msg %d", iMsgType);
+	}
+};
+
+class CTestAMgr : public IBaseMgr
+{
+public:
+    virtual void Init(CMgrInitHelper & cMgrInitHelper)
+    {
+    	//printf("CTestAMgr Init\n");
+    	DBE2_LOG(TRACE_LOGGER, "CTestAMgr Init");
+    }
+
+    virtual void Destroy()
+    {
+    	//printf("CTestAMgr Destroy\n");
+    	DBE2_LOG(TRACE_LOGGER, "CTestAMgr Destroy");
+    }
+
+    static CTestAMgr & GetInstance()
+    {
+    	static CTestAMgr cMgr;
+    	return cMgr;
+    }
+};
+
+class CTestBMgr : public IBaseMgr
+{
+public:
+    virtual void Init(CMgrInitHelper & cMgrInitHelper)
+    {
+    	//printf("CTestBMgr Init\n");
+    	DBE2_LOG(TRACE_LOGGER, "CTestBMgr Init");
+    }
+
+    virtual void Destroy()
+    {
+    	//printf("CTestBMgr Destroy\n");
+    	DBE2_LOG(TRACE_LOGGER, "CTestBMgr Destroy");
+    }
+
+    static CTestBMgr & GetInstance()
+    {
+    	static CTestBMgr cMgr;
+    	return cMgr;
+    }
+};
+
+//注册消息
+DBE2_MSG_PROCESS_BEGIN
+DBE2_MSG_PROCESS_REGISGER(3001, CMsgProcessA)
+DBE2_MSG_PROCESS_REGISGER(3002, CMsgProcessB)
+DBE2_MSG_PROCESS_REGISGER(3003, CMsgProcessC)
+DBE2_MSG_PROCESS_END
+
+//注册管理器
+DBE2_ALL_MGR_BEGIN
+DBE2_ALL_MGR_REGISGER(CTestAMgr)
+DBE2_ALL_MGR_REGISGER(CTestBMgr)
+DBE2_ALL_MGR_END
+
+} // namespace MDbe

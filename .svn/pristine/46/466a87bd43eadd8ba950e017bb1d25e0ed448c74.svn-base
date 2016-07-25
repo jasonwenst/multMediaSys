@@ -1,0 +1,115 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_util.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-22）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __NRM_UTIL_H___
+#define __NRM_UTIL_H___
+
+//#include "nrm_config_data.h"
+#include "dbe2_base_mgr.h"
+#include "nrm_def_sdl_c.h"
+#include "dbe_public.h"
+#include "nrm_config_data.h"
+#include "msg_dispatch_mgr.h"
+#include "dbm_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include "nrm_def_sdl_c.h"
+
+namespace MDbe
+{
+
+/*
+ * @brief
+ * @return
+ */
+CNrmConfig & GetNrmConfig();
+
+/*
+ * @brief
+ * @param   rcProcKey1
+ * @param   rcProcKey2
+ * @return  
+ */
+bool compare_procKey(const  od_srm::CProcKey& rcProcKey1,const od_srm::CProcKey& rcProcKey2);
+
+bool compare_procKey(SBaseProcKey &rcProcKey1, const od_srm::CProcKey& rcProcKey2);
+
+bool compare_procKey(const od_srm::CProcKey& rcProcKey1, SBaseProcKey &rcProcKey2);
+
+bool compare_procKey(SBaseProcKey &rcProcKey1, SBaseProcKey &rcProcKey2);
+
+/*
+ * @brief   
+ * @param   rcOutProcKey
+ * @param   rcProcKey
+ * @return
+ */
+SBaseProcKey& ChangeCProcKey2SBaseProcKey(SBaseProcKey &rcOutProcKey, const od_srm::CProcKey &rcProcKey);
+
+/*
+ * @brief   
+ * @param   rcOutProcKey
+ * @param   rcProcKey
+ * @return
+ */
+od_srm::CProcKey& ChangeSBaseProcKey2CProcKey(od_srm::CProcKey &rcOutProcKey, SBaseProcKey &rcProcKey);
+
+#if 0
+/*
+ * @brief
+ * @param rcProcKey
+ * @return
+ */
+od_nr::Nr_ProcInfo* GetProcInNr(od_srm::CProcKey& rcProcKey);
+#endif
+
+/*
+ * @brief   
+ * @param   vecEnvPath
+ * @param   szFile
+ * @return
+ */
+#define CHECK 1
+#define STOP  2
+#define FORCE_STOP 3
+#define RESTART 4
+
+void CheckExecutable(std::vector<aistring> vecEnvPath, const char* szFile, int32 types);
+
+int32 ShellCmdNoReturn(const aistring & rcStrCmd);
+
+int32 ShellCmd(const aistring &rcStrCmd, aistring & rcStrResult);
+
+int32 CheckDir(const char *pszDir);
+
+int32 CheckPath(const char *pszPath);
+
+int32 CreateCurrentPath(const char *pszPath);
+
+CSendTarget GetSrmAddress();
+
+void ReadUpdateProcess(SSrmUpGradeProcess &rcSrmUpGradeProcess);
+
+aistring GetCpfVersion();
+
+aistring GetUserName();
+
+} // namespace MDbe
+
+
+#endif /* __NRM_UTIL_H___ */
+

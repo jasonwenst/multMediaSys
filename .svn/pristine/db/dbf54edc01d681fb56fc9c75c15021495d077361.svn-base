@@ -1,0 +1,32 @@
+#include "IlocalQue.h"
+#include "LocalQueue.h"
+#include <stdlib.h>
+
+IlocalQue::IlocalQue()
+{
+}
+
+
+IlocalQue::~IlocalQue()
+{
+}
+
+IlocalQue* IlocalQue::getInstance()
+{
+	static CLocalQueue ins;
+	return &ins;
+
+}
+
+int IlocalQue::destroy()
+{
+	return 0;
+}
+
+int IlocalQue::get(char* buf, int &len)
+{
+	if (fetch(buf, len) == 0)
+		return commit();
+	return -1;
+}
+

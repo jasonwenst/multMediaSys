@@ -1,0 +1,37 @@
+#include <unittest_cp_dbe2_base_main.h>
+
+SUITE(SUITE_dbe2_base_mgr_cpp)
+{
+	//Fuction: CMsgHelper * IBaseMgr :: GetMsgHelper ( )
+	TEST_FIXTURE(TestFixture,TestIBaseMgr_GetMsgHelper)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CSendSource * IBaseMgr :: GetSendSource ( )
+	TEST_FIXTURE(TestFixture,TestIBaseMgr_GetSendSource)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CSendTarget * IBaseMgr :: GetSendTarget ( )
+	TEST_FIXTURE(TestFixture,TestIBaseMgr_GetSendTarget)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void IBaseMgr :: SetTlsVal ( CMsgHelper * pMsgHelper , CSendSource * pSendSource , CSendTarget * pSendTarget )
+	TEST_FIXTURE(TestFixture,TestIBaseMgr_SetTlsVal)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

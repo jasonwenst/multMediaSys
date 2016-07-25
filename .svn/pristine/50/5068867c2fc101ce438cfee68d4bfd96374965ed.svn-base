@@ -1,0 +1,1329 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_vm_mgr_impl.cpp）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+#include "srm_vm_mgr_impl.h"
+#include "srm_rdc_mgr.h"
+
+#include "dbe2_log.h"
+#include "dbe2_util.h"
+
+#include "srm_app_mgr.h"
+#include "srm_proc_mgr.h"
+#include "srm_proc_trans_mgr.h"
+#include "srm_deploy_mgr.h"
+
+
+namespace MDbe
+{
+
+CSrmVmMgrImpl::CSrmVmMgrImpl()
+{
+
+}
+
+void CSrmVmMgrImpl::Init(CMgrInitHelper & cMgrInitHelper)
+{
+	cMgrInitHelper.ReadConfig(m_cConfig);
+}
+
+bool CSrmVmMgrImpl::CheckVmAvailable(int32 iVmId)
+{
+	if (iVmId==0) return false;
+
+	CPdcVm objPdcVm;
+	if(!ISrmRdcMgr::GetInstance().GetPdcVm(iVmId,objPdcVm)) return false;
+	//连接有效与可用
+	if (objPdcVm.get_vmConnectState()==NRM_CONNECTED && objPdcVm.get_vmState()==VM_USABLE)  return true;
+
+	DBE2_LOG(WARN_LOGGER,"vmid:[%d],vmname:[%s],vmip:[%s] unavailable, nrm connet state:[%d],vm usable state:[%d].",
+		iVmId,
+		objPdcVm.get_vmName().c_str(),
+		objPdcVm.get_vmIp().c_str(),
+		objPdcVm.get_vmConnectState(),
+		objPdcVm.get_vmState());
+	return false;
+}
+
+bool CSrmVmMgrImpl::CheckDomainAvailable(int32 iDomainId)
+{
+	return true;
+}
+
+bool CSrmVmMgrImpl::CheckClusterAvailable(int32 iClusterId)
+{
+	CPdcClusterVmRelationList lstClusterVmRelation;
+	if(!ISrmRdcMgr::GetInstance().GetClusterVmRelation(iClusterId,lstClusterVmRelation)) return false;
+
+	CPdcClusterVmRelationList::iterator it=lstClusterVmRelation.begin();
+	for(;it!=lstClusterVmRelation.end();++it)
+	{
+		//只要有一个可用的虚拟机 就会返回true
+		if(CheckVmAvailable(it->get_vmId())) return true;
+	}
+	return false;
+}
+
+void CSrmVmMgrImpl::RequestAvailableVm(CPdcVmList& rlstVmList)
+{
+	if(!ISrmRdcMgr::GetInstance().GetVmList(NRM_CONNECTED,VM_USABLE,rlstVmList))
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_REQ_FAILED,"can not get connected and usable vm.");
+	}
+}
+
+void CSrmVmMgrImpl::UpdateVmstate(int32 iVmId,int32 iNrmConnectState,int32 iVmRelyAppState)
+{
+
+}
+
+void CSrmVmMgrImpl::SetNrmNoConnect(int32 iVmId)
+{
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	CPdcVm cUpdateInfo;
+	if (rcRdcMgr.GetPdcVm(iVmId,cUpdateInfo))
+	{
+		cUpdateInfo.set_vmDisconnectTime(GetCurrentTime());
+		cUpdateInfo.set_vmConnectState(NRM_NO_CONNET);
+		cUpdateInfo.set_vmStateDes("received message -11,connection broken.");
+		UpdateVmInfoAndLog(cUpdateInfo);
+	}
+}
+
+bool CSrmVmMgrImpl::HandleNrmRegister(SSrmNrmRegister& rNrmRegister)
+{
+	int32 iVmId = rNrmRegister.get_vmStaticInfo().get_vmId();
+	UpdateVmStaticInfo(rNrmRegister.vmStaticInfo());
+	UpdateVmProcInfo(iVmId,rNrmRegister.procStatusList());
+
+	ISrmRdcMgr& rRdcMgr =  ISrmRdcMgr::GetInstance();
+	//同一主机加锁处理
+	CAutoLock cAutoLock(m_vmIdLock[iVmId%SRM_VM_ID_LOCK_SIZE]);
+	//获取集群信息
+	CPdcClusterVmRelationList cClusterVmRelationList;
+	rRdcMgr.GetClusterVmRelationByVm(iVmId,cClusterVmRelationList);
+
+	if (cClusterVmRelationList.size()!=0)
+	{
+		//带起主机依赖进程
+		BringUpVmRelyApp(iVmId,cClusterVmRelationList);
+	}
+	else
+	{
+		CPdcVm cPdcVm;
+		rRdcMgr.GetPdcVm(iVmId,cPdcVm);
+		cPdcVm.set_vmState(VM_USABLE);
+		cPdcVm.set_vmStateDes("vm has no cluster info,usabled.");
+		UpdateVmInfoAndLog(cPdcVm);
+		SyncVmProc(iVmId);
+	}
+	CBSDateTime cTime = GetCurrentTime();
+	rRdcMgr.SetVmUpdateTime(iVmId, cTime);
+
+	return true;
+}
+void CSrmVmMgrImpl::UpdateVmStaticInfo(SBaseVmStaticInfo& rVmStaticInfo)
+{
+	ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+	//更新vm信息
+	CPdcVm cVmInfo;
+	cVmInfo.set_vmId(rVmStaticInfo.get_vmId());
+	cVmInfo.set_vmIp(rVmStaticInfo.get_vmIp());
+	cVmInfo.set_vmName(rVmStaticInfo.get_vmName());
+	cVmInfo.set_vmMac(rVmStaticInfo.get_vmMac());
+	cVmInfo.set_vmMemTotal(rVmStaticInfo.get_memTotal());
+	cVmInfo.set_vmNetTotal(rVmStaticInfo.get_netBandwidth());
+	cVmInfo.set_vmCpuFreqeunce(rVmStaticInfo.get_cpuFrequency());
+	cVmInfo.set_vmCpuNumber(rVmStaticInfo.get_cpuNumber());
+	cVmInfo.set_vmCpuCoreNumber(rVmStaticInfo.get_cpuCoreNumber());
+	cVmInfo.set_vmOperateSystem(rVmStaticInfo.get_operateSystem());
+	cVmInfo.set_vmOsVersion(rVmStaticInfo.get_osVesion());
+	cVmInfo.set_vmPlatformVersion(rVmStaticInfo.get_cpfVersion());
+	cVmInfo.set_sshuser(rVmStaticInfo.get_sshuserName());
+
+	cVmInfo.set_vmConnectState(NRM_CONNECTED);
+	cVmInfo.set_vmConnectTime(GetCurrentTime());
+	cVmInfo.set_vmUpdateTime(GetCurrentTime());
+	cVmInfo.set_vmStateDes("nrm connected srm successful,to bring up vm rely app.");
+	cVmInfo.set_vmState(VM_RELY_APP_LOADDING);
+
+	UpdateVmInfoAndLog(cVmInfo);
+}
+void CSrmVmMgrImpl::UpdateVmProcInfo(int32 iVmId,SBaseProcUpdStatusList& rlstProcUpStatus)
+{
+	// 更新虚拟上运行的进程信息
+	SBaseProcUpdStatusList::iterator itProcUpdInfo;
+	CRdcProcStateRecordList cProcStateList;
+	for (itProcUpdInfo = rlstProcUpStatus.begin();
+		itProcUpdInfo != rlstProcUpStatus.end(); ++itProcUpdInfo)
+	{
+		CRdcProcStateRecord cProcRecord;
+		cProcRecord.set_appId(itProcUpdInfo->baseProcKey().get_appId());
+		cProcRecord.set_procId(itProcUpdInfo->baseProcKey().get_procId());
+		cProcRecord.set_vmId(iVmId);
+		cProcRecord.set_cpuUse(itProcUpdInfo->get_cpuUse());
+		cProcRecord.set_memUse(itProcUpdInfo->get_memUse());
+		cProcRecord.set_netUse(itProcUpdInfo->get_netUse());
+		cProcRecord.set_modifySec(itProcUpdInfo->get_secModify());
+		cProcRecord.set_updateTime(itProcUpdInfo->get_updateTime());
+		cProcStateList.push_back(cProcRecord);
+	}
+	ISrmRdcMgr::GetInstance().InsertVmProcInfo(iVmId, cProcStateList);
+}
+
+void CSrmVmMgrImpl::CheckNrmHeart()
+{
+	CPdcVmList cVmList;
+	ISrmRdcMgr& rRdcMgr =  ISrmRdcMgr::GetInstance();
+
+	bool bUsable  = rRdcMgr.GetVmList(NRM_NO_CONNET,VM_USABLE,cVmList);
+	if (!bUsable)
+	{
+		DBE2_LOG(DEBUG_LOGGER,"no unconnection ,usable vm.");
+		return;
+	}
+
+	CBSDateTime cCurTime,cUpdateTime;
+	GetCurrentTime(cCurTime);
+
+	//储存要迁移的vm
+	CPdcVmList lstMigrateVm;
+	//遍历虚拟机列表 检测心跳 并处理无心跳虚拟机
+	CPdcVmList::iterator itPV=cVmList.begin();
+	for (;itPV!=cVmList.end();++itPV)
+	{
+		//取缓存时间
+		bool  bGet= rRdcMgr.QueryUpdateTime(itPV->get_vmId(), cUpdateTime);
+		if (!bGet)
+		{
+			cUpdateTime = itPV->get_vmUpdateTime();
+		}
+
+		//获得最后一次更新时间到当前的时间间隔
+		int64 d_value  =cCurTime.toTimet() - cUpdateTime.toTimet();
+
+		DBE2_LOG(DEBUG_LOGGER,"vmid:[%d] check heart:[current time:%lld,vm last update time:%lld,heart time range:%d]",
+			itPV->get_vmId(),
+			cCurTime.toTimet(),
+			cUpdateTime.toTimet(),
+			m_cConfig.m_iVmheart);
+
+		if (d_value > m_cConfig.m_iVmheart)
+		{
+			DBE2_LOG(WARN_LOGGER,"vm(id:[%d],name:[%s],ip:[%s]),had no heart:[current time:%lld,vm last update time:%lld,heart time range:%d].",
+				itPV->get_vmId(),
+				itPV->get_vmName().c_str(),
+				itPV->get_vmIp().c_str(),
+				cCurTime.toTimet(),
+				cUpdateTime.toTimet(),
+				m_cConfig.m_iVmheart);
+
+			//虚拟机断开告警
+			aistring strMessage = FormatString("(vmid:[%d],name:[%s],ip:[%s])",itPV->get_vmId(),itPV->get_vmName().c_str(),itPV->get_vmIp().c_str());
+			aistring strDescription = FormatString("vm had no heart:[current time:%lld,vm last update time:%lld,heart time range:%d].",
+				cCurTime.toTimet(),
+				cUpdateTime.toTimet(),
+				m_cConfig.m_iVmheart);
+			//SendWarnInfo(VM_STATE_DISABLED,SRM_DEFAULT_SCORE,strMessage,strDescription);
+			lstMigrateVm.push_back(*itPV);
+		}		
+	}
+
+	//detect 主机 参数控制
+	aistring rSysParamName("dbe.nrmhostdetect");
+	bool bDetect =ISrmRdcMgr::GetInstance().GetSysParam(rSysParamName,false);
+	//detect 端口 参数
+	aistring rSysParamport("dbe.nrmhostdetectport");
+	int32 iDetectPort =ISrmRdcMgr::GetInstance().GetSysParam(rSysParamport,22);
+
+	CPdcVmList::iterator itMigrateVm=lstMigrateVm.begin();
+	for (;itMigrateVm!= lstMigrateVm.end();++itMigrateVm)
+	{
+		CHost cHost(itMigrateVm->get_vmIp().c_str(),(uint16)iDetectPort);
+
+		DBE2_LOG(DEBUG_LOGGER,"vmid:[%d] who ip:[%s] ,port:[%d], detect:[%d]",itMigrateVm->get_vmId(),itMigrateVm->get_vmIp().c_str(),iDetectPort,bDetect);
+		//当探测到主机还活着就不迁移否则 迁移
+		//是否探测  读系统参数表 默认是false
+		bool bHandle =bDetect? !DetectHost(cHost):true;
+		if (bHandle) HandleNoHeartVm(itMigrateVm->get_vmId());
+	}
+}
+
+void CSrmVmMgrImpl::VmRelyCallBack(int32 iVmId,int32 bRelySrvState,int32 iTransId,aistring rstrErrorInfo)
+{
+	CPdcVm cPdcVm;
+	ISrmRdcMgr::GetInstance().GetPdcVm(iVmId,cPdcVm);
+	if (bRelySrvState)
+	{
+		cPdcVm.set_vmState(VM_USABLE);
+		cPdcVm.set_vmStateDes("vm usable,rely app all started sucess.Detailed information see process table");
+		UpdateVmInfoAndLog(cPdcVm);
+		//同步主机进程
+		SyncVmProc(iVmId);
+	}
+	else
+	{
+		aistring strDesVm ="vm rely app start failed";
+
+		if (rstrErrorInfo.size()>=1000)
+		{
+			strDesVm += rstrErrorInfo.substr(0,1000);	
+		}
+		else
+		{
+			strDesVm +=rstrErrorInfo;
+		}
+
+		cPdcVm.set_vmState(VM_DISABLED);
+		cPdcVm.set_vmStateDes(strDesVm);
+		//不可用删除缓存
+		ISrmRdcMgr::GetInstance().ClearVmUpdateTime(iVmId);
+		UpdateVmInfoAndLog(cPdcVm);
+
+		//回调 xc 启动失败 虚拟机不可用报警
+		aistring strMessage = FormatString("(vmid:[%d],vmname:[%s],vmip:[%s].)",iVmId,cPdcVm.get_vmName().c_str(),cPdcVm.get_vmIp().c_str());
+		aistring strDescription = FormatString("rely app started failed! vm disabled,desc:[%s].",rstrErrorInfo.c_str());
+		DBE2_LOG(WARN_LOGGER, "%s,%s",strMessage.c_str(),strDescription.c_str());
+		//xc服务启动失败告警
+		//SendWarnInfo(VM_RELY_SRV_START_FAIL,SRM_DEFAULT_SCORE,strMessage,strDescription);
+}
+}
+
+void CSrmVmMgrImpl::UpdateVmInfoAndLog(CPdcVm& rcPdcVm)
+{
+	ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+
+	rRdcMgr.UpdateVmStaticInfo(rcPdcVm);
+
+	CRdcVmStateModifyLog cVmModifyLog;
+	cVmModifyLog.set_vmId(rcPdcVm.get_vmId());
+	cVmModifyLog.set_vmIp(rcPdcVm.get_vmIp());
+	cVmModifyLog.set_vmName(rcPdcVm.get_vmName());
+	cVmModifyLog.set_vmState(rcPdcVm.get_vmState());
+	cVmModifyLog.set_vmConnectState(rcPdcVm.get_vmConnectState());
+	cVmModifyLog.set_vmModifyTime(GetCurrentTime());
+	cVmModifyLog.set_vmModifyDesc(rcPdcVm.get_vmStateDes());
+	rRdcMgr.InsertVmStateModifyLog(cVmModifyLog);
+	LogSdl(cVmModifyLog);
+}
+
+void CSrmVmMgrImpl::HandleNoHeartVm(int32 iVmId)
+{	
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	//再判断一下连接状态
+	CPdcVm cLastCheckVm;
+	rcRdcMgr.GetPdcVm(iVmId,cLastCheckVm);
+	if (cLastCheckVm.get_vmConnectState()==NRM_CONNECTED)
+	{
+		DBE2_LOG(INFO_LOGGER, "vmid:[%d] no heartbeat ,but connect state is ok again,do not migrate.",iVmId);
+		return;
+	}
+
+	//删除vm 对应的进程信息 缓存map
+	//此处的vm连接已经断开缓存没有用了
+	rcRdcMgr.ClearVmUpdateTime(iVmId);
+	rcRdcMgr.DeleteVmProcCache(iVmId);
+
+	//迁移VM上的进程 如果失败下次再迁移
+	if (!MigrateVmProc(iVmId))
+	{
+		aistring strDescription = FormatString("virtual machine have some trans didn't finish,do migration later.");
+		//更新虚拟机静态信息 并更新断开时间		
+		cLastCheckVm.set_vmState(VM_USABLE);
+		cLastCheckVm.set_vmDisconnectTime(GetCurrentTime());
+		cLastCheckVm.set_vmStateDes(strDescription);
+		UpdateVmInfoAndLog(cLastCheckVm);
+
+		//迁移失败告警 
+		aistring strMessage = FormatString("(vmid:[%d],vmname:[%s],vmip:[%s])",iVmId,cLastCheckVm.get_vmName().c_str(),cLastCheckVm.get_vmIp().c_str());
+		DBE2_LOG(WARN_LOGGER, "%s,%s",strMessage.c_str(),strDescription.c_str());
+		//SendWarnInfo(VM_CRASH_MIGRATE,SRM_DEFAULT_SCORE,strMessage,strDescription);
+	}
+	else
+	{
+		cLastCheckVm.set_vmState(VM_DISABLED);
+		cLastCheckVm.set_vmDisconnectTime(GetCurrentTime());
+		cLastCheckVm.set_vmStateDes("virtual machine migration complete.");
+		UpdateVmInfoAndLog(cLastCheckVm);
+	}
+}
+
+//返回
+//true 系统内无可用vm 则不迁移  虚拟机上没进程 没有启动成功状态的进程 进程迁移完成
+//false 有事务
+bool CSrmVmMgrImpl::MigrateVmProc(int32 iVmId)
+{
+	ISrmRdcMgr& rRdcMgr =  ISrmRdcMgr::GetInstance();
+	CPdcVm rPdcVm;
+	rRdcMgr.GetPdcVm(iVmId,rPdcVm);
+	rPdcVm.set_vmState(VM_DISABLED);
+	rPdcVm.set_vmDisconnectTime(GetCurrentTime());
+
+	//trans_id
+	CInt32Set trans_set;
+	//vm_id + vm_ip + time
+	CBSDateTime cCurTime;
+	GetCurrentTime(cCurTime);
+	aistring strFlag = FormatString("%d_%s_%lld",iVmId,rPdcVm.get_vmIp().c_str(),cCurTime.toTimet()); 
+
+	aistring strMessage = FormatString("(vmid:[%d],vmname:[%s],vmip:[%s].)",iVmId,rPdcVm.get_vmName().c_str(),rPdcVm.get_vmIp().c_str());
+	aistring strDescription = FormatString("virtual machine downtime,migration began: query flags:[%s].",strFlag.c_str());
+	//SendWarnInfo(VM_CRASH_MIGRATE,SRM_DEFAULT_SCORE,strMessage,strDescription);
+
+	//查看系统内有无可用VM 无可用vm 则不迁移
+	try
+	{
+		CPdcVmList cPdcVmList;
+		RequestAvailableVm(cPdcVmList);
+	}
+	catch(CAIException & e)
+	{
+		DBE2_LOG_EXCEPTION(e);
+		aistring strDescription = FormatString("virtual machine downtime,migration end: no available virtual machine for migrate,flag:[%s].",strFlag.c_str());
+
+		rPdcVm.set_vmStateDes(strDescription);
+		UpdateVmInfoAndLog(rPdcVm);
+
+		//SendWarnInfo(VM_CRASH_MIGRATE,SRM_DEFAULT_SCORE,strMessage,strDescription);
+		return true;
+	}
+
+	//本Vm上不能有事务 RDC_PROC_TRANS_OPERATE 
+	//防止事务做不完 或者事务冲突 尽管事务结果一定超时或者失败
+	//这个地方有问题，事物超时时间过长情况。。。
+	bool bNoTrans=  rRdcMgr.CheckVmTransExistence(iVmId);
+	if (bNoTrans)
+	{
+		DBE2_LOG(DEBUG_LOGGER,"vmid:[%d] who no heartbeat,have some trans,migrate later.",iVmId);
+		return false;
+	}
+
+	//保存最终要迁移的无主备的进程  PROC_STOP_FAIL 进程
+	CRdcProcList cAllProcList,cMigrateProcList,cFailProcList;
+	//取本虚拟机上所有进程
+	if (!rRdcMgr.GetProcByVm(iVmId,cAllProcList))
+	{
+		DBE2_LOG(INFO_LOGGER,"vmid:[%d] who no heartbeat,without any process, do not need to migrate",iVmId);
+		aistring strDescription = FormatString("virtual machine downtime,migration end :without any process, do not need to migrate,flag:[%s].",strFlag.c_str());
+
+		rPdcVm.set_vmStateDes(strDescription);
+		UpdateVmInfoAndLog(rPdcVm);
+
+		//SendWarnInfo(VM_CRASH_MIGRATE,SRM_DEFAULT_SCORE,strMessage,strDescription);
+		return true;
+	}
+
+	//迁移的目标进程是启动成功的
+	FilterMigAndDelProc(cAllProcList,cMigrateProcList,cFailProcList);
+
+	if (cMigrateProcList.size()==0)
+	{
+		DBE2_LOG(INFO_LOGGER,"vmid:[%d] who no heartbeat,no proc start sucess,not need to migrate",iVmId);
+		aistring strDescription = FormatString("virtual machine downtime,migration end :no started the process of success ,not need to migrate,flag:[%s].",strFlag.c_str());
+		rPdcVm.set_vmStateDes(strDescription);
+		UpdateVmInfoAndLog(rPdcVm);
+		//SendWarnInfo(VM_CRASH_MIGRATE,SRM_DEFAULT_SCORE,strMessage,strDescription);
+		return true;
+	}
+
+	//指定主机,域无效,xc服务不用迁移
+	CRdcProcList cWaitVmProclist;	
+	//存放主备机有一个可部署的进程列表
+	CRdcProcList cStandbyProclist;
+
+	//再做一次筛选
+	ScreeningMigrateProc(cMigrateProcList,cWaitVmProclist,cStandbyProclist);
+
+	if (cStandbyProclist.size()==0&&cMigrateProcList.size()==0)
+	{
+		aistring strDescription = FormatString("virtual machine downtime,migration end: proc on vm all designated host,can not migrate,flag:[%s].",strFlag.c_str());
+		rPdcVm.set_vmStateDes(strDescription);
+		UpdateVmInfoAndLog(rPdcVm);
+		//SendWarnInfo(VM_CRASH_MIGRATE,SRM_DEFAULT_SCORE,strMessage,strDescription);
+		return true;
+	}
+
+
+	//处理不可迁移进程
+	if (cWaitVmProclist.size()!=0)
+	{
+		DealWaitVmProc(cWaitVmProclist);
+	}
+	//处理主备机器
+	if (cStandbyProclist.size() !=0 )
+	{
+		DealMigrateProc(1,strFlag,trans_set,cStandbyProclist);
+	}
+	//处理可迁移进程
+	if (cMigrateProcList.size() !=0)
+	{
+		DealMigrateProc(0,strFlag,trans_set,cMigrateProcList);
+	}
+	//处理原vm 上启动失败的进程
+	DelFailProc(cFailProcList);
+
+	//将trans_id 格式化
+	aistring strTransId;
+	CInt32Set::iterator itTransId = trans_set.begin();
+	for (;itTransId!= trans_set.end();++itTransId)
+	{
+		strTransId += FormatString("[%d]",*itTransId);
+	}
+
+	//将trans id 发送告警消息
+	//if (trans_set.size()>0)
+	//{
+	//	aistring strDesc = FormatString("virtual machine downtime,migration end:detailed information: query flag:[%s],trans set:%s",strFlag.c_str(),strTransId.c_str());
+		//SendWarnInfo(VM_CRASH_MIGRATE,SRM_DEFAULT_SCORE,strMessage,strDesc);
+	//}
+	return true;
+}
+
+void CSrmVmMgrImpl::FilterMigAndDelProc(CRdcProcList& rAllProcList,CRdcProcList& rMigrateProcList,CRdcProcList& rFailProcList)
+{
+	ISrmRdcMgr& rRdcMgr = ISrmRdcMgr::GetInstance();
+	CRdcProcList::iterator itPL = rAllProcList.begin();	
+	//PROC_RUN_EXCETION  PROC_START_FAIL PROC_START_SUCCESS
+	for (;itPL!=rAllProcList.end();++itPL)
+	{
+		if (itPL->get_procState()==PROC_START_SUCCESS)
+		{		
+			rMigrateProcList.push_back(*itPL);
+			continue;
+		}
+
+		if (itPL->get_procState() ==PROC_RUN_EXCETION||itPL->get_procState()==PROC_START_FAIL)
+		{
+			CRdcApp cApp;
+			//判app状态
+			if (!(rRdcMgr.QueryApp(itPL->get_appId(),cApp)))
+			{
+				DBE2_LOG(WARN_LOGGER,"the proc need migrate, can not get record app id(%d) info in rdc_app",itPL->get_appId());
+				continue;
+			}
+
+			if (cApp.get_appState()==APP_START_SUCCESS)
+			{
+				//浙江移动要求不做重启迁移
+				//rMigrateProcList.push_back(*itPL);
+				DBE2_LOG(WARN_LOGGER,"the proc(app_id:%d,proc_id:%id) proc state:%d,cannot migrate",
+					itPL->get_appId(),
+					itPL->get_procId(),
+					itPL->get_procState());
+			}
+			else
+			{
+				rFailProcList.push_back(*itPL);
+			}
+		}
+
+	}
+}
+
+void CSrmVmMgrImpl::ScreeningMigrateProc(CRdcProcList&rMigrateProcList,CRdcProcList& rWaitVmProclist,CRdcProcList& rStandbyProclist)
+{
+	CRdcProcList tmpProcList;
+	CRdcProcList::iterator itPL = rMigrateProcList.begin();
+	for (;itPL!=rMigrateProcList.end();++itPL)
+	{
+		CRdcApp cApp;
+		if (!(ISrmRdcMgr::GetInstance().QueryApp(itPL->get_appId(),cApp)))
+		{
+			DBE2_LOG(WARN_LOGGER,"the proc need migrate, can not get record app id(%d) info in rdc_app",itPL->get_appId());
+			continue;
+		}
+
+		//有选择的处理主备的情况
+		int32 HostVmId = cApp.get_vmId();
+		int32 StandbyVmId = cApp.get_bakVmId();
+		if(CheckVmAvailable(HostVmId)||CheckVmAvailable(StandbyVmId))
+		{
+			DBE2_LOG(INFO_LOGGER, "app %d has available standby vm id %d",itPL->get_appId(),HostVmId);
+			//判断主机依赖
+			if (cApp.isRely()!= 1&&cApp.isRely()!=2)
+			{
+				rStandbyProclist.push_back(*itPL);
+				continue;
+			}
+		}
+		//指定主机||域无效||xc服务不用迁移
+		if (HostVmId!=0||!CheckClusterAvailable(cApp.get_clusterId())||cApp.isRely()==1||cApp.isRely()==2)
+		{
+			rWaitVmProclist.push_back(*itPL);
+			continue;
+		}
+		tmpProcList.push_back(*itPL);
+	}
+
+	rMigrateProcList.Clear();
+	rMigrateProcList=tmpProcList;
+}
+
+void CSrmVmMgrImpl::DealWaitVmProc(CRdcProcList& rProclist)
+{
+	//进程等待启动状态 
+	ISrmRdcMgr::GetInstance().UpdateProcListState(rProclist,WAIT_VM_USEABLE);
+}
+
+//iMigType 1 主备机 0 无主备机
+void CSrmVmMgrImpl::DealMigrateProc(int32 iMigType,aistring& strFlag,CInt32Set& rTransSet,CRdcProcList& rProcList)
+{
+	//设置进程为迁移状态
+	ISrmRdcMgr::GetInstance().UpdateProcListState(rProcList,PROC_MIGRATING);
+
+	//按APP为键值 构建一台虚拟机上进程迁移表
+	AISTD map<int32,CRdcProcList> cAppProcMap;
+	CRdcProcList::iterator itPL = rProcList.begin();
+
+	for(;itPL != rProcList.end();++itPL)
+	{
+		cAppProcMap[itPL->get_appId()].push_back(*itPL);
+	}
+
+	//按APP为单位去迁移
+	AISTD map<int32,CRdcProcList>::iterator itAPM = cAppProcMap.begin();
+	for (;itAPM!=cAppProcMap.end();++itAPM)
+	{
+		try
+		{
+			if (1==iMigType)
+			{
+				StartStandbyProc(itAPM->first,itAPM->second,strFlag,rTransSet);
+				continue;
+			}
+
+			StartMigrateProc(itAPM->first,itAPM->second,strFlag,rTransSet);
+		}
+		catch(CAIException & e)
+		{
+			//异常都是APP级别的 如查找不到信息 不允许迁移
+			DBE2_LOG_EXCEPTION(e);
+
+			DBE2_LOG(WARN_LOGGER, "app id:%d,migrate failed! as:%s",itAPM->first,e.get_message().c_str());
+
+			aistring strMessage = FormatString("(app id:%d)",itAPM->first);
+			aistring strDescription ;
+
+			if (iMigType)
+			{
+				strDescription = FormatString("app id:%d,migrate StartStandby failed! as %s",itAPM->first,e.get_message().c_str());
+			}
+			else
+			{
+				strDescription = FormatString("app id:%d,migrate  failed! as %s",itAPM->first,e.get_message().c_str());
+			}
+
+			//迁移失败告警		
+			//SendWarnInfo(VM_FLOW_MIGRATE_FAIL,SRM_DEFAULT_SCORE,strMessage,strDescription);
+			//设置进程的状态为异常状态 可用用恢复流程的方法
+			ISrmRdcMgr::GetInstance().UpdateProcListState(itAPM->second,PROC_RUN_EXCETION);
+		}
+	}
+}
+
+void CSrmVmMgrImpl::StartStandbyProc(int32 iAppId,CRdcProcList& rProcList,aistring& strFlag,CInt32Set& rTransSet)
+{
+	CRdcApp cApp;
+	SRdcCreateTrans cCreateTrans;
+
+	if (!ISrmRdcMgr::GetInstance().QueryApp(iAppId,cApp))
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MIGRATE_ILLEGAL," StartStandbyProc  failed! can not get app info app id(?) ")
+			<< iAppId;
+	}
+
+	int32 iAppState = cApp.get_appState();
+
+	if(APP_STATING == iAppState ||APP_STOPPING == iAppState || APP_FORCE_STOPPING == iAppState)
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MIGRATE_FAILED,"StartStandbyProc failed! app(?) state(?) is not allow start")
+			<< iAppId << iAppState;
+	}
+
+	CRdcProcTransOperateList cTransOperateList;
+	CRdcProcList::iterator itPL = rProcList.begin();
+
+	for (;itPL != rProcList.end();++itPL )
+	{
+		CRdcProcTransOperate cProcTransOperate;
+		int32 iProcId = itPL->get_procId();
+
+		int32 iRelVmId = cApp.get_bakVmId();
+		if (!CheckVmAvailable(iRelVmId))
+		{
+			iRelVmId = cApp.get_vmId();
+		}
+
+		cProcTransOperate.set_appId(iAppId);
+		cProcTransOperate.set_procId(iProcId);
+		cProcTransOperate.set_vmId(iRelVmId);
+		cProcTransOperate.set_operateType(PROC_START);
+		cProcTransOperate.set_operateSecLimit(cApp.get_timeOutSecond());
+		cProcTransOperate.set_operateLevel(1);
+		cProcTransOperate.set_needRollback(NO_ROLLBACK);
+		cProcTransOperate.set_operateRetryCount(NO_RETRY);
+		cTransOperateList.push_back(cProcTransOperate);
+	}
+
+	cCreateTrans.set_procOperateList(cTransOperateList);
+
+	if (0 == cCreateTrans.procOperateList().size())
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MODIFY_ILLEGAL,"start standby process  failed!  empty procOperateList");
+	}
+
+	aistring param = "Switch between master and slave,query flag:";
+	param += FormatString("[%s]",strFlag.c_str());
+	// 配置事务信息
+	CRdcProcTrans &rProcTrans = cCreateTrans.procTrans();
+	rProcTrans.set_appId(iAppId);
+	rProcTrans.set_callbackMsgType(MSG_REP_TRANS_WARING);
+	rProcTrans.set_callbackParam(param);
+	rProcTrans.set_foceExeFlag(COMMON_YES);
+	//主备兼容模式 可能本流程下的其他服务没有主备 也需要迁移
+	rProcTrans.set_transType(TRANS_VM_DISABLED);
+
+	LogSdl(cCreateTrans);
+	try
+	{
+		DBE2_LOG(TRACE_LOGGER, 
+			"StartStandby  Migrate app id(%d), create transaction", iAppId);
+
+		int32 iTransId = ISrmProcTransMgr::GetInstance().Create(cCreateTrans,TRANS_EXE_COEXIST);
+		rTransSet.insert(iTransId);
+	}
+	catch(CAIException & e)
+	{
+		DBE2_LOG_EXCEPTION(e);
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MIGRATE_FAILED,"start migrate standby procsess failed! proc transaction execute failed. as: ?")
+			<< e.get_message().c_str();
+	}
+}
+
+void CSrmVmMgrImpl::StartMigrateProc(int32 iAppId,CRdcProcList& rProcList,aistring& strFlag,CInt32Set& rTransSet)
+{
+	CRdcApp cApp;
+	SRdcCreateTrans cCreateTrans;
+
+	if (!ISrmRdcMgr::GetInstance().QueryApp(iAppId, cApp))
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MIGRATE_ILLEGAL," start migrate procsess  failed! can not get app info app id(?) ")
+			<< iAppId;
+	}
+
+	int32 iAppState = cApp.get_appState();
+
+	if(APP_START_SUCCESS != iAppState)
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MIGRATE_FAILED,"start migrate procsess failed! app(?) state(?) is not allow migrate")
+			<< iAppId << iAppState;
+	}
+
+	// 部署迁移进程
+	try
+	{
+		ISrmDeployMgr::GetInstance().DeployMigrateProc(iAppId,rProcList,cCreateTrans.procOperateList());
+		LogSdl(cCreateTrans);
+	}
+	catch(CAIException & e)
+	{
+		DBE2_LOG_EXCEPTION(e);
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MIGRATE_FAILED,"start migrate procsess failed! Deploy failed. as :?")
+			<< e.get_message();
+	}
+
+	if (0 == cCreateTrans.procOperateList().size())
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MIGRATE_FAILED,"start migrate procsess failed! DeployMigrateProc retun empty procOperateList");
+	}
+
+	aistring param = "migrate proc when vm has no heartbeat,query flag:";
+	param += FormatString("[%s]",strFlag.c_str());
+
+	// 配置事务信息
+	CRdcProcTrans &rProcTrans = cCreateTrans.procTrans();
+	rProcTrans.set_appId(iAppId);
+	rProcTrans.set_callbackMsgType(MSG_REP_TRANS_WARING);
+	rProcTrans.set_callbackParam(param);
+	rProcTrans.set_foceExeFlag(COMMON_YES);
+	//可能本流程下的其他服务 也需要迁移 主备迁移
+	rProcTrans.set_transType(TRANS_VM_DISABLED);
+
+	try
+	{
+		DBE2_LOG(TRACE_LOGGER, 
+			"start migrate procsess  app id(%d), create transaction", iAppId);
+		int32 iTransId = ISrmProcTransMgr::GetInstance().Create(cCreateTrans);
+		rTransSet.insert(iTransId);
+	}
+	catch(CAIException & e)
+	{
+		DBE2_LOG_EXCEPTION(e);
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MIGRATE_FAILED,"start migrate procsess failed! proc transaction execute failed. as: ?")
+			<< e.get_message().c_str();
+	}
+}
+
+void CSrmVmMgrImpl::DelFailProc(CRdcProcList& rProcList)
+{
+	ISrmRdcMgr& rRdcMgr =  ISrmRdcMgr::GetInstance();
+
+	CRdcProcList::iterator itPL = rProcList.begin();
+	for (;itPL!= rProcList.end();++itPL)
+	{
+		rRdcMgr.DeleteProcInfo(itPL->get_appId(),itPL->get_procId(),itPL->get_vmId());
+	}
+}
+
+void CSrmVmMgrImpl::BringUpVmRelyApp(int32 iVmId,CPdcClusterVmRelationList& rClusterVmRelationList)
+{	
+	CPdcVm cPdcVm;
+	ISrmRdcMgr &rRdcMgr =ISrmRdcMgr::GetInstance();
+	rRdcMgr.GetPdcVm(iVmId,cPdcVm);
+
+	try
+	{	
+		CRdcAppList cRelyAppList;
+		CPdcClusterVmRelationList::iterator itDVRL = rClusterVmRelationList.begin();
+		for (;itDVRL!= rClusterVmRelationList.end();++itDVRL)
+		{
+			GetRelyAppList(itDVRL->get_clusterId(),cRelyAppList);
+		}
+
+		if (cRelyAppList.size()==0)
+		{
+			DBE2_LOG(DEBUG_LOGGER, "vm:[%d] no rely app.", iVmId);
+
+			cPdcVm.set_vmState(VM_USABLE);
+			cPdcVm.set_vmStateDes("vm can use as no allocate rely app.");
+			UpdateVmInfoAndLog(cPdcVm);
+			SyncVmProc(iVmId);
+			return;
+		}
+
+		DBE2_LOG(DEBUG_LOGGER, "vm:[%d] rely app list >>>>>>>>>>>begin>>>>>>>>>>>>>>>", iVmId);
+		LogSdl(cRelyAppList);
+		DBE2_LOG(DEBUG_LOGGER, "vm:[%d] rely app list <<<<<<<<<<<<end<<<<<<<<<<<<<", iVmId);
+
+		CRdcProcList cExistRelyApp;
+		PartitionRelyProc(iVmId,cRelyAppList,cExistRelyApp);
+
+		if (cRelyAppList.size() == 0)
+		{
+			DBE2_LOG(INFO_LOGGER, "vm:[%d] ,had all rely app record  in rdc_proc yet.", iVmId);
+		}
+
+		if (cExistRelyApp.size() == 0)
+		{
+			DBE2_LOG(INFO_LOGGER, "vm:[%d] ,all the rely app is new.", iVmId);
+		}
+
+		//启动vm依赖的服务
+		StartVmRelySrv(iVmId,cRelyAppList,cExistRelyApp);
+	}
+	catch(CAIException & e)
+	{
+		aistring strStateDesc = FormatString("start rely app occur exception:[%s]",e.get_message().c_str());
+		if (strStateDesc.size()>1000)
+		{
+			strStateDesc = FormatString("start vm rely app occur exception,please chekc warn info");
+		}
+		cPdcVm.set_vmState(VM_DISABLED);
+		cPdcVm.set_vmStateDes(strStateDesc);
+		UpdateVmInfoAndLog(cPdcVm);
+
+		aistring strMessage = FormatString("(vmid:[%d],vmname:[%s],vmip:[%s].)",iVmId,cPdcVm.get_vmName().c_str(),cPdcVm.get_vmIp().c_str());
+		aistring strDescription = FormatString("start vm rely app occur exception:[%s]",e.get_message().c_str());
+
+		DBE2_LOG(WARN_LOGGER, "%s,%s",strMessage.c_str(),strDescription.c_str());
+
+		//vm 不可用告警
+		//SendWarnInfo(VM_STATE_DISABLED,SRM_DEFAULT_SCORE,strMessage,strDescription);
+
+		DBE2_LOG_EXCEPTION(e);
+		SyncVmProc(iVmId);
+
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MODIFY_ILLEGAL," start vm rely app occur exception : ?")
+			<< e.get_message().c_str();
+	}
+}
+
+void CSrmVmMgrImpl::GetRelyAppList(int32 iClusterId,CRdcAppList& rAppList)
+{
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	CPdcClusterAppRelationList cClusterAppRelationList;
+	rcRdcMgr.GetClusterRelyApp(iClusterId,cClusterAppRelationList);
+
+	CPdcClusterAppRelationList::iterator  it= cClusterAppRelationList.begin();
+	for (;it!=cClusterAppRelationList.end();++it)
+	{
+		CRdcApp cApp;
+		int32 iAppId =it->get_appId();
+
+		bool bGet = rcRdcMgr.QueryApp(iAppId,cApp);
+		if (bGet)
+		{
+			rAppList.push_back(cApp);
+		}
+		else
+		{
+			THROW_CAIEXCEPTION(DBE2_SRM_VM_MODIFY_ILLEGAL,"app id(?) have no app info")
+				<<iAppId;
+		}
+
+		if (cApp.isRely()!= 1)
+		{
+			THROW_CAIEXCEPTION(DBE2_SRM_VM_MODIFY_ILLEGAL,"app id(?) type is not is rely ,please check configuration")
+				<<iAppId;
+		}
+	}
+}
+
+void CSrmVmMgrImpl::PartitionRelyProc(int32 iVmId,CRdcAppList& rRelyAppList,CRdcProcList & rExistXcProcList)
+{
+	CRdcProcList cProcList;
+	ISrmRdcMgr::GetInstance().GetProcByVm(iVmId,cProcList);
+
+	AISTD map <int32, CRdcApp>  cAppInfoMap;
+	CRdcAppList::iterator it = rRelyAppList.begin();
+
+	for (;it!=rRelyAppList.end();++it)
+	{
+		int32 iAppId = it->get_appId();
+		cAppInfoMap[iAppId] = *it;
+	}
+
+	CRdcProcList::iterator itPL = cProcList.begin();
+	for (;itPL!=cProcList.end();++itPL)
+	{
+		//if (it->is_()!= XC_SRV) continue;
+		int32 iAppId = itPL->get_appId();
+		if (cAppInfoMap.count(iAppId) > 0)
+		{
+			cAppInfoMap.erase(iAppId);
+			rExistXcProcList.push_back(*itPL);
+		}
+	}
+
+	if (rExistXcProcList.size()>0)
+	{
+		DBE2_LOG(DEBUG_LOGGER, "vmid:[%d] exist vm rely proc", iVmId);
+		LogSdl(rExistXcProcList);
+	}
+
+	rRelyAppList.Clear();
+	AISTD map <int32, CRdcApp>::iterator itMap = cAppInfoMap.begin();
+	for (;itMap != cAppInfoMap.end();++itMap)
+	{
+		rRelyAppList.push_back(itMap->second);
+	}
+}
+
+void CSrmVmMgrImpl::StartVmRelySrv(int32 iVmId,CRdcAppList& rRelyAppList,CRdcProcList & rExistXcProcList)
+{
+	// 创建事务
+	SRdcCreateTrans cRelyAppTrans;
+	CRdcProcTransOperateList cProcTransOperateList;
+	CRdcAppList::iterator it = rRelyAppList.begin();
+	for (;it != rRelyAppList.end();++it)
+	{
+		CRdcProcTransOperate cRelyAppTransOperate;
+		int32 iNowMaxProcId = ISrmRdcMgr::GetInstance().GetAppMaxProcId(it->get_appId()) +1;
+		cRelyAppTransOperate.set_appId(it->get_appId());
+		cRelyAppTransOperate.set_procId(iNowMaxProcId);
+		cRelyAppTransOperate.set_vmId(iVmId);
+		cRelyAppTransOperate.set_operateSecLimit(it->get_timeOutSecond());
+		cRelyAppTransOperate.set_operateType(PROC_START);
+		cRelyAppTransOperate.set_operateLevel(1);
+		cRelyAppTransOperate.set_needRollback(NO_ROLLBACK);
+		cRelyAppTransOperate.set_operateRetryCount(NO_RETRY);
+		cProcTransOperateList.push_back(cRelyAppTransOperate);
+	}
+
+	CRdcProcList::iterator itPL = rExistXcProcList.begin();
+	for (;itPL!= rExistXcProcList.end();++itPL)
+	{
+		CRdcProcTransOperate cExistXcTransOperate;
+		CRdcApp cApp;
+		ISrmRdcMgr::GetInstance().QueryApp(it->get_appId(),cApp);
+		cExistXcTransOperate.set_appId(it->get_appId());
+		cExistXcTransOperate.set_procId(itPL->get_procId());
+		cExistXcTransOperate.set_vmId(iVmId);
+		cExistXcTransOperate.set_operateType(PROC_START);
+		cExistXcTransOperate.set_operateSecLimit(cApp.get_timeOutSecond());
+		cExistXcTransOperate.set_operateLevel(1);
+		cExistXcTransOperate.set_needRollback(NO_ROLLBACK);
+		cExistXcTransOperate.set_operateRetryCount(NO_RETRY);
+		cProcTransOperateList.push_back(cExistXcTransOperate);
+	}
+
+	cRelyAppTrans.set_procOperateList(cProcTransOperateList);
+
+	if (0 == cRelyAppTrans.procOperateList().size())
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_MODIFY_ILLEGAL,"start vm rely app failed!  empty proc operate list");
+	}		
+
+	aistring param = FormatString("%d",iVmId);
+	// 配置事务信息
+	CRdcProcTrans &rRelyAppProcTrans = cRelyAppTrans.procTrans();
+	rRelyAppProcTrans.set_appId(-999);
+	rRelyAppProcTrans.set_foceExeFlag(COMMON_NO);
+	rRelyAppProcTrans.set_callbackMsgType(MSG_REP_VM_RELY_SRV_START);
+	rRelyAppProcTrans.set_callbackParam(param);
+	rRelyAppProcTrans.set_transType(TRANS_VM_RELY_AUTO);
+	LogSdl(cRelyAppTrans);
+	ISrmProcTransMgr::GetInstance().Create(cRelyAppTrans,TRANS_EXE_COEXIST);
+}
+
+struct VmSortS2b : AISTD binary_function<CPdcVm, CPdcVm, bool>
+{
+	result_type operator ()(const first_argument_type& arg1, const second_argument_type& arg2) const
+	{
+		return arg1.get_vmId() < arg2.get_vmId();
+	}
+};
+
+void SortVmAsc(CPdcVmList &rcVmList)
+{
+	AISTD sort(rcVmList.begin(), rcVmList.end(), VmSortS2b());
+}
+
+struct ProcStateSortS2b : AISTD binary_function<CRdcProcStateRecord, CRdcProcStateRecord, bool>
+{
+	result_type operator ()(const first_argument_type& arg1, const second_argument_type& arg2) const
+	{
+		if (arg1.get_appId() != arg2.get_appId())
+			return arg1.get_appId() < arg2.get_appId();
+		else return arg1.get_procId() < arg2.get_procId() ;
+	}
+};
+
+void SortProcStateAsc(CRdcProcStateRecordList &rcProcStateList)
+{
+	AISTD sort(rcProcStateList.begin(), rcProcStateList.end(), ProcStateSortS2b());
+}
+
+inline bool SmallerProc(CRdcProc &rcProc, CRdcProcStateRecord &rcProcState)
+{
+	if (rcProc.get_appId() != rcProcState.get_appId()) 
+		return rcProc.get_appId() < rcProcState.get_appId();
+	else return rcProc.get_procId() < rcProcState.get_procId();
+}
+
+inline bool EqualProc(CRdcProc &rcProc, CRdcProcStateRecord &rcProcState)
+{
+	if (rcProc.get_appId() == rcProcState.get_appId() &&
+		rcProc.get_procId() == rcProcState.get_procId())
+		return true;
+	else return false;
+}
+
+inline bool ProcIsAlive(int32 iProcState)
+{
+	return (PROC_START_SUCCESS == iProcState || 
+		PROC_START_DOING == iProcState ||
+		PROC_STOP_DOING == iProcState ||
+		PROC_FORCE_STOP_DOING == iProcState);
+}
+
+inline bool SetOperateBaseInfo(CRdcProcTransOperate &rcProcOperate,
+							   int32 iAppId, int32 iProcId, int32 iVmId, int32 iOperateType)
+{
+	rcProcOperate.set_appId(iAppId);
+	rcProcOperate.set_procId(iProcId);
+	rcProcOperate.set_vmId(iVmId);
+	rcProcOperate.set_operateType(iOperateType);
+}
+
+void CSrmVmMgrImpl::SyncVmProc(int32 iVmId)
+{
+	DBE2_LOG(INFO_LOGGER, "sync proc on vm(%d)", iVmId);
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+
+	CPdcVm cPdcVm;
+	// 获取虚拟机信息失败
+	if (!rcRdcMgr.GetPdcVm(iVmId, cPdcVm))
+	{
+		DBE2_LOG(WARN_LOGGER, "failed to get vm info,vm id(%d)", iVmId);
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_SYNC_ERROR," failed to get vm info,vm id(?)")
+			<< iVmId;
+	}
+	// 虚拟机为非连接状态不可同步
+	if (NRM_CONNECTED != cPdcVm.get_vmConnectState())
+	{
+		DBE2_LOG(DEBUG_LOGGER, "not allow to sync.vm(%d)connect state %d",
+			iVmId, cPdcVm.get_vmConnectState());
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_SYNC_ERROR,"not allow to sync.vm(?)connect state (?)")
+			<< iVmId
+			<< cPdcVm.get_vmConnectState();
+	}
+	// 虚拟机为非可用状态不可同步
+	if (VM_USABLE != cPdcVm.get_vmState())
+	{
+		DBE2_LOG(DEBUG_LOGGER, "not allow to sync,vm(%d) state %d",
+			iVmId, cPdcVm.get_vmState());
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_SYNC_ERROR,"not allow to sync.vm(?)connect state (?)")
+			<< iVmId
+			<< cPdcVm.get_vmState();
+	}
+
+	//获取虚拟机进程信息
+	CRdcProcStateRecordList cMemProcList;
+	if (!rcRdcMgr.GetProcStateRecord(iVmId, cMemProcList))
+	{
+		DBE2_LOG(WARN_LOGGER, "failed to get proc info by vm id(%d) from srm mem", iVmId);
+		THROW_CAIEXCEPTION(DBE2_SRM_VM_SYNC_ERROR,"failed to get proc info by vm id(?) from srm mem")
+			<< iVmId;
+	}
+	SortProcStateAsc(cMemProcList);
+	CRdcProcStateRecordList::iterator itMemProc = cMemProcList.begin();
+
+	//获取数据库进程信息
+	CRdcProcList cDbProcList;
+	rcRdcMgr.QueryProcByVmOrder(iVmId, cDbProcList);
+	CRdcProcList::iterator itDbProc;
+
+	//构造事务信息 6.30 改成起停分离
+	CRdcProcTransOperate cProcStartOperate,cProcStopOperate;
+	cProcStartOperate.set_needRollback(COMMON_NO);
+	cProcStopOperate.set_needRollback(COMMON_NO);
+
+	CRdcProcTransOperateList cStartOperateList,cStopOperateList;
+
+	for (itDbProc = cDbProcList.begin(); itDbProc != cDbProcList.end();)
+	{
+		LogSdl(*itDbProc);
+		if (itMemProc == cMemProcList.end() || SmallerProc(*itDbProc, *itMemProc))
+		{
+			if (PROC_START_SUCCESS == itDbProc->get_procState())
+			{
+				SetOperateBaseInfo(cProcStartOperate, itDbProc->get_appId(),
+					itDbProc->get_procId(), iVmId, PROC_START);
+				cStartOperateList.push_back(cProcStartOperate);
+			}
+			else if (WAIT_VM_USEABLE == itDbProc->get_procState())
+			{
+				SetOperateBaseInfo(cProcStartOperate, itDbProc->get_appId(),
+					itDbProc->get_procId(), iVmId, START_WAIT_VM_PROC);
+				cStartOperateList.push_back(cProcStartOperate);
+			}
+			++itDbProc;
+		}
+		else if (EqualProc(*itDbProc, *itMemProc))
+		{
+			if (WAIT_VM_USEABLE == itDbProc->get_procState())
+			{
+				SetOperateBaseInfo(cProcStartOperate, itDbProc->get_appId(),
+					itDbProc->get_procId(), iVmId, START_WAIT_VM_PROC);
+				cStartOperateList.push_back(cProcStartOperate);
+			}
+			else if (!ProcIsAlive(itDbProc->get_procState()))
+			{
+				SetOperateBaseInfo(cProcStopOperate, itDbProc->get_appId(),
+					itDbProc->get_procId(), iVmId, PROC_FORCE_STOP);
+				cStopOperateList.push_back(cProcStopOperate);
+			}
+			++itDbProc;
+			++itMemProc;
+		}
+		else
+		{
+			SetOperateBaseInfo(cProcStopOperate, itMemProc->get_appId(),
+				itMemProc->get_procId(), itMemProc->get_vmId(), PROC_FORCE_STOP);
+			cStopOperateList.push_back(cProcStopOperate);
+			++itMemProc;
+		}
+	}
+
+	for (;itMemProc != cMemProcList.end(); ++itMemProc)
+	{
+		SetOperateBaseInfo(cProcStopOperate, itMemProc->get_appId(),
+			itMemProc->get_procId(), itMemProc->get_vmId(), PROC_FORCE_STOP);
+		cStopOperateList.push_back(cProcStopOperate);
+	}
+
+
+	if (cStopOperateList.size()!= 0)
+	{
+		MakeSyncForceStopTrans(iVmId,cStopOperateList);
+	}
+	else
+	{
+		DBE2_LOG(INFO_LOGGER, "process force stop list is empty, nrm do not need to wait");
+		// 发送7007消息给NRM
+		SNrmResponseRegister cRepRegister;
+		cRepRegister.set_msgHead(GetMsgHead(7007, iVmId));
+		cRepRegister.set_regResult(NRM_STATUS_NOCLEAR_PROC);
+
+		obb_stream cStream = Sdl2Obbstream(cRepRegister);
+		CSendTarget cNrmTarget = GetNrmTarget(iVmId);
+		GetMsgHelper()->Send(cNrmTarget, 7007, cStream);
+	}
+
+	MakeSyncStartTrans(iVmId,cStartOperateList);
+}
+
+int32 CSrmVmMgrImpl::MakeSyncStartTrans(int32 iVmId,CRdcProcTransOperateList& rcStartOperateList)
+{
+	if (rcStartOperateList.size()==0) return 0;
+	
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	ISrmProcTransMgr &rcProcTransMgr = ISrmProcTransMgr::GetInstance();
+
+	SRdcCreateTrans cCreateTrans;
+	//size为0不需要调整
+	LogSdl(rcStartOperateList);
+
+	CRdcProcTransOperateList::iterator itProcStart=rcStartOperateList.begin();
+	int32 iNowAppId = itProcStart->get_appId();
+
+	for(;itProcStart != rcStartOperateList.end(); ++itProcStart)
+	{
+		CRdcApp cApp;
+		// 获取服务配置信息
+		bool bGet = rcRdcMgr.QueryApp(itProcStart->get_appId(),cApp);
+		if (!bGet) continue;
+		// 等待虚拟机部署的进程特殊处理
+		if (START_WAIT_VM_PROC == itProcStart->get_operateType())
+		{
+			itProcStart->set_operateType(PROC_START);
+		}
+		itProcStart->set_operateSecLimit(cApp.get_timeOutSecond());
+		itProcStart->set_operateLevel(1);
+		if (iNowAppId == itProcStart->get_appId())
+		{
+			cCreateTrans.procOperateList().push_back(*itProcStart);
+		}
+		else 
+		{
+			try
+			{
+				if (0 < cCreateTrans.procOperateList().size())
+				{
+					// 创建事务，提交操作
+					cCreateTrans.procTrans().set_appId(iNowAppId);
+					cCreateTrans.procTrans().set_foceExeFlag(COMMON_YES);
+					cCreateTrans.procTrans().set_transType(TRANS_PROC_SYNC);
+					cCreateTrans.procTrans().set_callbackParam("");
+
+					int32 iTransId = rcProcTransMgr.Create(cCreateTrans, TRANS_EXE_COEXIST);
+					DBE2_LOG(DEBUG_LOGGER, "create transaction(%d) for proc state synchronize start", iTransId);
+				}
+			}
+			catch(CAIException & e)
+			{
+				DBE2_LOG_EXCEPTION(e);
+			}
+			cCreateTrans.Clear();
+			cCreateTrans.procOperateList().push_back(*itProcStart);
+			iNowAppId = itProcStart->get_appId();
+		}
+	}
+	try
+	{
+		// 创建事务，提交操作
+		if (0 == cCreateTrans.procOperateList().size()) return 0;
+		cCreateTrans.procTrans().set_appId(iNowAppId);
+		cCreateTrans.procTrans().set_foceExeFlag(COMMON_YES);
+		cCreateTrans.procTrans().set_transType(TRANS_PROC_SYNC);	
+        cCreateTrans.procTrans().set_callbackParam("");
+
+		int32 iTransId = rcProcTransMgr.Create(cCreateTrans, TRANS_EXE_COEXIST);
+		DBE2_LOG(DEBUG_LOGGER, "create transaction(%d) for proc state synchronize start", iTransId);
+	}
+	catch(CAIException & e)
+	{
+		DBE2_LOG_EXCEPTION(e);
+	}
+	return 0;
+}
+
+int32 CSrmVmMgrImpl::MakeSyncForceStopTrans(int32 iVmId,CRdcProcTransOperateList& rcStopOperateList)
+{
+	if (rcStopOperateList.size()==0) return 0;
+	
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	ISrmProcTransMgr &rcProcTransMgr = ISrmProcTransMgr::GetInstance();
+
+	aistring strCbParam("");
+	strCbParam = FormatString("%d_sync",iVmId);
+
+	SRdcCreateTrans cCreateTrans;
+	//size为0不需要调整
+	LogSdl(rcStopOperateList);
+
+	CRdcProcTransOperateList::iterator itProcStop=rcStopOperateList.begin();
+
+	int32 iNowAppId = itProcStop->get_appId();
+	for(;itProcStop != rcStopOperateList.end(); ++itProcStop)
+	{
+		itProcStop->set_operateSecLimit(180);
+		itProcStop->set_operateLevel(1);
+		if (iNowAppId == itProcStop->get_appId())
+		{
+			cCreateTrans.procOperateList().push_back(*itProcStop);
+		}
+		else 
+		{
+			try
+			{
+				if (0 < cCreateTrans.procOperateList().size())
+				{
+					// 创建事务，提交操作
+					cCreateTrans.procTrans().set_appId(iNowAppId);
+					cCreateTrans.procTrans().set_foceExeFlag(COMMON_YES);
+					cCreateTrans.procTrans().set_transType(TRANS_PROC_SYNC);
+					cCreateTrans.procTrans().set_callbackMsgType(-613);
+                    cCreateTrans.procTrans().set_callbackParam(strCbParam);
+
+					int32 iTransId = rcProcTransMgr.Create(cCreateTrans, TRANS_EXE_COEXIST);
+					DBE2_LOG(DEBUG_LOGGER, "create transaction(%d) for proc state synchronize force stop", iTransId);
+				}
+			}
+			catch(CAIException & e)
+			{
+				DBE2_LOG_EXCEPTION(e);
+			}
+			cCreateTrans.Clear();
+			cCreateTrans.procOperateList().push_back(*itProcStop);
+			iNowAppId = itProcStop->get_appId();
+		}
+	}
+	try
+	{
+		// 创建事务，提交操作
+		if (0 == cCreateTrans.procOperateList().size()) return 0;
+		cCreateTrans.procTrans().set_appId(iNowAppId);
+		cCreateTrans.procTrans().set_foceExeFlag(COMMON_YES);
+		cCreateTrans.procTrans().set_transType(TRANS_PROC_SYNC);	
+		cCreateTrans.procTrans().set_callbackMsgType(-613);
+        cCreateTrans.procTrans().set_callbackParam(strCbParam);
+
+		int32 iTransId = rcProcTransMgr.Create(cCreateTrans, TRANS_EXE_COEXIST);
+		DBE2_LOG(DEBUG_LOGGER, "create transaction(%d) for proc state synchronize force stop", iTransId);
+	}
+	catch(CAIException & e)
+	{
+		DBE2_LOG_EXCEPTION(e);
+	}
+	return 0;
+}
+
+}
+// namespace MDbe
+
+

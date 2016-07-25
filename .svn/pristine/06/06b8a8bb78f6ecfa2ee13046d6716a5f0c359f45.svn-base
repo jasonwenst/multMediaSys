@@ -1,0 +1,34 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_proc_mgr.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "srm_proc_mgr.h"
+#include "srm_proc_mgr_impl.h"
+
+namespace MDbe
+{
+
+ISrmProcMgr & ISrmProcMgr::GetInstance()
+{
+	static CSrmProcMgrImpl cMgr;
+	return cMgr;
+}
+
+} // namespace MDbe
+

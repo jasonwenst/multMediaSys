@@ -1,0 +1,69 @@
+#include "IWarnClient.h"
+#include <iostream>
+#include <assert.h>
+#include <thread>
+#include <functional>
+#include "IWarnGet.h"
+
+
+
+
+
+void testReadByApi(int bPrint)
+{
+	int iLast = 0;
+	IWarnGet::getInstance()->init();
+	char tmp[1024*2 + 1] = { 0 };
+	while (true)
+	{
+		int len = 0;
+		bool res = IWarnGet::getInstance()->getOneWarnRecord(tmp, 1024*2, len);
+		if (res)
+		{
+			if(iLast ==2)
+			{
+				printf("contiue read ..\n");
+			}
+				
+			tmp[len] = 0;
+			iLast = 1;
+			if (bPrint != 0)
+			{
+				std::cout << tmp << std::endl;
+			}
+
+		}
+		else
+		{
+
+			if (iLast != 2 && iLast != 0)
+			{
+				printf("idle ...\n");;
+			}
+			iLast = 2;
+
+			sleep(1);
+		}
+	}
+}
+
+
+
+int main(int argc, char* argv[])
+{
+	//testSqlite();
+	//testSqliteApi();
+	//testSqliteApiGet();
+	//testApiPut();
+
+//	std::cin >> i;
+
+
+	if (argc==2)	//if (argc==2)
+	testReadByApi(atoi(argv[1]));
+	else
+	testReadByApi(0);
+
+
+	return 0;
+}

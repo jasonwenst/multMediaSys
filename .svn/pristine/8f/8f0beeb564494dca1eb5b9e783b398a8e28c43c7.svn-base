@@ -1,0 +1,255 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc. 
+///	All rights reserved.
+///
+/// file	nrm_nr_mgr.cpp
+/// brief	 
+///
+///
+///
+/// version     1.1
+/// author		louxiao
+/// date        2012-5-7
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __NRM_PROC_MGR_IMPL_H___
+#define __NRM_PROC_MGR_IMPL_H___
+
+#include "nrm_proc_mgr.h"
+#include "nrm_nr_mgr.h"
+#include "msg_dispatch_mgr.h"
+#include "nrm_config_data.h"
+#include "nrm_util.h"
+#include "nrm_define.h"
+
+namespace MDbe {
+
+class CNrmProcMgrImpl : public INrmProcMgr
+{
+protected:
+    CNrmProcMgrImpl();
+    friend class INrmProcMgr;
+
+private:
+    CNrmConfig &m_cObjCfg;
+    int32 m_iNrmStatus;
+
+public:
+    virtual ~CNrmProcMgrImpl() {}
+    /*
+     * 读取配置文件信息，初始化一些全局常量
+     */
+    virtual void Init(CMgrInitHelper & cMgrInitHelper);
+
+public:
+    /*
+     * 接收SRM下发的7001启动进程
+     */
+    virtual void StartProc(SNrmStartProc & rcNrmStartProc);
+
+    /*
+     * 接收SRM下发的7002停止进程
+     */
+    virtual void StopProc(SNrmStopProc & rcNrmStopProc);
+
+    /*
+     * 接收TB TS上报的7004，获取停止进度
+     */
+    virtual void StopProcProg(SNrmStopProcProg &rcNrmProcProg);
+
+private:
+    /*
+     * 发送3008消息给SRM，提示进程启动/停止状态
+     */
+    void Send3008(SBaseProcKey &rcProcKey, int32 iFlag, int32 iStopType, const aistring & strReason, int pid = 0);
+
+    /*
+     * 启动指定的进程
+     */
+    bool StartProcOperator(SBaseProcKey &rcProcKey, const aistring &strCmd);
+
+    /*
+     * 获得java进程的启动信息
+     */
+    void GetProcAttrFromJavaTs(SBaseProcKey &rcProcKey, CProcAttr &rcProcAttr);
+
+    /*
+     * 获得c++进程的启动信息
+     */
+    void GetProcAttrFromNativeTs(SBaseProcKey &rcProcKey, CProcAttr &rcProcAttr);
+
+    /*
+     * 获得进程启动信息
+     */
+    void GetProcAttr(SBaseProcKey & rcProcKey, CProcAttr & rcProcAttr);
+
+    /*
+     * 保存进程配置文件
+     */
+    void SaveXmlFile(const aistring & rcStrXmlFileName, const aistring & rcStrXmlInfo);
+
+    /*
+     * 替换java进程启动脚本中的变量名 替换$1 $2 $3为实际的参数
+     */
+    void ReplaceCmdParam(CProcAttr & rcProcAttr, SBaseProcKey & rcProcKey);
+
+    /*
+     * 为启动脚本命令加上 & 标志后台启动
+     */
+    void SetBackstageRun(aistring & strCmd);
+
+    /*
+     * 替换特定的java进程启动脚本的变量名
+     */
+    void ReplaceSpecifiedSymbol(aistring & strCmd, const char * szSymbol, const char * szParam);
+
+    /*
+     * 从nr中获得进程的重启次数（启动成功下才会发生）
+     */
+    int32 GetProcRestartCount(SBaseProcKey & rcProcKey);
+
+    /*
+     * 从nr中获得进程的启动命令
+     */
+    aistring GetStartCmd(SBaseProcKey & rcProcKey, aistring & strSuffix, CProcAttr & rcProcAttr);
+
+    /*
+     * 保存进程的启动，check，重启，停止，强停命令于nr中
+     */
+    void SaveScriptCmdInNr(CProcAttr & rcProcAttr, SBaseProcKey rcProcKey);
+
+    /*
+     * 强停进程
+     */
+    void StopProcForce(SNrmStopProc & rcNrmStop);
+
+    /*
+     * 强停进程
+     */
+    void StopProcForce(SBaseProcKey & rcProcKey, int32 iType = FORCE_STOP_FLAG);
+
+    /*
+     * 通过kill(pid, 15)停止进程 --SIGKILL
+     */
+    void StopProcNormalByKill(SBaseProcKey & rcProcKey);
+
+    /*
+     * 停止进程，非强停
+     */
+    void StopProcNormal(SNrmStopProc & rcNrmStop);
+
+    /*
+     * 检测停止进程进度
+     */
+    void CheckStopStatusHelper(SBaseProcKey & rcProcKey);
+
+    /*
+     * 向SRM发送迁移进程请求
+     */
+    void TransportProc(SBaseProcKey &rcProcKey);
+
+    /*
+     * 重启进程
+     */
+    void RestartProc(SBaseProcKey &rcProcKey);
+    
+    /*
+     * 检测进程的启动状态
+     */
+    void CheckInitStatusHelper(SBaseProcKey &rcProcKey, bool bJavaProcess);
+
+    /*
+     * 检测所有进程的状态
+     */
+    void CheckProcAllStatus();
+
+    /*
+     * 检测进程的启动状态
+     */
+    void CheckInitStatus(SBaseProcKey &rcProcKey);
+
+    /*
+     * 检测进程的停止状态
+     */
+    void CheckStopStatus(SBaseProcKey & rcProcKey);
+
+    /*
+     * 检测进程的运行状态
+     */
+    void CheckIsAlive(SBaseProcKey & rcprocKey);
+
+    /*
+     * 启动平台启动必须启动的关键进程
+     */
+    void StartSystemProcess();
+
+    /*
+     * 发送告警信息给SRM
+     */
+    void Send5017(SBaseProcKey & rcProcKey, int32 iMoniId, const aistring &strDes);
+
+    /*
+     * 检测进程运行状态，如果进程不存在，重启进程
+     */
+    void CheckRunningAndNotRestart(SBaseProcKey & rcProcKey);
+
+    /*
+     * 检测进程运行状态，如果进程不存在，不重启进程，并发送迁移请求
+     */
+    void CheckRunningAndRestart(SBaseProcKey & rcProcKey);
+
+    /*
+     * 进程启动初始化超时处理
+     */
+    void CheckInitStatusTimeout(SBaseProcKey &rcProcKey, bool bJavaProcess);
+
+    /*
+     * 检测java进程停止状态
+     */
+    void CheckStopStatusWithJavaProcess(SBaseProcKey &rcProcKey, aistring &strCmd);
+
+    /*
+     * 检测ecframe进程停止状态
+     */
+    void CheckStopStatusWithFrameProcess(SBaseProcKey &rcProcKey);
+
+    /*
+     * 检测ecframe进程启动状态
+     */
+    void CheckInitStatusWithFrameProcess(SBaseProcKey &rcProcKey);
+
+    /*
+     * 检测java进程启动状态
+     */
+    void CheckInitStatusWithJavaProcess(SBaseProcKey &rcProcKey, aistring &strCmd);
+
+    void CheckWaitStopStatus(SBaseProcKey & rcProcKey);
+
+    /*
+     * 获得NRM当前状态
+     */
+    int32 GetNrmStatus();
+
+    /*
+     * 设置NRM状态
+     */
+    void SetNrmStatus(int32);
+
+    /*
+     * 杀死在当前NRM上注册的所有用户进程，不包括system_process配置进程（flowid为负数）
+     */
+    void KillAllProcess();
+
+    void CheckSystemProcessStatus();
+
+};
+
+} // namespace MDbe
+
+
+#endif /* __NRM_PROC_MGR_IMPL_H___ */
+

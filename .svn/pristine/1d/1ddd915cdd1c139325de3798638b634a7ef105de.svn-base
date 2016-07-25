@@ -1,0 +1,116 @@
+
+#include "cron_item.h"
+
+NAMESPACE_OD_CRON_BEGIN
+
+int32 CCronSec::GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance)
+{
+	return CCronItem::GetNearTime(tmNextTime, iCarry, iBalance);
+}
+
+int32 CCronMin::GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance)
+{
+	int32 iMin = tmNextTime.tm_min;
+	int32 iRet = CCronItem::GetNearTime(tmNextTime, iCarry, iBalance);
+	if(iMin != tmNextTime.tm_min) IsCarry(tmNextTime, 1);
+	return iRet;
+}
+
+int32 CCronHour::GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance)
+{
+	int32 iHour = tmNextTime.tm_hour;
+	int32 iRet = CCronItem::GetNearTime(tmNextTime, iCarry, iBalance);
+	if(iHour != tmNextTime.tm_hour) IsCarry(tmNextTime, 1);
+	return iRet;
+}
+
+int32 CCronDay::ModifyTime(struct tm &tmInput)
+{
+	return 0;
+}
+
+int32 CCronDay::GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance)
+{
+
+	//日无效
+	if(m_mapItemValue.size() == 0)
+	{
+		return 0;
+	}
+
+	RedoCronExpression(tmNextTime);
+	m_iMonth = tmNextTime.tm_mon;
+
+	int32 iDay = tmNextTime.tm_mday;
+	int32 iRet = CCronItem::GetNearTime(tmNextTime, iCarry, iBalance);
+	if(iDay != tmNextTime.tm_mday) IsCarry(tmNextTime, 1);
+	return iRet;
+}
+
+int32 CCronDay::SeekBegin(struct tm &tmNextTime)
+{
+	RedoCronExpression(tmNextTime);
+	return CCronItem::SeekBegin(tmNextTime);
+}
+
+int32 CCronDay::SeekEnd(struct tm &tmNextTime)
+{
+	RedoCronExpression(tmNextTime);
+	return CCronItem::SeekEnd(tmNextTime);
+}
+
+int32 CCronMonth::GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance)
+{
+	int32 iMon = tmNextTime.tm_mon;
+	int32 iRet = CCronItem::GetNearTime(tmNextTime, iCarry, iBalance);
+	if(iMon != tmNextTime.tm_mon) IsCarry(tmNextTime, 1);
+	return iRet;
+}
+
+int32 CCronYear::GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance)
+{
+	int32 iYear = tmNextTime.tm_year;
+	int32 iRet = CCronItem::GetNearTime(tmNextTime, iCarry, iBalance);
+
+	if(iYear != tmNextTime.tm_year && iCarry != 1)
+	{
+		IsCarry(tmNextTime, 1);
+	}
+	else if(iCarry == 1)
+	{
+		SeekEnd(tmNextTime);
+	}
+	return iRet;
+}
+
+int32 CCronWeek::ModifyTime(struct tm &tmInput)
+{
+	return 0;
+}
+
+int32 CCronWeek::GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance)
+{
+	if(m_mapItemValue.size() == 0)
+	{
+		return 0;
+	}
+	int32 iRet = RedoCronExpression(tmNextTime);
+
+	//调整day
+	iRet = CCronItem::GetNearTime(tmNextTime, iCarry, iBalance);
+	return iRet;
+}
+
+int32 CCronWeek::SeekBegin(struct tm &tmNextTime)
+{
+	RedoCronExpression(tmNextTime);
+	return CCronItem::SeekBegin(tmNextTime);
+}
+
+int32 CCronWeek::SeekEnd(struct tm &tmNextTime)
+{
+	RedoCronExpression(tmNextTime);
+	return CCronItem::SeekEnd(tmNextTime);
+}
+
+NAMESPACE_OD_CRON_END

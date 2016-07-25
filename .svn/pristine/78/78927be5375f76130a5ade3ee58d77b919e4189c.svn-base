@@ -1,0 +1,264 @@
+module MDbe
+{
+	struct CPdcVm import table PDC_VM
+	{
+	};
+    list vector<CPdcVm> CPdcVmList;
+        
+    struct CRdcVmStateRecord import table RDC_VM_STATE_RECORD
+    {
+    };
+    list vector<CRdcVmStateRecord> CRdcVmStateRecordList;
+    
+	struct CRdcVmStateModifyLog import table RDC_VM_STATE_MODIFY_LOG
+	{
+	};
+	list vector<CRdcVmStateModifyLog> CRdcVmStateModifyLogList;
+	
+	struct CPdcClusterVmRelation import table PDC_CLUSTER_VM_RELATION
+	{
+	};
+	list vector<CPdcClusterVmRelation> CPdcClusterVmRelationList;
+	
+	struct CPdcClusterAppRelation import table PDC_CLUSTER_APP_RELATION
+	{
+	};
+	list vector<CPdcClusterAppRelation> CPdcClusterAppRelationList;
+	
+	struct CRdcSrmLoginLog import table RDC_SRM_LOGIN_LOG
+	{
+	};
+	list vector<CRdcSrmLoginLog> CRdcSrmLoginLogList;
+	
+	struct CRdcSrmLock import table RDC_SRM_LOCK
+	{
+	};
+	list vector<CRdcSrmLock> CRdcSrmLockList;
+	//----------------------------------------------------------------------------------------------
+    //进程信息表
+    //---------------------------------------------------------------------------------------------- 
+	struct CRdcProc import table RDC_PROC
+	{
+	};
+    list vector<CRdcProc> CRdcProcList;
+
+	struct CRdcProcHis import table RDC_PROC_HIS
+	{
+	};
+    list vector<CRdcProcHis> CRdcProcHisList;
+    	    
+    struct CRdcProcStateRecord import table RDC_PROC_STATE_RECORD
+    {
+    };
+    list vector<CRdcProcStateRecord> CRdcProcStateRecordList;
+	//---------------------------------
+	// 处理速度
+	//---------------------------------
+	struct CRdcProcHandleRate import table RDC_PROC_HANDLE_RATE
+	{
+	};
+	list vector<CRdcProcHandleRate> CRdcProcHandleRateList;
+
+	struct CRdcProcBacklog import table RDC_PROC_BACKLOG
+	{
+	};
+	list vector<CRdcProcBacklog> CRdcProcBacklogList;
+    
+	//------app---
+	struct CRdcApp import table RDC_APP
+	{
+	};
+    list vector<CRdcApp> CRdcAppList;
+    /*
+    struct CRdcAppConfig import table RDC_APP_CONFIG
+    {
+    };
+    list vector<CRdcAppConfig> CRdcAppConfigList;
+    */
+	struct CRdcAppOperate import table RDC_APP_OPERATE
+	{
+	};
+    list vector<CRdcAppOperate> CRdcAppOperateList;
+
+	struct CRdcAppOperateHis import table RDC_APP_OPERATE_HIS
+	{
+	};
+    list vector<CRdcAppOperateHis> CRdcAppOperateHisList;
+
+	struct CRdcProcTrans import table RDC_PROC_TRANS
+	{
+	};
+    list vector<CRdcProcTrans> CRdcProcTransList;
+
+	struct CRdcProcTransOperate import table RDC_PROC_TRANS_OPERATE
+	{
+	};
+    list vector<CRdcProcTransOperate> CRdcProcTransOperateList;
+
+	struct CRdcProcTransHis import table RDC_PROC_TRANS_HIS
+	{
+	};
+    list vector<CRdcProcTransHis> CRdcProcTransHisList;
+
+	struct CRdcProcTransOperateHis import table RDC_PROC_TRANS_OPERATE_HIS
+	{
+	};
+    list vector<CRdcProcTransOperateHis> CRdcProcTransOperateHisList;
+	
+    struct CRdcJobIns import table RDC_JOB_INS
+    {
+    };
+    list vector<CRdcJobIns> CRdcJobInsList;
+
+    struct CRdcJobRunStep import table RDC_JOB_RUN_STEP
+    {
+    };
+    list vector<CRdcJobRunStep> CRdcJobRunStepList;
+    
+    struct CRdcJobRunStepApp import table RDC_JOB_RUN_STEP_APP
+    {
+    };
+    list vector<CRdcJobRunStepApp> CRdcJobRunStepAppList;
+    
+    struct CRdcJobSchedule import table RDC_JOB_SCHEDULE
+    {
+    };
+    list vector<CRdcJobSchedule> CRdcJobScheduleList;
+	
+    struct CRdcJobRelation import table RDC_JOB_RELATION
+    {
+    };
+    list vector<CRdcJobRelation> CRdcJobRelationList;
+
+    struct CRdcJobVacation import table RDC_JOB_VACATION
+    {
+    };
+    list vector<CRdcJobVacation> CRdcJobVacationList;
+    
+    struct CRdcJobInsStep import table RDC_JOB_INS_STEP
+    {
+    };
+    list vector<CRdcJobInsStep> CRdcJobInsStepList;  
+    
+    struct CRdcJobInsStepRel import table RDC_JOB_INS_STEP_REL
+    {
+    };
+    list vector<CRdcJobInsStepRel> CRdcJobInsStepRelList;
+    
+    struct CRdcJobInsStepApp import table RDC_JOB_INS_STEP_APP
+    {
+    };
+    list vector<CRdcJobInsStepApp> CRdcJobInsStepAppList; 
+
+   //----------------------------------------------------------------------------------------------
+   //系统参数、动态参数
+   //---------------------------------------------------------------------------------------------- 			    
+
+    struct CPdcDynamicParam import table PDC_DYNAMIC_PARAM
+    {
+    };
+    list vector<CPdcDynamicParam> CPdcDynamicParamList;
+    
+    struct CPdcSystemParam import table PDC_SYSTEM_PARAM
+    {
+    };
+    list vector<CPdcSystemParam> CPdcSystemParamList; 
+
+
+    //---------------------------------
+    // job dbm相关操作表
+    //---------------------------------
+    struct CSoJobInsResult import table SO_JOB_INS_RESULT
+    {
+    };
+    list vector<CSoJobInsResult> CSoJobInsResultList;
+	
+    struct CSoJobInsStepResult import table SO_JOB_INS_STEP_RESULT
+    {
+    };
+    list vector<CSoJobInsStepResult> CSoJobInsStepResultList;
+	
+    struct CSoJobInsAppResult import table SO_JOB_INS_APP_RESULT
+    {
+    };
+    list vector<CSoJobInsAppResult> CSoJobInsAppResultList;
+
+    //----------------------------------------------------------------------------------------------
+    //软件升级
+    //----------------------------------------------------------------------------------------------     
+    struct CRdcPuOp import table RDC_PU_OP
+    {
+    };
+    list vector<CRdcPuOp> CRdcPuOpList;
+
+    struct CRdcPuOpDetail import table RDC_PU_OP_DETAIL
+    {
+    };
+    list vector<CRdcPuOpDetail> CRdcPuOpDetailList;
+
+    struct CPdcPuVmVersion import table PDC_PU_VM_VERSION
+    {
+    };
+    list vector<CPdcPuVmVersion> CPdcPuVmVersionList;
+
+	//告警原始数据表
+	struct CAmWarnRecordOri import table AM_WARN_RECORD_ORI
+    {
+    };
+    list vector<CAmWarnRecordOri> CAmWarnRecordOriList;
+
+	//告警数据表
+	struct CAmWarnRecord import table AM_WARN_RECORD
+    {
+    };
+    list vector<CAmWarnRecord> CAmWarnRecordList;
+
+	//告警数据历史表
+	struct CAmWarnRecordHis import table AM_WARN_RECORD_HIS
+    {
+    };
+    list vector<CAmWarnRecordHis> CAmWarnRecordHisList;
+
+	//告警表原始数据联系表
+	struct CAmWarnRecordDetail import table AM_WARN_RECORD_DETAIL
+    {
+    };
+    list vector<CAmWarnRecordDetail> CAmWarnRecordDetailList;
+
+	//告警原始数据合并记录
+	struct CAmWarnMergerHis import table AM_WARN_MERGER_HIS
+    {
+    };
+    list vector<CAmWarnMergerHis> CAmWarnMergerHisList;
+
+	//告警原始数据合并记录详表
+	struct CAmWarnMergerHisDetail import table AM_WARN_MERGER_HIS_DETAIL
+    {
+    };
+    list vector<CAmWarnMergerHisDetail> CAmWarnMergerHisDetailList;
+
+	//告警原始数据相关信息表
+	struct CAmWarnSmsDetail import table AM_WARN_SMS_DETAIL
+    {
+    };
+    list vector<CAmWarnSmsDetail> CAmWarnSmsDetailList;
+	
+	//告警类型表
+	struct CAmWarnInsDefine import table AM_WARN_INS_DEFINE
+    {
+    };
+    list vector<CAmWarnInsDefine> CAmWarnInsDefineList;
+	
+	//告警级别表
+	struct CAmWarnLevelDefine import table AM_WARN_LEVEL_DEFINE
+    {
+    };
+    list vector<CAmWarnLevelDefine> CAmWarnLevelDefineList;
+
+	//step定义表
+	struct CSoStep import table SO_STEP
+    {
+    };
+    list vector<CSoStep> CSoStepList;
+
+}

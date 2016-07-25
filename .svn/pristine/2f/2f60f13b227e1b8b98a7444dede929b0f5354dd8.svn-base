@@ -1,0 +1,870 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：msg_dispatch_common_struct.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：jinxin）
+/// date		（文件创建日期，eg：2012-4-24）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#ifndef _DISPATCH_DEFINE_H
+#define _DISPATCH_DEFINE_H
+
+#include <common/communicate/communicate.h>
+#include <vector>
+
+namespace MDbe
+{
+#define BUSINESS_FLOW_ID  2
+
+typedef enum
+{
+	// 连接建立
+	MSG_COMMON_CONNECT = -10,
+	// 连接断开
+	MSG_COMMON_DISCONNECT = -11,
+	// 回复APP启动结果给DBM
+	MSG_REP_DBM_START_APP = -601,
+	// 回复APP停止结果给DBM
+	MSG_REP_DBM_STOP_APP = -602,
+    // 回复进程执行结果给DBM
+    MSG_REP_DBM_OPERATE_PROC = -611,
+    // 回复进程执行结果给DBM
+    MSG_REP_DBM_ADD_PROC = -612,
+
+	// APP启动回调JOB模块
+	MSG_REP_JOB_START_APP = -603,
+	// APP启动回调JOB模块
+	MSG_REP_JOB_STOP_APP = -604,
+	//vm依赖服务启动回调 VM 状态更新
+	MSG_REP_VM_RELY_SRV_START = -605,
+	//宕机迁移事务回调告警
+	MSG_REP_TRANS_WARING = -606,
+	// 回调APP修复结果给DBM
+	MSG_REP_DBM_REPAIR_APP = -607,
+	// 队列调整事务回调
+	MSG_REP_ADJUST_QUEUE = -608,
+    // 回调APP修复结果给JOB
+    MSG_REP_JOB_REPAIR_APP = -609,
+	// 服务异常结果返回给JOB
+	MSG_REP_JOB_APP_EXCETPION = -610,
+    // 检查事务操作超时（建议默认设置为5秒）
+    MSG_CHECK_TRANS_TIME_OUT = -901,
+    // 进程状态同步
+    MSG_SYNC_PROC_STATE = -902,
+    // TBTS上报数据写入数据库
+    MSG_WRITE_TO_DB = -903,
+    // SRM发送心跳给NRM
+    MSG_SRM_HEART_TO_NRM = -904,
+	// 发送未确认回复消息
+	MSG_SRM_RESEND_MSG = -905,
+    MSG_CHECK_AND_START_JOB = -911,
+    MSG_CHECK_AND_CLEAN_RECORD = -912,
+    // 进程状态
+    MSG_PROC_STATE = 3600,
+}INNER_MSG_TYPE;
+
+typedef enum 
+{
+	NO_ROLLBACK     =0,
+	NEED_ROLLBACK   =1
+}ROLLBACK_FLAG;
+
+typedef enum 
+{
+	NO_RETRY =0,
+	RETRY    =3
+}OPERATE_RETRY_COUNT;
+
+typedef enum
+{
+	STOP_APP = 0,
+	START_APP = 1,
+	FORCE_STOP_APP = 2,
+	REPAIR_APP = 3,
+}APP_OPEATE;
+
+typedef enum
+{
+	COMMON_FAIL = 0,
+	COMMON_SUCCESS = 1,
+	COMMON_DOING = 2,
+}COMMON_RESULT ;
+
+enum COMMON_JUDGE
+{
+    COMMON_NO = 0,
+    COMMON_YES = 1,
+};
+
+enum OPERATE_TYPE
+{
+    PROC_STOP = 0,
+    PROC_START = 1,
+    PROC_FORCE_STOP = 2,
+};
+typedef enum
+{
+	TS_REQUEST_TB_PROT_FAIL  = 601,//ts 请求tb port 失败
+	PROC_RESTART_OUT_COUNT   = 602,//进程重启超过次数
+	VM_FLOW_MIGRATE_FAIL = 603,//虚拟机流程迁移失败
+	VM_RELY_SRV_START_FAIL   = 604,//虚拟机依赖服务启动失败
+	QUEUE_ADJUST_FAIL        = 605,//队列调整失败
+	VM_STATE_DISABLED        = 606,//虚拟机不可用
+	XC_SCHEDULE_REFRESH_FAIL = 607,//xc定时刷新
+	VM_CRASH_MIGRATE          = 608,//虚拟机宕机迁移
+}WARN_MONI_ID ;
+
+typedef enum
+{
+	SRM_DEFAULT_SCORE =1,
+
+}WARN_SCORE_ID;
+
+enum UPGRADE_STATE
+{
+	UPGRADE_FAIL = 0,
+	UPGRADE_SUCCESS = 1,
+	UPGRADE_DOING = 2,
+};
+
+/*!
+服务唯一标识类
+*/
+class CSrvKey
+{
+public:
+    CSrvKey():m_iFlowId(-1),m_iSrvId(0){}
+    CSrvKey(int32 iSrvId): m_iFlowId(0), m_iSrvId(iSrvId) {}
+    CSrvKey(int32 iFlowId, int32 iSrvId): m_iFlowId(iFlowId), m_iSrvId(iSrvId) {}
+
+    int32 m_iFlowId;
+    int32 m_iSrvId;
+
+    //()操作符
+    bool operator() (const CSrvKey &rSk);
+    bool operator< (const CSrvKey &rSk) const;
+    bool operator== (const CSrvKey& rSk) const;
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_BASE(m_iFlowId)
+    PEER_TO_LOCAL_BASE(m_iSrvId)
+PEER_TO_LOCAL_END
+};
+//进程唯一标识类
+class CProcKey
+{
+public:
+    CProcKey():m_iProcId(-1){}
+    CProcKey(int32 iFlowId, int32 iSrvId, int32 iProcId)
+    {
+        m_objSKey.m_iFlowId = iFlowId;
+        m_objSKey.m_iSrvId = iSrvId;
+        m_iProcId = iProcId;
+    }
+
+    CSrvKey m_objSKey;
+    int32 m_iProcId;
+    NOTIFY_PAD(int32);
+
+    //()操作符
+    bool operator()(const CProcKey &rPk) const;
+    bool operator<(const CProcKey &rPk) const;
+    bool operator==(const CProcKey &rPk) const;
+    bool operator!=(const CProcKey &rPk) const;
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_OBJECT(m_objSKey)
+    PEER_TO_LOCAL_BASE(m_iProcId)
+PEER_TO_LOCAL_END
+};
+
+//CSrmData头信息
+class CSrmHeadData
+{
+public:
+    //消息唯一标识，需要回复的确认性消息需要设置，小于19700000为控制消息的MsgSequence
+    int64 m_llMsgSequence;
+    int32 m_iOldType;
+    /*! 子消息类型 */
+    int32 m_iDataType;
+    //产生数据源的线程Id
+    int32 m_iThreadId;
+    NOTIFY_PAD(int32);
+
+    void GenerateSequence();
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_BASE(m_iOldType)
+    PEER_TO_LOCAL_BASE(m_iDataType)
+    PEER_TO_LOCAL_BASE(m_llMsgSequence)
+    PEER_TO_LOCAL_BASE(m_iThreadId)
+PEER_TO_LOCAL_END
+};
+
+typedef enum {
+    	PROC_NRM = 1,
+        PROC_SRM = 5,
+        PROC_DBM = 8,
+        PROC_DBE = 9
+}DBE_PROC_TYPE;
+//目标信息类
+class CTargetData
+{
+public:
+    CTargetData():m_iTFlowId(-1),m_iTSrvId(0),m_iTProcId(-1),m_iTVmId(-1),m_iTSrvType(PROC_SRM){};
+    CTargetData(const CTargetData& rPk)
+    {
+        m_iTFlowId = rPk.m_iTFlowId;
+        m_iTSrvId = rPk.m_iTSrvId;
+        m_iTProcId = rPk.m_iTProcId;
+        m_iTVmId = rPk.m_iTVmId;
+        m_iTSrvType = rPk.m_iTSrvType;
+    }
+    int32 m_iTFlowId;
+    int32 m_iTSrvId;
+    int32 m_iTProcId;
+    int32 m_iTVmId;
+    //采用服务类型当做数据路由信息，跟DBE_PROC_TYPE对应
+    int32 m_iTSrvType;
+    NOTIFY_PAD(int32);
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_BASE(m_iTFlowId)
+    PEER_TO_LOCAL_BASE(m_iTSrvId)
+    PEER_TO_LOCAL_BASE(m_iTProcId)
+    PEER_TO_LOCAL_BASE(m_iTVmId)
+    PEER_TO_LOCAL_BASE(m_iTSrvType)
+PEER_TO_LOCAL_END
+};
+
+class CSourceData
+{
+public:
+    CSourceData():m_iSFlowId(-1),m_iSSrvId(0),m_iSProcId(-1),m_iSVmId(-1),m_iSSrvType(PROC_SRM){};
+    CSourceData(const CSourceData& rPk)
+    {
+        m_iSFlowId = rPk.m_iSFlowId;
+        m_iSSrvId = rPk.m_iSSrvId;
+        m_iSProcId = rPk.m_iSProcId;
+        m_iSVmId = rPk.m_iSVmId;
+        m_iSSrvType = rPk.m_iSSrvType;
+    }
+    bool operator < (const CSourceData& rSourceData) const
+    {
+    	if (m_iSFlowId != rSourceData.m_iSFlowId)
+    		return m_iSFlowId < rSourceData.m_iSFlowId;
+    	else if (m_iSSrvId != rSourceData.m_iSSrvId)
+    		return m_iSSrvId < rSourceData.m_iSSrvId;
+    	else if (m_iSProcId != rSourceData.m_iSProcId)
+    		return m_iSProcId < rSourceData.m_iSProcId;
+        else
+            return m_iSVmId < rSourceData.m_iSVmId;
+//        char szThisNumber[31];
+//        char szInputNumber[31];
+//        snprintf(szThisNumber, sizeof(szThisNumber),
+//                "%010d%010d%010d",
+//                m_iSFlowId,
+//                m_iSSrvId,
+//                m_iSProcId);
+//        snprintf(szInputNumber, sizeof(szInputNumber),
+//                "%010d%010d%010d",
+//				rSourceData.m_iSFlowId,
+//				rSourceData.m_iSSrvId,
+//				rSourceData.m_iSProcId);
+//        return strcmp(szThisNumber, szInputNumber) < 0;
+    }
+    void set_sourceProcKey(const CProcKey& rProcKey, int32 iVmId)
+    {
+        m_iSFlowId = rProcKey.m_objSKey.m_iFlowId;
+        m_iSSrvId = rProcKey.m_objSKey.m_iSrvId;
+        m_iSProcId = rProcKey.m_iProcId;
+        m_iSVmId = iVmId;
+    }
+    int32 m_iSFlowId;
+    int32 m_iSSrvId;
+    int32 m_iSProcId;
+    int32 m_iSVmId;
+    //采用服务类型当做数据路由信息，跟DBE_PROC_TYPE对应
+    int32 m_iSSrvType;
+    NOTIFY_PAD(int32);
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_BASE(m_iSFlowId)
+    PEER_TO_LOCAL_BASE(m_iSSrvId)
+    PEER_TO_LOCAL_BASE(m_iSProcId)
+    PEER_TO_LOCAL_BASE(m_iSVmId)
+    PEER_TO_LOCAL_BASE(m_iSSrvType)
+PEER_TO_LOCAL_END
+};
+class CRouteData : public CSrmHeadData, public CTargetData,
+ public CSourceData
+{
+public:
+    enum ROUTE_ENUM
+    {
+        //消息需要确认
+        MSG_CONFIRM = 0x0001
+    };
+
+    CRouteData()
+    {
+        m_iDataType = -1;
+        m_iThreadId = -1;
+    }
+
+    /*!
+        把CSourceData路由设置成CTargetData路由
+    */
+    void exchange();
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_PARENT(CSrmHeadData)
+    PEER_TO_LOCAL_PARENT(CTargetData)
+    PEER_TO_LOCAL_PARENT(CSourceData)
+PEER_TO_LOCAL_END
+};
+
+//通讯对象信息类
+class CDbeCommApi
+{
+public:
+    CDbeCommApi():m_objPKey(), 
+            m_tmRegModifyTime(0), 
+            m_tmRegTime(0),
+            m_iProcType(0),
+            m_iThreadId(0),
+            m_iRegisterStatus(0)
+    {
+        memset(m_szIp, 0x00, sizeof(m_szIp));
+    }
+    //进程唯一标识
+    CProcKey m_objPKey;
+    // 注册超时(偏移量)
+    int64 m_tmRegModifyTime;
+    // 注册超时
+    int64 m_tmRegTime;
+    //进程类型，对应DBE_PROC_TYPE
+    int32 m_iProcType;
+    //用于连接销毁根据线程号寻找对应记录
+    int32 m_iThreadId;
+    // 注册状态对应DBE_REG_STATUS
+    int32 m_iRegisterStatus;
+    NOTIFY_PAD(int32);
+    //指定ip
+    char m_szIp[16];
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iProcType)
+        PEER_TO_LOCAL_OBJECT(m_objPKey)
+        PEER_TO_LOCAL_BASE(m_iThreadId)
+        PEER_TO_LOCAL_BASE(m_iRegisterStatus)
+        PEER_TO_LOCAL_BASE(m_tmRegModifyTime)
+        PEER_TO_LOCAL_BASE(m_tmRegTime)
+PEER_TO_LOCAL_END
+};
+
+/*!
+        TS进程处理速度类
+*/
+class CProcHandleRate : public CProcKey
+{
+public:
+    CProcHandleRate() : m_dbHandleRate(0.0f),
+        m_llUpdateTime(0)
+    { }
+    //TS处理速度(单位：任务数/秒)
+    double m_dbHandleRate;
+    int64 m_llUpdateTime;
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_PARENT(CProcKey)
+    PEER_TO_LOCAL_BASE(m_dbHandleRate)
+    PEER_TO_LOCAL_BASE(m_llUpdateTime)
+PEER_TO_LOCAL_END
+};
+
+/*!
+        进程消息预定类
+*/
+class CSubScribeMsg
+{
+public:
+        CProcKey m_objPKey;
+        char m_szMsgKey[128];
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_OBJECT(m_objPKey)
+PEER_TO_LOCAL_END
+};
+
+/*!
+        消息预定者、提供者匹配类
+*/
+class CMatchMsg
+{
+public:
+	int32 m_iMsgLen;
+	NOTIFY_PAD(int32);
+    //预定消息KEY
+    char m_szMsgKey[128];
+    char m_szMsgText[1024];
+
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iMsgLen)
+PEER_TO_LOCAL_END
+};
+
+//Int对象类
+class CIntObj
+{
+public:
+    CIntObj() : m_iValue(0) {}
+    CIntObj(int32& iValue) : m_iValue(iValue) {}
+    CIntObj(const int32& iValue) : m_iValue(iValue) {}
+
+    inline int32 value() { return m_iValue; }
+    inline int32 value() const { return m_iValue; }
+    inline void set_value(int32 iValue) { m_iValue = iValue; }
+    int32 operator+= (int32 iValue)
+    {
+        m_iValue += iValue;
+        return m_iValue;
+    }
+
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iValue)
+PEER_TO_LOCAL_END
+private:
+        int32 m_iValue;
+	NOTIFY_PAD(int32);
+};
+
+//TB队列唯一标识类
+class CQueueKey
+{
+public:
+        CQueueKey() : m_iFlowId(0) , m_iSrvQueueId(0) { }
+        CQueueKey(const int32& iFlowId, const int32& iSrvId): m_iFlowId(iFlowId), m_iSrvQueueId(iSrvId) {}
+	CQueueKey(const CSrvKey& rSrvKey): m_iFlowId(rSrvKey.m_iFlowId), m_iSrvQueueId(rSrvKey.m_iSrvId) {}
+        int32 m_iFlowId;
+        int32 m_iSrvQueueId;
+
+        bool operator< (const CQueueKey &rQueueKey) const
+    {
+        if (m_iFlowId < rQueueKey.m_iFlowId)
+            return true;
+        else
+        {
+            if (m_iFlowId == rQueueKey.m_iFlowId
+                    && m_iSrvQueueId < rQueueKey.m_iSrvQueueId)
+                return true;
+            else
+                return false;
+        }
+    }
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iFlowId)
+        PEER_TO_LOCAL_BASE(m_iSrvQueueId)
+PEER_TO_LOCAL_END
+};
+
+/*!
+        TB队列信息更新类
+*/
+class CQueueUpdInfo
+{
+public:
+	CQueueUpdInfo() : 
+	    m_llQueueCount(0),
+	    m_dbTaskVolume(0),
+	    m_llTaskTimeLimit(0),
+	    m_llProduceTaskCount(0),
+	    m_llProcessTaskCount(0),
+	    m_llSubTaskCount(0),
+	    m_llExceptionTaskCount(0),
+	    m_llUpdateTime(0)
+    { }
+    CQueueKey m_objQKey;
+    //队列任务数(前台显示用)
+    int64 m_llQueueCount;
+    //队列待处理量(SRM调整所用)
+    double m_dbTaskVolume;
+    int64 m_llTaskTimeLimit;
+    int64 m_llProduceTaskCount;
+    int64 m_llProcessTaskCount;
+    int64 m_llSubTaskCount;
+    int64 m_llExceptionTaskCount;
+    int64 m_llUpdateTime;
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_OBJECT(m_objQKey)
+    PEER_TO_LOCAL_BASE(m_llQueueCount)
+    PEER_TO_LOCAL_BASE(m_dbTaskVolume)
+    PEER_TO_LOCAL_BASE(m_llTaskTimeLimit)
+	PEER_TO_LOCAL_BASE(m_llProduceTaskCount)
+	PEER_TO_LOCAL_BASE(m_llProcessTaskCount)
+	PEER_TO_LOCAL_BASE(m_llSubTaskCount)
+	PEER_TO_LOCAL_BASE(m_llExceptionTaskCount)
+    PEER_TO_LOCAL_BASE(m_llUpdateTime)
+PEER_TO_LOCAL_END
+};
+
+/*!
+	消息确认类
+*/
+class CMsgConfirm
+{
+public:
+    CMsgConfirm() : m_llMsgSequence(0),
+        m_iMsgType(0),
+        m_iResult(0)
+    {
+        memset(m_szErrInfo, 0x00, sizeof(m_szErrInfo));
+    }
+    //消息唯一标识，跟m_iMsgType组合成唯一标识
+    int64 m_llMsgSequence;
+    //请求消息类型
+    int32 m_iMsgType;
+    //跟EXE_RESULT_TYPE对应
+    int32 m_iResult;
+    //错误信息，当m_iResult=EXE_FAIL时候填写
+    char m_szErrInfo[1024];
+ 
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iMsgType)
+        PEER_TO_LOCAL_BASE(m_llMsgSequence)
+        PEER_TO_LOCAL_BASE(m_iResult)
+PEER_TO_LOCAL_END
+};
+
+/*!
+	DBE进程停止进度，
+	DBE进程在停止的过程中，不断向NRM上报进度，每30秒上报一次，对应的消息是MSG_STOP_PROC_PROG。
+	m_iStopProgress是进度值，其值范围是0~1000000（1百万）。m_iStopProgress＝1百万时，表示进程完成了停止。
+	NRM监控进度的变化，在1分钟内，如果m_iStopProgress的值有没有变化，就认为停止进程失败。
+*/    
+class CStopProcessProg
+{
+public:
+	int32 m_iStopProgress;
+	NOTIFY_PAD(int32);
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iStopProgress)
+PEER_TO_LOCAL_END
+};
+
+/*!
+    进程基本(静态)信息类
+    @20100511 增加字段m_llUpdateTime
+*/
+class CProcInfo
+{
+public:
+    CProcInfo() : m_iProcType(PROC_DBE),
+        m_llUpdateTime(0),
+        m_iVmId(0),
+        m_iPid(0),
+        m_iOperaStatus(0)
+    {
+    }
+
+    CProcInfo(const CProcKey& rProcKey, const int32& iVmId)
+        : m_iProcType(PROC_DBE),
+        m_llUpdateTime(0),
+        m_iVmId(0),
+        m_iPid(0),
+        m_iOperaStatus(0)
+    {
+        m_objPKey = rProcKey;
+        m_iVmId = iVmId;
+    }
+
+    CProcKey m_objPKey;
+	//状态最后更新时间
+    int64 m_llUpdateTime;
+    //进程类型，对应DBE_PROC_TYPE
+    int32 m_iProcType;
+    int32 m_iVmId;
+    int32 m_iPid;
+    //进程操作状态，跟PROC_OPERATE_STATUS对应
+    int32 m_iOperaStatus;
+
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iProcType)
+        PEER_TO_LOCAL_OBJECT(m_objPKey)
+        PEER_TO_LOCAL_BASE(m_iVmId)
+        PEER_TO_LOCAL_BASE(m_iPid)
+        PEER_TO_LOCAL_BASE(m_llUpdateTime)
+        PEER_TO_LOCAL_BASE(m_iOperaStatus)
+PEER_TO_LOCAL_END
+};
+
+/*!
+        起停进程类
+*/
+class CExeProc : public CProcKey
+{
+public:
+    //跟EXE_TYPE对应
+    int32 m_iFlag;
+    NOTIFY_PAD(int32);
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_PARENT(CProcKey)
+    PEER_TO_LOCAL_BASE(m_iFlag)
+PEER_TO_LOCAL_END            
+};
+
+/*!
+        起停进程操作结果类
+*/
+class CExeProcResult : public CExeProc
+{
+public:
+	CExeProcResult() : m_iResult(0) 
+    {
+        memset(m_szFailReason, 0, 1024);
+    }
+    //跟EXE_RESULT_TYPE对应
+    int32 m_iResult;
+    NOTIFY_PAD(int32);
+    char m_szFailReason[1024];
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_BASE(m_iResult)
+    PEER_TO_LOCAL_PARENT(CExeProc)
+PEER_TO_LOCAL_END        
+};
+
+/*!
+        流程服务依赖信息
+*/
+class CFlowSrvRely : public CSrvKey
+{
+public:
+    //下一个环节的服务ID
+    int32 m_iNextSrvId;
+    //下一个环节的Index分支
+    int32 m_iNextIndex;
+    //位控制标识
+    int32 m_iBitFlag;
+    NOTIFY_PAD(int32);
+
+PEER_TO_LOCAL_BEGIN
+    PEER_TO_LOCAL_PARENT(CSrvKey)
+    PEER_TO_LOCAL_BASE(m_iNextSrvId)
+    PEER_TO_LOCAL_BASE(m_iNextIndex)
+PEER_TO_LOCAL_END
+};
+
+/*!
+        进程状态更新信息类
+*/
+class CProcUpdStatus : public CProcKey
+{
+public:
+	CProcUpdStatus ()
+	    : m_dbCpuUse(0.0f),
+        m_dbMemUse(0.0f),
+        m_llUpdateTime(0),
+        m_iSecModify(0),
+        m_dbHandleRate(0.0f),
+        m_fNetUse(0.0f)
+	    { }
+        //占用的CPU频率*使用率，单位：MHZ
+        double m_dbCpuUse;
+        //占用的内存，单位：M
+        double m_dbMemUse;
+        int64 m_llUpdateTime;
+        //主机虚拟机时间偏移量
+        int64 m_iSecModify;
+        //处理任务的速度(NRM上报上来的为0，采用CProcHandleRate::m_dbHandleRate)
+        double m_dbHandleRate;
+        //占用的网络，单位：?
+        double m_fNetUse;
+
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_PARENT(CProcKey)
+        PEER_TO_LOCAL_BASE(m_dbCpuUse)
+        PEER_TO_LOCAL_BASE(m_dbMemUse)
+        PEER_TO_LOCAL_BASE(m_fNetUse)
+        PEER_TO_LOCAL_BASE(m_dbHandleRate)
+        PEER_TO_LOCAL_BASE(m_llUpdateTime)
+	PEER_TO_LOCAL_BASE(m_iSecModify)
+PEER_TO_LOCAL_END
+};
+
+/*!
+        包含pid的进程状态信息类
+*/
+class CProcPid : public CProcUpdStatus
+{
+public:
+    CProcPid() : m_iPid(0)
+    {}
+    int32 m_iPid;
+	NOTIFY_PAD(int32);
+
+PEER_TO_LOCAL_BEGIN
+	PEER_TO_LOCAL_PARENT(CProcUpdStatus)
+	PEER_TO_LOCAL_BASE(m_iPid)
+PEER_TO_LOCAL_END
+};
+
+/*!
+        虚拟机状态信息更新类
+        @20100511增加字段m_fNetUse
+*/
+class CVmUpdInfo
+{
+public:
+	CVmUpdInfo()
+        : m_dbCpuLeft(0.0f),
+	    m_dbMemLeft(0.0f),
+	    m_fNetUse(0.0f),
+	    m_llUpdateTime(0LL),
+	    m_dbHTaskVolume(0.0f),
+	    m_fCpuUseRatio(0.0f),
+	    m_iVmId(0),
+	    m_iRunningCount(0),
+	    m_iStatus(0),
+        m_fMemUseRatio(0.0f),
+        m_fNetUseRatio(0.0f)
+	{
+    }
+	//单位：MHZ
+	double m_dbCpuLeft;
+	double m_dbMemLeft;
+	//一段时间网络使用量
+	double m_fNetUse;
+	int64 m_llUpdateTime;
+	double m_dbHTaskVolume;
+	double m_fCpuUseRatio;
+	double m_fMemUseRatio;
+	//一段时间网络使用量/总网络带宽量
+	double m_fNetUseRatio;
+	int32 m_iVmId;
+    int32 m_iRunningCount;
+	//虚拟机上报状态，跟VM_STATUS_TYPE对应
+	int32 m_iStatus;
+	NOTIFY_PAD(int32);
+
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iVmId)
+        PEER_TO_LOCAL_BASE(m_fCpuUseRatio)
+        PEER_TO_LOCAL_BASE(m_dbCpuLeft)
+        PEER_TO_LOCAL_BASE(m_fMemUseRatio)
+        PEER_TO_LOCAL_BASE(m_dbMemLeft)
+        PEER_TO_LOCAL_BASE(m_fNetUseRatio)
+        PEER_TO_LOCAL_BASE(m_fNetUse)
+        PEER_TO_LOCAL_BASE(m_iRunningCount)
+        PEER_TO_LOCAL_BASE(m_dbHTaskVolume)
+        PEER_TO_LOCAL_BASE(m_iStatus)
+        PEER_TO_LOCAL_BASE(m_llUpdateTime)
+PEER_TO_LOCAL_END
+};
+
+typedef enum {
+    EXE_NO_RESULT = -1,
+    EXE_FAIL = 0,
+    EXE_SUCCESS = 1,
+    //操作重复
+    EXE_REPEAT = 2,
+    START_TB_FAIL = 4
+}EXE_RESULT_TYPE;
+
+typedef AISTD vector<MDbe:: CProcKey/**/> CProcKeyVec;
+
+//!数据库用户信息
+class CDbInfo
+{
+public:
+    CDbInfo()
+    {
+        m_iDataBaseId = 0;
+        memset(m_szDataBaseName, 0x00, sizeof(m_szDataBaseName));
+        memset(m_szUserName, 0x00, sizeof(m_szUserName));
+        memset(m_szPassword, 0x00, sizeof(m_szPassword));
+    }
+    int32 m_iDataBaseId;
+	NOTIFY_PAD(int32);
+    char m_szDataBaseName[256];
+    char m_szUserName[128];
+    char m_szPassword[256];
+PEER_TO_LOCAL_BEGIN
+        PEER_TO_LOCAL_BASE(m_iDataBaseId)
+PEER_TO_LOCAL_END
+};
+
+// 定时器类型
+typedef enum {
+        EM_TIMER_ADD = 0,
+        EM_TIMER_UPDATE,
+        EM_PROC_DEL
+}TIMER_FRAME_TYPE;
+
+enum SrmUdpBroadcastPkgType
+{
+        SUBPT_ADDRESS_REQUEST   = 101,
+        SUBPT_ADDRESS_RESPONSE  = 102,
+        SUBPT_ADDRESS_DELIVER   = 103
+};
+
+//!UDP通讯包
+typedef struct SRM_UDP_BROADCAST_PKG
+{
+        int64   time_;                  //!< send time
+        int32   type_;                  //!< pkg type
+        int32   length_;                //!< following data length
+        int32   padding_;               //!< padding to times of 8
+        char    byte_order_;            //!< byte order(BIG_ENDIAN = 'b', LITTLE_ENDIAN = 'l')
+        NOTIFY_PADN(sizeof(int32) + sizeof(char));
+
+        SRM_UDP_BROADCAST_PKG(int32 _type = 0, int32 _length = 0, int64 _time = 0);
+
+        bool peer_to_local();
+        int32 get_type() const;
+        int64 get_time() const;
+        int32 get_length() const;
+
+        size_t size() const;
+
+        static SRM_UDP_BROADCAST_PKG* create(int32 _length, const void* buf = NULL, int64 _time = 0);
+        static void destory(void *pkg);
+
+}srm_udp_bc_pkg, *psrm_udp_bc_pkg;
+
+//!UDP寻址请求包
+typedef struct SRM_UDP_PKG_ADDRESS_REQUEST : SRM_UDP_BROADCAST_PKG
+{
+        SRM_UDP_PKG_ADDRESS_REQUEST()
+                : SRM_UDP_BROADCAST_PKG(SUBPT_ADDRESS_REQUEST, 0)
+        {}
+}srm_udp_addr_req, *psrm_udp_addr_req;
+
+//!UDP寻址返回包(不能对齐，填充)
+typedef struct SRM_UDP_PKG_ADDRESS_RESPONSE : SRM_UDP_BROADCAST_PKG
+{
+        char    address_[1];
+        SRM_UDP_PKG_ADDRESS_RESPONSE(int32 _length = 0)
+                : SRM_UDP_BROADCAST_PKG(SUBPT_ADDRESS_RESPONSE, _length)
+        {
+                address_[0] = 0;
+        }
+
+}srm_udp_addr_ack, *psrm_udp_addr_ack;
+
+//7007 反馈 nrm 状态类型
+typedef  enum{
+	NRM_STATUS_NOCLEAR_PROC =0 ,
+	NRM_STATUS_NEEDCLEAR_PROC  =1,
+	NRM_STATUS_INACTIVE =2 
+}NRM_STATUS_TYPE;
+}
+#endif

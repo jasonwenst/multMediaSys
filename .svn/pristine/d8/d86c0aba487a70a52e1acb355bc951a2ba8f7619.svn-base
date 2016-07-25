@@ -1,0 +1,42 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：msg_dispatch_error_code.h）
+/// brief	 
+///				定义msg_dispatch模块异常代码
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __MSG_DISPATCH_ERROR_CODE_H___
+#define __MSG_DISPATCH_ERROR_CODE_H___
+
+#include "dbe2_base_def.h"
+
+namespace MDbe
+{
+
+enum
+{
+	E_MSG_DISPATCH_BIND_LIB_FAIL = DBE2_MSG_DISPATCH_START_ERROR_CODE,
+	E_MSG_DISPATCH_BIND_LIB_GET_FUNC_FAIL,
+	E_MSG_DISPATCH_BIND_LIB_ALL_MGR_FUNC_FAIL,
+	E_MSG_DISPATCH_GET_MSG_PROCESS_IS_NULL,
+	E_MSG_DISPATCH_NOT_INIT,
+	E_MSG_DISPATCH_MGR_INIT_GET_CONFIG_FAIL,
+	E_MSG_DISPATCH_MSG_GET_SOCKET_FAIL,
+	E_MSG_DISPATCH_UNKNOWN_EXCEPTION
+};
+
+} // namespace MDbe
+
+
+#endif /* __MSG_DISPATCH_ERROR_CODE_H___ */

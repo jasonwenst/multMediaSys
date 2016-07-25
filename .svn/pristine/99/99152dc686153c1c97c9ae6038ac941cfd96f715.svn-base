@@ -1,0 +1,251 @@
+/********************************************************************
+filename: 	QueForMutiProc.h
+created:	2015-01-30
+author:      huwei
+
+purpose:	 多文件队列的实现
+大概思路：   一个控制文件，加锁访问控制文件
+             多个数据文件
+			 尽可能的给每个进程分配一个数据文件，每个进程间的写操作并不需要加锁，只有在切文件的时候才需要加锁。
+			 单个文件的最大大小为20M，满了后自动切文件。 这样便于删除已读数据，用来清理空间
+			 只允许单进程读
+			 已经在windows上测试，写入速度大约可达到20M每秒。对于小的记录，可以达到约2W笔 每秒，远远满足需求
+			 空读速度大于写速度，2W每秒以上
+*********************************************************************/
+#pragma once
+#include <string>
+#include <memory>
+
+#include <stdlib.h>
+#ifdef _HWWIN_
+#include <stdio.h>
+#else
+#include <stdio.h>
+#include <unistd.h>
+#endif
+
+#include "hwmutex.h"
+#include "HwBuffer.h"
+#include <boost/smart_ptr.hpp>
+
+typedef boost::shared_ptr<CHwBuffer> PsHwBuffer;//从对象池里面取和释放
+extern const PsHwBuffer gHwNullBuf;
+//最多允许1000个左右的进程写入。总大小最大为20G
+#define HW_MAX_FileNum 1024
+const int  HW_MAX_SIZE_PER_FILE = (1024 * 1024*20);//20M 一个文件
+//没有写的位置信息，所以不能存在写了还没被利用的文件。
+enum EDataFileState
+{
+	eNoUse= 0,
+	eUse_Writting = 3,
+	eUse_FullWrited = 4,
+	eUse_NotFullWrited= 5
+};
+
+
+struct SDataFileInfo
+{
+	int   iPid; //
+	int   iFlag;
+	void setPid(int pid)
+	{
+		iPid = pid;
+	}
+	void setState(EDataFileState e)//最后两位用作状态位
+	{
+		iFlag &= 0xfffffff0;
+		iFlag |= e;
+	}
+	EDataFileState getState()
+	{
+		int st = iFlag & 0xf;
+		return EDataFileState(st);
+	}
+
+};
+typedef boost::shared_ptr<SDataFileInfo> PSDataFileInfo;
+
+//控制文件的内容
+struct SQueControlInfo
+{
+	//int iNowIdleTotal;//实时变化的，没有用于写数据的文件
+	SDataFileInfo data[HW_MAX_FileNum];
+	void show()
+	{
+		printf("--que info :\n");
+		printf("maxfile num : %d , maxfile size %d\n", HW_MAX_FileNum, HW_MAX_SIZE_PER_FILE);
+		//
+		int idle = 0;
+		for (int i = 0; i < HW_MAX_FileNum; ++i)
+		{
+			if (data[i].getState() != eNoUse)
+			{
+				printf("%d: pid %d state %d\n", i, data[i].iPid, (int)data[i].getState());
+			}
+			else
+			{
+				++idle;
+			}
+		}
+		printf("-- %d idle files:\n", idle);
+		printf("control info end\n");
+	}
+};
+
+//控制文件访问的封装类
+class CControFile
+{
+public:
+	CControFile();
+	virtual ~CControFile();
+	
+
+public:
+	void setControPath(const char* fileName);
+	void outPut();
+
+	int getOneIdleFile(bool bFindNotFull = false);//获取一个空 的文件id
+	int setOneToIdle(int id);//将该文件置为空闲，同时删除其数据
+	int setOneToFull(int id,int & nextIdleId);
+	int setOneToFull(int id);
+	int setOneToNoFullWrited(int id);
+	std::string getDataFileNameById(int i);
+	void lock();
+	void unlock();
+	int load();
+	int save();
+public:
+	SQueControlInfo m_control;
+protected:
+	int setDefaultSettings();
+	int getIdleId(bool bFindNotFull = false);
+
+	
+	std::string m_sRootPath;
+	std::string m_sConrolFileName;
+	std::string m_sLockFileConrolName;
+
+	FILE* m_fd;
+	FILE* m_lockFd;
+};
+//行分隔符为 -\r\n-
+//结束内容符为  
+
+//写入的实现逻辑
+class CQueForMutiProcWrite
+{
+public:
+	CQueForMutiProcWrite();
+	~CQueForMutiProcWrite();
+	int init(const char* rootPath);
+	void printControl();
+	std::string getOneIdeFile();//
+	//以换行符结束
+	int changeDataFile();
+	int push(const char* data, bool bFindNotFull = false);
+	int push(const char* data, int len,bool bFindNotFull = false);
+	int uninit();
+
+protected:
+	int writeFileEnd();
+	int writeRowEnd();
+	int writeFileFull();
+	std::string m_sRootDir;
+	CControFile m_control;
+	int m_iIdxNow;//
+	int m_iDataSize;//
+	FILE* m_fd;
+	CHwMutex m_lock;
+	std::string m_sDataFile;
+
+};
+
+typedef int FuncProcessOneRow(const char* data, int len);
+struct SQueReadState
+{
+	int data[HW_MAX_FileNum];//正数代表位移，负数代表状态。
+};
+
+//读的状态的存储文件，用于重启恢复
+class CReadState
+{
+public:
+	CReadState();
+	~CReadState();
+	int setRootDir(const char* path);
+	int load();
+	int save();
+	int save(int i);
+	int getReadPos(int i);
+	int setReadPos(int i, int pos);
+	int addReadPos(int i, int pos);
+
+	
+public:
+	SQueReadState m_state;
+protected:
+	FILE*  m_fd;
+	std::string  m_sRootPath;
+	std::string m_sStatePath;
+	bool m_bHasLoad;
+};
+
+enum  ELastRowState
+{
+	eNormalRecord,
+	eFileEndRecord,
+	eFullRecord,
+	eNullRecord
+
+};
+
+struct SOneFileReadState//不能用memset
+{
+	FILE* fd;
+	time_t iLastReadTime;
+	CHwBuffer sCache;
+	ELastRowState eLastState;
+	int readPos;
+	SOneFileReadState()
+	{
+		fd = NULL;
+		iLastReadTime = 0;
+		sCache.clear();
+		eLastState = eNormalRecord;
+		readPos = 0;
+	}
+	~SOneFileReadState()
+	{
+		if (fd != NULL)
+		{
+			fclose(fd);
+			fd = NULL;
+		}
+		iLastReadTime = 0;
+		sCache.clear();
+	}
+};
+
+
+//多文件队列的读封装，只能用于但进程
+class  CQueForMutiProcRead
+{
+public:
+	CQueForMutiProcRead();
+	virtual ~CQueForMutiProcRead();
+	PsHwBuffer getOneRow();
+	int setRootDir(const char* path);
+protected:
+	int getNextReadFile();//获取下一个读的文件，没有则返回0
+
+	PsHwBuffer innerGetRow(int idx);
+	void  setOneFileToIdle(int idx);
+	std::string m_sRootDir; //跟路径
+	CControFile m_control;  //控制文件
+	CReadState  m_readState;//读的状态
+	int          m_iReadIdx;//当前正在读的文件序号
+	SOneFileReadState     m_FileTempState[HW_MAX_FileNum];//文件句柄数组,考虑到效率，数组比较快
+
+
+};
+

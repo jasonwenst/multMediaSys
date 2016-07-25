@@ -1,0 +1,13 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_reload_mgr_impl_cpp)
+{
+	//Fuction: CSrmReloadMgrImpl :: CSrmReloadMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmReloadMgrImpl_CSrmReloadMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

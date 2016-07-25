@@ -1,0 +1,454 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_proc_trans_mgr_impl.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "srm_error_code.h"
+#include "srm_proc_trans_mgr_impl.h"
+#include "srm_rdc_mgr.h"
+#include "srm_proc_mgr.h"
+#include "dbe2_util.h"
+#include "public/odframe/dbe_public.h"
+#include <limits>
+
+namespace MDbe
+{
+
+CSrmProcTransMgrImpl::CSrmProcTransMgrImpl()
+{
+
+}
+
+int32 CSrmProcTransMgrImpl::Create(SRdcCreateTrans &rcCreateTrans, int32 iExeType)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcProcTransOperateList &rcProcoOperateList = rcCreateTrans.procOperateList();
+    CRdcProcTransOperateList::iterator itTransOperate;
+    CRdcProcTrans &rcProcTrans = rcCreateTrans.procTrans();
+    if (TRANS_EXE_PITY == iExeType)
+    {
+        CRdcProcTransList cProcTransList;
+        QueryAppTransId(rcProcTrans.appId(), cProcTransList);
+        if (0 < cProcTransList.size())
+        {
+            CRdcProcTransList::iterator itTrans;
+            aistring strTransId;
+            for (itTrans = cProcTransList.begin(); itTrans != cProcTransList.end(); ++itTrans)
+            {
+                strTransId += FormatString("%d ", itTrans->get_transId());
+            }
+            THROW_CAIEXCEPTION(DBE2_SRM_CREATE_TRANS_FAILED,
+                "create trans failed,same app trans operate exists.transaction have ?")
+                << strTransId;
+        }
+    }
+    else if (TRANS_EXE_FORCE_ONLY == iExeType)
+    {
+        StopTransByApp(rcProcTrans.get_appId(), "");
+    }
+    else if (TRANS_EXE_COEXIST == iExeType)
+    {
+        CRdcProcTransList cProcTransList;
+        QueryAppTransId(rcProcTrans.get_appId(), cProcTransList);
+        aistring strTransId;
+        CRdcProcTransList::iterator itTrans;
+        for (itTrans = cProcTransList.begin(); itTrans != cProcTransList.end(); ++itTrans)
+        {
+            if (rcProcTrans.get_transType() != itTrans->get_transType())
+            {
+                THROW_CAIEXCEPTION(DBE2_SRM_CREATE_TRANS_FAILED,
+                    "create trans failed,different app trans exists.transaction have ?")
+                    << strTransId;
+            }
+        }
+    }
+
+    // 获取sequence,作为事务的ID
+    int32 iTransId = rcRdcMgr.GetProcTransId();
+
+    rcProcTrans.set_transId(iTransId);							// 将事务ID更新到事务的数据中
+    rcProcTrans.set_createTime(GetCurrentTime());						//设置事务创建时间
+    rcProcTrans.set_transState(TRANS_DOING);
+
+    int32 iMaxLevel = INT_MAX;
+    for (itTransOperate = rcProcoOperateList.begin(); itTransOperate != rcProcoOperateList.end(); ++itTransOperate)
+    {
+        itTransOperate->set_transId(iTransId);					// 将事务ID更新到事务操作中
+        itTransOperate->set_operateResult(OPERATE_NO_DO);		// 设置事务状态
+        if (iMaxLevel > itTransOperate->get_operateLevel()) iMaxLevel = itTransOperate->get_operateLevel();
+    }
+
+    // 调用RDC接口将事务操作插入数据库
+    rcRdcMgr.InsertTransInfo(rcCreateTrans);
+    DBE2_LOG(DEBUG_LOGGER, "transaction(%d) is create for app(%d)", iTransId, rcProcTrans.get_appId());
+
+    CRdcProcTransOperateList cFirstOperList;
+    for (itTransOperate = rcProcoOperateList.begin();
+        itTransOperate != rcProcoOperateList.end(); ++itTransOperate)
+    {
+        if (iMaxLevel == itTransOperate->get_operateLevel())
+        {
+            cFirstOperList.push_back(*itTransOperate);
+        }
+    }
+    // 执行优先级最高的进程操作
+    int32 imodifyState = 1;
+    // 进程同步必须为同一优先级执行
+    if (TRANS_PROC_SYNC == rcProcTrans.get_transType()) imodifyState = 0;
+
+    ExeProcOperate(cFirstOperList, imodifyState);
+
+    return iTransId;
+}
+
+void CSrmProcTransMgrImpl::StopTrans(int32 iTransId, aistring rstrDes)
+{
+    DBE2_LOG(DEBUG_LOGGER, "transaction(%d) is stopped", iTransId);
+    aistring strErrorInfo = FormatString("transaction(%d) is stopped:%s\n", iTransId, rstrDes.c_str());
+    AddTransErrorInfo(iTransId, strErrorInfo);
+    // 做事务失败的回调
+    CallBack(iTransId, TRANS_CANCEL);
+}
+
+bool CSrmProcTransMgrImpl::QueryAppTransId(int32 iAppId, CRdcProcTransList &rlstProcTrans)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    // 调用RDC接口查询
+    rcRdcMgr.QueryTransByApp(iAppId, rlstProcTrans);
+    return (0 != rlstProcTrans.size());
+}
+
+void CSrmProcTransMgrImpl::CompleteOpera(SBaseProcKey &rcProcKey, int32 iVmId, int32 iOperateType,
+    int32 iOperateResult ,aistring &rstrError)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    // 调用RDC接口查询事务操作
+    CRdcProcTransOperate cProcOperate;
+    CRdcProcTransOperateList lstProcOperate;
+    bool bQueryResult = rcRdcMgr.QueryProcOperate(rcProcKey, iVmId, iOperateType, cProcOperate);
+    if (bQueryResult)
+    {
+        // 判断失败操作并且有重试次数的进程要进行重试
+        if ((OPERATE_FAIL == iOperateResult || OPERATE_TIME_OUT == iOperateResult) &&
+            cProcOperate.get_operateRetryCount() > 0)
+        {
+            CRdcProcTransOperateList cRetryOperateList;
+            cRetryOperateList.push_back(cProcOperate);
+            ExeProcOperate(cRetryOperateList);
+            return;
+        }
+
+        // 更新事务操作状态
+        CRdcProcTransOperate cUpdTranOperate;
+        SetTranOperateKey(cProcOperate, cUpdTranOperate);
+        cUpdTranOperate.set_transId(cProcOperate.get_transId());
+        cUpdTranOperate.set_operateResult(iOperateResult);
+        cUpdTranOperate.set_operateFinishTime(GetCurrentTime());
+        cUpdTranOperate.set_operateLevel(cProcOperate.get_operateLevel());
+
+        rcRdcMgr.UpdateAndQueryOperate(cUpdTranOperate, lstProcOperate);
+        // 错误信息更新到事务表中
+        if (OPERATE_FAIL == iOperateResult || OPERATE_TIME_OUT == iOperateResult)
+        {
+            AddTransErrorInfo(cProcOperate.get_transId(), rstrError);
+        } 
+    }
+    else
+    {
+        // 进程操作找不到，无可继续的事务操作
+        DBE2_LOG(DEBUG_LOGGER, "operate can not find in operate list, this operate is not "
+            " do by srm or this operate is canceled");
+        return;
+    }
+
+    CRdcProcTransOperateList::iterator itProcOperate;
+    if (0 == lstProcOperate.get_size())
+    {
+        // 事务当前以及后续操作找不到，不进行处理
+        DBE2_LOG(WARN_LOGGER, "Operate is deleted, maybe someone delete this transaction");
+        return;
+    }
+
+    int32 iTranResult = TRANS_SUCCESS;
+    for (itProcOperate = lstProcOperate.begin(); (itProcOperate != lstProcOperate.end()) &&
+        (cProcOperate.get_operateLevel() == itProcOperate->get_operateLevel()); ++itProcOperate)
+    {
+        if (OPERATE_DOING == itProcOperate->get_operateResult())
+        {
+            // 同一优先级的操作未完成，不做处理
+            DBE2_LOG(TRACE_LOGGER, "operate is not completed");
+            return;
+        }
+        if (OPERATE_FAIL == itProcOperate->get_operateResult() ||
+            OPERATE_TIME_OUT == itProcOperate->get_operateResult())
+        {
+            iTranResult = TRANS_FAIL;
+        }
+    }
+
+    // 同一优先级的进程操作完成。
+    bool bFailStop = false;
+    if (!iTranResult)
+    {
+        bFailStop = OperateFailed(cProcOperate);
+    }
+
+    if (bFailStop || itProcOperate == lstProcOperate.end())
+    {
+        // 事务处理完成，事务完成回调
+        DBE2_LOG(TRACE_LOGGER, "TRANSACTION (%d) is completed. call back", cProcOperate.get_transId());
+        CallBack(cProcOperate.get_transId(), iTranResult);
+    }
+    else
+    {
+        CRdcProcTransOperateList lstExeProcOperate;
+        int32 iExeLevel = itProcOperate->get_operateLevel();
+        CBSDateTime cCurTime = GetCurrentTime();
+        for(itProcOperate = lstProcOperate.begin();
+            itProcOperate != lstProcOperate.end(); ++itProcOperate)
+        {
+            if (iExeLevel == itProcOperate->get_operateLevel()
+                && OPERATE_NO_DO == itProcOperate->get_operateResult())
+            {
+                itProcOperate->set_operateResult(OPERATE_DOING);
+                itProcOperate->set_operateStartTime(cCurTime);
+                itProcOperate->set_operateTimeoutTime(cCurTime.addSecs(itProcOperate->get_operateSecLimit()));
+                lstExeProcOperate.push_back(*itProcOperate);
+            }
+        }
+        // 开始执行下一个优先级的事务操作
+        ExeProcOperate(lstExeProcOperate);
+    }
+}
+
+bool CSrmProcTransMgrImpl::CallBack(int32 iTransId, int32 iTransResult)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcProcTrans cProcTrans;
+    rcRdcMgr.QueryTransById(iTransId, cProcTrans);
+    CallBack(cProcTrans, iTransResult);
+    return true;
+}
+
+bool CSrmProcTransMgrImpl::CallBack(CRdcProcTrans &rcProcTrans, int32 iTransResult)
+{
+    CMsgHelper *pMsgHelper = GetMsgHelper();
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+
+    // 更新事务执行结果
+    CRdcProcTrans cTranResult;
+    cTranResult.set_transId(rcProcTrans.get_transId());
+    cTranResult.set_transExeResult(iTransResult);
+    cTranResult.set_transState(TRANS_DONE);
+    rcRdcMgr.UpdateTransInfo(cTranResult);
+    rcRdcMgr.DeleteTransInfo(rcProcTrans.get_transId());
+
+    if (rcProcTrans.get_callbackMsgType() < 0)
+    {
+        SSrmExeCallBack cCbInfo;
+        cCbInfo.set_msgHead(GetMsgHead(rcProcTrans.get_callbackMsgType()));
+        cCbInfo.set_appId(rcProcTrans.get_appId());
+        cCbInfo.set_param(rcProcTrans.get_callbackParam());
+        cCbInfo.set_exeResult(iTransResult);
+        cCbInfo.set_transType(rcProcTrans.get_transType());
+        if (TRANS_SUCCESS != iTransResult)
+        {
+            cCbInfo.set_errorInfo(rcProcTrans.get_transErrorInfo());
+        }
+        cCbInfo.set_transId(rcProcTrans.get_transId());
+        obb_stream cStream = Sdl2Obbstream(cCbInfo);
+        DBE2_LOG(TRACE_LOGGER, "proc_trans_mgr send msg_type:%d ", rcProcTrans.get_callbackMsgType());
+        pMsgHelper->Send(rcProcTrans.get_callbackMsgType(), cStream);
+    }
+    return true;
+}
+
+void CSrmProcTransMgrImpl::OperateTimeOut(void)
+{
+    CRdcProcTransOperateList lstProcOperate;
+    CRdcProcTransOperateList::iterator itProcOperate;
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    ISrmProcMgr &rProcMgr = ISrmProcMgr::GetInstance();
+    // 获取当前时间
+    CBSDateTime cCurTime;
+    GetCurrentTime(cCurTime);
+    rcRdcMgr.QueryTimeOutOperate(cCurTime, lstProcOperate);
+    for (itProcOperate = lstProcOperate.begin();
+        itProcOperate != lstProcOperate.end(); ++itProcOperate)
+    {
+        DBE2_LOG(WARN_LOGGER, "proc(%d-%d) execute time out, judge operate execute failed",
+            itProcOperate->get_appId(), itProcOperate->get_procId());
+
+        SBaseProcKey cProcKey;
+        cProcKey.set_appId(itProcOperate->get_appId());
+        cProcKey.set_procId(itProcOperate->get_procId());
+        rProcMgr.UpdateProcState(cProcKey,itProcOperate->get_vmId(),
+            itProcOperate->get_operateType(), OPERATE_FAIL, 0);
+
+        aistring strErrorInfo = FormatString("proc time out,time out seconds is %ds",
+            itProcOperate->get_operateSecLimit());
+        strErrorInfo = DetailProcErrInfo(cProcKey, itProcOperate->get_vmId(), strErrorInfo);
+        CompleteOpera(cProcKey, itProcOperate->get_vmId(),
+            itProcOperate->get_operateType(), OPERATE_TIME_OUT, strErrorInfo);
+    }
+}
+
+void CSrmProcTransMgrImpl::StopTransByApp(int32 iAppId, aistring rstrDes)
+{
+    CRdcProcTransList lstProcTrans;
+    CRdcProcTransList::iterator itProcTrans;
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    rcRdcMgr.QueryTransByApp(iAppId, lstProcTrans);
+    DBE2_LOG(INFO_LOGGER, "There is %d transactions be stopped", lstProcTrans.size());
+    for (itProcTrans = lstProcTrans.begin(); itProcTrans != lstProcTrans.end(); ++itProcTrans)
+    {
+        aistring strErrorInfo = FormatString("transaction(%d) exe stopped:%s\n", itProcTrans->get_transId(), rstrDes.c_str());
+        AddTransErrorInfo(itProcTrans->get_transId(), strErrorInfo);
+        CallBack(*itProcTrans, TRANS_CANCEL);
+    }
+
+    // 清除冗余的事务操作
+    rcRdcMgr.DeleteRedundantProcOperate(iAppId);
+}
+
+void CSrmProcTransMgrImpl::AddTransErrorInfo(int32 iTransId, aistring &rstrError)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    try
+    {
+        rcRdcMgr.MergeTransErrorInfo(iTransId, rstrError);
+    }
+    catch (CAIException &e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+        REPORT_LOGGER(WARN_LOGGER, "update error info failed, not process");
+    }
+}
+
+
+aistring CSrmProcTransMgrImpl::DetailProcErrInfo(SBaseProcKey &rcPk, int32 iVmId, aistring &strErrInfo)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    int32 iAppId = rcPk.appId();
+    int32 iProcId = rcPk.get_procId();
+    CPdcVm cVm;
+    CRdcApp cApp;
+    rcRdcMgr.GetPdcVm(iVmId, cVm);
+    rcRdcMgr.QueryApp(iAppId, cApp);
+    return FormatString("app(%d:%s)-%d failed on vm(%s:%s):%s\n", iAppId, cApp.get_appName().c_str(),
+        iProcId, cVm.get_vmIp().c_str(), cVm.get_vmName().c_str(), strErrInfo.c_str());
+}
+
+void CSrmProcTransMgrImpl::ExeProcOperate(CRdcProcTransOperateList &rlstProcOperate,
+    int32 modifyState)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    ISrmProcMgr &rcProcMgr = ISrmProcMgr::GetInstance();
+    CMsgHelper *pMsgHelper = GetMsgHelper();
+    CRdcProcTransOperateList::iterator itProcOperate;
+    CRdcProcTransOperateList lstStartProcOperate;
+    CRdcProcTransOperateList lstStopProcOperate;
+
+    CRdcProcList cPrcoList;
+    CBSDateTime cCurTime = GetCurrentTime();
+
+    for(itProcOperate = rlstProcOperate.begin();
+        itProcOperate != rlstProcOperate.end(); ++itProcOperate)
+    {
+        int32 iLimitSecond = itProcOperate->get_operateSecLimit() != 0? itProcOperate->get_operateSecLimit() : 180;
+        itProcOperate->set_operateResult(OPERATE_DOING);
+        itProcOperate->set_operateStartTime(cCurTime);
+        itProcOperate->set_operateTimeoutTime(cCurTime.addSecs(iLimitSecond));
+        if (itProcOperate->get_operateRetryCount() > 0)
+        {
+            itProcOperate->set_operateRetryCount(itProcOperate->get_operateRetryCount() - 1);
+        }
+
+        // 分开启停操作
+        if (PROC_START == itProcOperate->get_operateType())
+        {
+            lstStartProcOperate.push_back(*itProcOperate);
+        }
+        else
+        {
+            lstStopProcOperate.push_back(*itProcOperate);
+        }
+    }
+
+    rcRdcMgr.UpdateProcOperate(rlstProcOperate);
+
+    // 执行启动进程
+    DBE2_LOG(TRACE_LOGGER, "start size %d, stop size %d", lstStartProcOperate.size(), lstStopProcOperate.size())
+    if(0 != lstStartProcOperate.size()) rcProcMgr.StartByTrans(lstStartProcOperate, modifyState);
+
+    if(0 != lstStopProcOperate.size()) rcProcMgr.StopByTrans(lstStopProcOperate, modifyState);
+}
+
+void CSrmProcTransMgrImpl::SetTranOperateKey(CRdcProcTransOperate &rcInOperate,
+    CRdcProcTransOperate &rcOutOperate)
+{
+    rcOutOperate.set_appId(rcInOperate.appId());
+    rcOutOperate.set_procId(rcInOperate.get_procId());
+    rcOutOperate.set_vmId(rcInOperate.get_vmId());
+    rcOutOperate.set_operateType(rcInOperate.get_operateType());
+}
+
+bool CSrmProcTransMgrImpl::OperateFailed(CRdcProcTransOperate &rcProcOperate)
+{
+    CRdcProcTrans cProcTrans;
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    ISrmProcMgr &rcProcMgr = ISrmProcMgr::GetInstance();
+    bool bGet = rcRdcMgr.QueryTransById(rcProcOperate.get_transId(), cProcTrans);
+    CRdcProcTransOperateList rcProcOperateList;
+    CRdcProcTransOperateList::iterator itProcOperate;
+    if (!bGet)
+    {
+        DBE2_LOG(DEBUG_LOGGER, "Operate exe failed,transaction(%d) is deleted" 
+            "need do nothing", rcProcOperate.get_transId());
+        return true;
+    }
+
+    // 强制执行事务，事务继续执行
+    if (COMMON_YES == cProcTrans.get_foceExeFlag())
+    {
+        DBE2_LOG(DEBUG_LOGGER, "Operate exe failed,transaction(%d) is force exe transaction" ,
+            rcProcOperate.get_transId());
+        return false;
+    }
+
+    // 回滚操作
+    DBE2_LOG(DEBUG_LOGGER, "transaction(%d) exe failed,roll back it.",
+        rcProcOperate.get_transId());
+    rcRdcMgr.QueryTransOperateById(rcProcOperate.get_transId(), rcProcOperateList);
+    for(itProcOperate = rcProcOperateList.begin();
+        itProcOperate != rcProcOperateList.end(); ++itProcOperate)
+    {
+        if (OPERATE_NO_DO != itProcOperate->get_operateResult())
+        {
+            if (PROC_START == itProcOperate->get_operateType() &&
+                COMMON_YES == itProcOperate->get_needRollback())
+            {
+                rcProcMgr.Stop(*itProcOperate, COMMON_NO, COMMON_YES);
+            }
+        }
+    }
+    return true;
+}
+
+} // namespace MDbe
+

@@ -1,0 +1,430 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_communicate_client.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-6-7）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "dbe_public.h"
+#include "dbe2_communicate_client.h"
+#include "dbe2_util.h"
+#include "dbe2_log.h"
+#include "dbe2_srm_msg_interface.h"
+#include "dbe2_common_struct.h"
+
+
+#define DBE2_UDP_REPONSE_LEN 64
+
+namespace MDbe
+{
+
+
+
+int32 CDbe2CommunicateClient::init()
+{
+	m_iCurrentSrmIpIdx = 0;
+	aistring strSrmIp = getenv("SRM_IP") == NULL?"":getenv("SRM_IP");
+	DBE2_LOG(INFO_LOGGER, "env SRM_IP is %s!", strSrmIp.c_str());
+	if(strSrmIp.length() > 0)
+	{
+		base_divide_str(strSrmIp, ";", m_lstSrmIp);
+	}
+    return 0;
+}
+
+aistring CDbe2CommunicateClient::GetSrmIpInEnv()
+{
+	if(m_lstSrmIp.size() <= 0)
+	{
+		DBE2_LOG(FATAL_LOGGER, "srm ip in env is empty!");
+		return "";
+	}
+	if(m_iCurrentSrmIpIdx >= m_lstSrmIp.size())
+	{
+		m_iCurrentSrmIpIdx = 0;
+	}
+	aistring strSrmIp = m_lstSrmIp[m_iCurrentSrmIpIdx];
+	DBE2_LOG(INFO_LOGGER, "get srm ip by env![srm_ip:%s, idx:%d]", strSrmIp.c_str(), m_iCurrentSrmIpIdx);
+	m_iCurrentSrmIpIdx++;
+	return strSrmIp;
+}
+
+
+
+void CDbe2CommunicateClient::Disconnect()
+{
+    if (NULL != m_pCommunicateApi)
+    {
+        m_pCommunicateApi->close();
+        //对象在msg_dispatch里面删除
+        //重联状态下,休眠一下,以保证ODFRAME处理消息的顺序
+        sleep(10);
+    }
+}
+
+int32 CDbe2CommunicateClient::destroy()
+{
+    Disconnect();
+    return 0;
+}
+
+
+
+int32 CDbe2CommunicateClient::stop()
+{
+    Disconnect();
+    return 0;
+}
+
+
+
+int32 CDbe2CommunicateClient::run(od_frame::CData * p)
+{
+    if(!m_isConnected)
+    {
+        Disconnect();
+        //连接
+        if(!Connect())
+        {
+        	sleep(10);
+            return 0;
+        }
+    }
+    od_frame::CCommData * pCommData = od_frame::CCommData::alloc();
+
+    //接收
+    int32 iRet = RecvNotify(pCommData);
+
+    if(iRet < 0)
+    {
+        if(iRet == COMMUNICATE_WAIT_TIMEOUT)
+        {
+            //接收超时处理
+            DoRecvFailTimeout(pCommData);
+        }
+        else
+        {
+            //接收失败处理
+            DoRecvFailProc(pCommData);
+        }
+    }
+    else
+    {
+        //接收成功处理
+        return DoRecvSucceed(pCommData);
+    }
+    return 0;
+}
+
+
+
+CDbe2CommunicateClient::CDbe2CommunicateClient():
+        m_isConnected(false), m_pCommunicateApi(NULL), m_iCurrentSrmIpIdx(0)
+{
+
+}
+
+
+
+CDbe2CommunicateClient::~CDbe2CommunicateClient()
+{
+}
+
+
+
+bool CDbe2CommunicateClient::FindIpAndPortByUdp(aistring & strSrmIp, int32 & iSrmPort)
+{
+    if(getenv("UDP_PORT") == NULL)
+    {
+        DBE2_LOG(ERROR_LOGGER, "UDP_PORT not setting in env!");
+        return false;
+    }
+    int32 iUdpSerPort = atoi(getenv("UDP_PORT"));
+    DBE2_LOG(INFO_LOGGER, "UDP_PORT is %d", iUdpSerPort);
+
+
+    od_srm::srm_udp_addr_req query;
+    char cszResponse[DBE2_UDP_REPONSE_LEN];
+
+    char cszIp[32];
+    memset(cszIp, 0, sizeof(cszIp));
+    int32 iPort;
+
+    bool bfind = false;
+    UdpFinder objUdpFinder;
+    for(int32 i = 0; i < 2; ++i)
+    {
+        bfind = objUdpFinder.find(iUdpSerPort, &query, query.size(), &cszResponse, DBE2_UDP_REPONSE_LEN);
+        if(bfind) break;
+        sleep(1);
+    }
+    if(!bfind)
+    {
+        DBE2_LOG(ERROR_LOGGER, "get ip and port by udp fail.[udp_port:%d", iUdpSerPort);
+        sleep(4);
+        return false;
+    }
+    od_srm::psrm_udp_addr_ack pResp = (od_srm::psrm_udp_addr_ack)cszResponse;
+    DBE2_LOG(DEBUG_LOGGER,  "get ip from srm sucess ip is:%s", pResp->address_);
+    const char * cszIpPort = pResp->address_;
+    char cszTemp[32] ;
+    const char * cszPos = strchr(cszIpPort, ':');
+    if(cszPos == NULL)
+    {
+        DBE2_LOG(WARN_LOGGER,  "udp find invalid address %s", cszIpPort);
+        sleep(4);
+        return false;
+    }
+    const char * cszPort = strchr(cszPos, ';');
+    if(cszPort == NULL) cszPort = cszPos + strlen(cszPos);
+    strncpy(cszIp, cszIpPort, cszPos - cszIpPort);
+    cszIp[cszPos - cszIpPort] = '\0';
+    cszPos += 1;
+    strncpy(cszTemp, cszPos, cszPort - cszPos);
+    cszTemp[cszPort - cszPos] = '\0';
+    iPort = atoi(cszTemp);
+
+    strSrmIp = cszIp;
+    iSrmPort = iPort;
+    return true;
+}
+
+void CDbe2CommunicateClient::DoRecvFailTimeout(od_frame::CCommData * pCommData)
+{
+    DBE2_LOG(WARN_LOGGER, "run recv notify timeout![ip:%s]", m_pCommunicateApi->get_peer());
+    od_frame::CCommData::dealloc(pCommData);
+}
+
+void CDbe2CommunicateClient::DoRecvFailProc(od_frame::CCommData * pCommData)
+{
+    DBE2_LOG(DEBUG_LOGGER, "recive data fail[from:%s %s]", m_pCommunicateApi->get_peer(),
+             m_pCommunicateApi->get_errorMsg());
+    pCommData->TEMPLATE_MEMBER(CNotify) seek<NAMESPACE_OD_SRM CRouteData>(0, SEEK_SET);
+
+    //连接断开通知
+    pCommData->set_type(MSG_COMMON_DISCONNECT);
+    NAMESPACE_OD_SRM CRouteData * pRouteData = pCommData->TEMPLATE_MEMBER(CNotify) create_object<NAMESPACE_OD_SRM CRouteData>();
+    //针对CAS连接SRM断开的时候
+    pRouteData->m_iOldType = NAMESPACE_OD_SRM RECV_FROM_SRM;
+    pRouteData->m_iDataType = NAMESPACE_OD_SRM COMM_CUT_TYPE;
+    pRouteData->m_iThreadId = get_threadId();
+    pCommData->m_uCommApi.m_pCommunicateApi = m_pCommunicateApi;
+    //当通讯出现问题时,会把通讯指针传到下一个节点来处理,下一个节点中会DELETE这个对象
+    //这时CA中的这个对象应该已经设置为无效了
+    m_pCommunicateApi = NULL;
+    send_data(pCommData);
+    //重联
+    DBE2_LOG(INFO_LOGGER, "nrm disconnect to srm!set communicate api to null!");
+    m_isConnected = false;
+}
+
+int32 CDbe2CommunicateClient::DoRecvSucceed(od_frame::CCommData * pCommData)
+{
+    if (pCommData->get_type() <= 0)
+    {
+        DBE2_LOG(ERROR_LOGGER, "recive error type %d", pCommData->get_type());
+        od_frame::CControlData::dealloc(pCommData);
+        return 0;
+    }
+
+    pCommData->TEMPLATE_MEMBER(CNotify) seek<NAMESPACE_OD_SRM CRouteData>(0, SEEK_SET);
+    NAMESPACE_OD_SRM CRouteData * pRouteData;
+    pRouteData = pCommData->TEMPLATE_MEMBER(CNotify) get_object<NAMESPACE_OD_SRM CRouteData>();
+    pRouteData->m_iThreadId = get_threadId();
+    pCommData->m_uCommApi.m_pCommunicateApi = m_pCommunicateApi;
+
+    //判读如果为151,但虚拟机ID又是为-1的,说明本机的SRM还没有获得VM_ID,关闭这个链接后重连
+    if(pCommData->get_type() == MSG_RSP_DBE_COMM_REG && pRouteData->m_iSVmId == -1)
+    {
+        m_pCommunicateApi->close();
+        DBE2_LOG(WARN_LOGGER, "run srm machine vm id is -1!close connect![ip:%s]",
+                m_pCommunicateApi->get_peer());
+        od_frame::CControlData::dealloc(pCommData);
+        return 0;
+    }
+    if(pCommData->get_type() == MSG_CLOSE_BY_NRM_REG)
+    {
+        m_pCommunicateApi->close();
+        //退出本进程
+        DBE2_LOG(FATAL_LOGGER, "receive 152 msg from srm ,program will exit!");
+        kill(0, SIGTERM);
+        return -1;
+    }
+    send_data(pCommData);
+    return 0;
+}
+
+
+bool CDbe2CommunicateClient::CreateClientConfig(CCommunicateClientConfig & cClientConfig, aistring strIp, int32 iPort)
+{
+    aistring strCfg = MDbe::FormatString("socket_client:server_ip:%s,server_port:%d,reconnect_occassion:%s,check_connection_time_step:%d,select_time_out:%d,send_time_out:%d,recv_time_out:%d",
+                                         strIp.c_str(), iPort, "none", 0, 180, 0, 0);
+    int32 iRet = -1;
+    iRet = cClientConfig.create_config(strCfg.c_str());
+    if(iRet == 0)
+    {
+        DBE2_LOG(INFO_LOGGER, "create config success![info:%s]", strCfg.c_str());
+        return true;
+    }
+    else
+    {
+        DBE2_LOG(INFO_LOGGER, "create config fail![info:%s]", strCfg.c_str());
+        return false;
+    }
+}
+
+int32 CDbe2CommunicateClient::RecvNotify(od_frame::CCommData * pCommData)
+{
+    return m_pCommunicateApi->recv_notify((CNotify &)(*pCommData));
+}
+
+void CDbe2CommunicateClient::ConnectFailClear()
+{
+    if(m_pCommunicateApi != NULL)
+    {
+        m_pCommunicateApi->close();
+        delete m_pCommunicateApi;
+        m_pCommunicateApi = NULL;
+        DBE2_LOG(INFO_LOGGER, "nrm connect srm fail!and clear data!");
+    }
+}
+
+bool CDbe2CommunicateClient::Connect()
+{
+    aistring strSrmIp;
+    int32 iSrmPort;
+    if(m_lstSrmIp.size() <= 0 || getenv("SRM_PORT") == NULL)
+    {
+        //通过UDP寻址
+        if(!FindIpAndPortByUdp(strSrmIp, iSrmPort))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        strSrmIp = GetSrmIpInEnv();
+        iSrmPort = atoi(getenv("SRM_PORT"));
+    }
+    DBE2_LOG(INFO_LOGGER, "srm ip:%s, port:%d", strSrmIp.c_str(), iSrmPort);
+
+
+    CCommunicateClientConfig cClientConfig;
+    if(!CreateClientConfig(cClientConfig, strSrmIp, iSrmPort))
+    {
+        return false;
+    }
+    m_pCommunicateApi = CCommunicateApi::create_client(cClientConfig.m_pCommunicateConfig);
+    if (NULL == m_pCommunicateApi)
+    {
+        DBE2_LOG(ERROR_LOGGER, "create communicate client error");
+        return false;
+    }
+    int32 iRet = m_pCommunicateApi->connect();
+    DBE2_LOG(INFO_LOGGER, "new connect to %s use %s, client thread(id:%d) will regiter(%d) time:%ld and  Ret=%d",
+             m_pCommunicateApi->get_peer(),
+             m_pCommunicateApi->get_local(),
+             get_threadId(),
+             MSG_DBE_COMM_REG,
+             MDbe::GetCurrentTime().second(),
+             iRet);
+    if(iRet != 0)
+    {
+        DBE2_LOG(INFO_LOGGER, "nrm connect to srm fail![srm_ip:%s, srm_port:%d]",
+                strSrmIp.c_str(), iSrmPort);
+        ConnectFailClear();
+        return false;
+    }
+
+    //设置socket缓存大小
+    int sock = m_pCommunicateApi->get_socket();
+    int sndbuf = 0, rcvbuf = 0;
+    socklen_t optlen = sizeof(sndbuf);
+    rcvbuf = sndbuf = 1024*1024;
+
+    int ret = setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
+    if (ret < 0)
+    {
+        DBE2_LOG(FATAL_LOGGER, "set socket send buf size fail![socket:%d, errno:%d, errstring:%s]",
+                sock, errno, strerror(errno));
+        ConnectFailClear();
+        return false;
+    }
+
+    ret = setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+    if (ret < 0)
+    {
+        DBE2_LOG(FATAL_LOGGER, "set socket recv buf size fail![socket:%d, errno:%d, errstring:%s]",
+                sock, errno, strerror(errno));
+        ConnectFailClear();
+        return false;
+    }
+
+    rcvbuf = sndbuf = 0;
+    getsockopt(sock, SOL_SOCKET, SO_SNDBUF, &sndbuf, &optlen);
+    getsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &optlen);
+    DBE2_LOG(INFO_LOGGER, "after set, get send buf %dk, recv buf %dk", sndbuf/1024, rcvbuf/1024);
+
+    int32 iVmid = od_system::get_vmId();
+    //发送150消息
+    CNotify objNotify;
+    CProcKey objPKey;
+    objPKey.m_objSKey.m_iFlowId = get_flowId();
+    objPKey.m_objSKey.m_iSrvId = get_serviceId();
+    objPKey.m_iProcId = get_procId();
+
+    objNotify.set_type(MSG_DBE_COMM_REG);
+    CRouteData * pRouteData = objNotify.alloc_object<CRouteData>();
+    ((CSourceData *)(pRouteData))->set_sourceProcKey(objPKey, iVmid);
+    pRouteData->m_iThreadId = get_threadId();
+    pRouteData->m_iSVmId = iVmid;
+    pRouteData->m_iSFlowId = -1;
+    pRouteData->m_iSSrvId = 1;
+    pRouteData->m_iSProcId = 1;
+    pRouteData->m_iSSrvType = 1;
+    CDbeCommApi * pDbeCommApi = objNotify.alloc_object<CDbeCommApi>();
+    pDbeCommApi->m_objPKey = objPKey;
+    //这里是NRM,写死1
+    pDbeCommApi->m_iProcType = 1;
+    pDbeCommApi->m_iThreadId = get_threadId();
+    pDbeCommApi->m_tmRegTime = MDbe::GetCurrentTime().second();
+    pDbeCommApi->m_tmRegModifyTime = 0;
+
+
+    m_pCommunicateApi->send_notify(objNotify);
+
+
+    m_isConnected = true;
+    DBE2_LOG(INFO_LOGGER, "nrm connect to srm successful![srm_ip:%s, srm_port:%d]",
+            strSrmIp.c_str(), iSrmPort);
+    return true;
+}
+
+} // namespace MDbe
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+    NAMESPACE_OD_FRAME CThread * create_dbeCommunicateClient()
+    {
+        return new MDbe::CDbe2CommunicateClient();
+    }
+
+#ifdef __cplusplus
+}
+#endif
+
+
+

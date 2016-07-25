@@ -1,0 +1,137 @@
+#include "dbe2_common_struct.h"
+#include "dbe2_lock.h"
+#include "common/base/od_system_interface.h"
+
+namespace MDbe {
+
+bool CSrvKey::operator() (const CSrvKey &rSk)
+{
+    return m_iSrvId == rSk.m_iSrvId && m_iFlowId == rSk.m_iFlowId;
+}
+
+bool CSrvKey::operator< (const CSrvKey &rSk) const
+{
+    if (m_iSrvId == rSk.m_iSrvId) return m_iFlowId < rSk.m_iFlowId;
+    return m_iSrvId < rSk.m_iSrvId;
+}
+
+bool CSrvKey::operator== (const CSrvKey& rSk) const
+{
+    return (m_iSrvId == rSk.m_iSrvId && m_iFlowId == rSk.m_iFlowId);
+}
+
+bool CProcKey::operator()(const CProcKey &rPk) const
+{
+    return (m_objSKey.m_iSrvId == rPk.m_objSKey.m_iSrvId &&
+        m_objSKey.m_iFlowId == rPk.m_objSKey.m_iFlowId &&
+        m_iProcId == rPk.m_iProcId);
+}
+
+bool CProcKey::operator< (const CProcKey &rPk) const
+{
+    if (m_objSKey == rPk.m_objSKey) return m_iProcId < rPk.m_iProcId;
+    return m_objSKey < rPk.m_objSKey;
+}
+
+bool CProcKey::operator==(const CProcKey &rPk) const
+{
+    return (m_objSKey == rPk.m_objSKey
+        && m_iProcId == rPk.m_iProcId);
+}
+bool CProcKey::operator!=(const CProcKey &rPk) const
+{
+    return ! (rPk == *this);
+}
+
+void CSrmHeadData::GenerateSequence()
+{
+    //锁
+    static CLock cLock;
+    CAutoLock cAutoLock(cLock);
+}
+void CRouteData::exchange()
+{
+    m_iTFlowId = m_iSFlowId;
+    m_iTSrvId = m_iSSrvId;
+    m_iTProcId = m_iSProcId;
+    m_iTVmId = m_iSVmId;
+    m_iTSrvType = m_iSSrvType;
+    m_iSFlowId = 0;
+    m_iSSrvId = 0;
+    m_iSProcId = 0;
+    m_iSVmId = 0;
+    m_iSSrvType = -1;
+}
+
+SRM_UDP_BROADCAST_PKG::SRM_UDP_BROADCAST_PKG(int32 _type, int32 _length, int64 _time)
+        : type_(_type)
+        , length_(_length)
+        , byte_order_(system_endian())
+        , padding_(0)
+        , time_(_time)
+{
+}
+
+size_t SRM_UDP_BROADCAST_PKG::size() const
+{
+        return sizeof(SRM_UDP_BROADCAST_PKG) + (size_t)length_;
+}
+
+int32 SRM_UDP_BROADCAST_PKG::get_type() const
+{
+        if (this->byte_order_ == system_endian()) return this->type_;
+        int32 tmp = this->type_;
+        PEER_TO_LOCAL_BASE(tmp);
+        return tmp;
+}
+
+int32 SRM_UDP_BROADCAST_PKG::get_length() const
+{
+        if (this->byte_order_ == system_endian()) return this->length_;
+        int32 tmp = this->length_;
+        PEER_TO_LOCAL_BASE(tmp);
+        return tmp;
+}
+
+int64 SRM_UDP_BROADCAST_PKG::get_time() const
+{
+        if (this->byte_order_ == system_endian()) return this->time_;
+        int32 tmp = this->time_;
+        PEER_TO_LOCAL_BASE(tmp);
+        return tmp;
+}
+
+bool SRM_UDP_BROADCAST_PKG::peer_to_local()
+{
+        if (byte_order_ == system_endian()) return true;
+        byte_order_ = system_endian();
+        PEER_TO_LOCAL_BASE(type_);
+        PEER_TO_LOCAL_BASE(time_);
+        PEER_TO_LOCAL_BASE(length_);
+        return false;
+}
+
+SRM_UDP_BROADCAST_PKG* SRM_UDP_BROADCAST_PKG::create(int32 _length, const void* buf, int64 _time)
+{
+        size_t len = sizeof(SRM_UDP_BROADCAST_PKG) + _length;
+        char * p = new char[len];
+        if (NULL == p) return NULL;
+        memset(p + sizeof(SRM_UDP_BROADCAST_PKG), 0, _length);
+
+        //指定地址构造对象
+        SRM_UDP_BROADCAST_PKG* pkg = new (p) SRM_UDP_BROADCAST_PKG;
+        pkg->byte_order_        = system_endian();
+        pkg->time_              = _time;
+        pkg->length_            = _length;
+        if (NULL != buf && _length > 0)
+        {
+                memcpy(p + sizeof(SRM_UDP_BROADCAST_PKG), buf, _length);
+        }
+        return pkg;
+}
+
+void SRM_UDP_BROADCAST_PKG::destory(void *pkg)
+{
+        delete [] (char*) pkg;
+}
+}//end namespace

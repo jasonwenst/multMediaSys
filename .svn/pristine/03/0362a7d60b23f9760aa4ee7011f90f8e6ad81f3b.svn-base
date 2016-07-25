@@ -1,0 +1,71 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_hash_func.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_HASH_FUNC_H___
+#define __DBE2_HASH_FUNC_H___
+
+#include "public/common/base/mapfunc.h"
+
+namespace MDbe
+{
+
+
+inline uint32 HashFunc(const int16 & first)
+{
+    return first;
+}
+
+inline uint32 HashFunc(const int32 & first)
+{
+    return first;
+}
+
+inline uint32 HashFunc(const int64 & first)
+{
+    return first;
+}
+
+inline uint32 HashFunc(const uint16 & first)
+{
+    return first;
+}
+
+inline uint32 HashFunc(const uint32 & first)
+{
+    return first;
+}
+
+inline uint32 HashFunc(const uint64 & first)
+{
+    return first;
+}
+
+inline uint32 HashFunc(const aistring & first)
+{
+    return hash_any((const unsigned char *)first.c_str(), first.length());
+}
+
+inline uint32 HashFunc(const char * first)
+{
+    return hash_any((const unsigned char *)first, strlen(first));
+}
+
+}; // namespace dbe2
+
+
+#endif /* __DBE2_HASH_FUNC_H___ */

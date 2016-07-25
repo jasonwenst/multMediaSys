@@ -1,0 +1,4 @@
+# Makefile for all
+SUBDIRS = adapter\
+
+include $(OB_REL)/etc/NGMastermake

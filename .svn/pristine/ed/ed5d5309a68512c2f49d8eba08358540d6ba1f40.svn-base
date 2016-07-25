@@ -1,0 +1,70 @@
+//////////////////////////////////////////////////////////////////////////  								
+///	COPYRIGHT NOTICE  							
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）  							
+///	All rights reserved.
+///  
+/// \file	cron_base.h
+/// \brief	cron 表达式中，每项的基础类
+/// 
+///  cron 表达式中，每项的基础类,实现解析表示，获取下个时间点等操作
+///
+/// \version 1.0
+/// \author		jinxin2
+/// \date		2011-11-21
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef _CRON_BASE_H
+#define _CRON_BASE_H
+
+#include "cron_define.h"
+#include "cron_struct.h"
+#include"cron_tool.h"
+#include <string>
+
+NAMESPACE_OD_CRON_BEGIN
+
+class CCronItem : public CCronTool
+{
+public:
+	CCronItem():m_bNeedAnalyze(false)
+	{
+		m_vecChildCronItem.clear();
+	}
+
+	CCronItem(VALUE_TYPE em)
+	{
+		m_vecChildCronItem.clear();
+		setValueType(em);
+	}
+
+	virtual ~CCronItem()
+	{
+	}
+
+private:
+	CCronItem(const CCronItem& rh);
+	CCronItem& operator=(const CCronItem& rh);
+public:
+	virtual int32 setValueType(VALUE_TYPE em);
+	virtual int32 LoadCronExpression(const char* szExpress, struct tm &tmInput);
+	virtual int32 RedoCronExpression(struct tm &tmInput);
+	virtual int32 GetNearTime(struct tm &tmNextTime, int32& iCarry, int32& iBalance);
+	virtual int32 SeekBegin(struct tm &tmNextTime);
+	virtual int32 SeekEnd(struct tm &tmNextTime);
+	virtual int32 IsCarry(struct tm &tmNextTime, int32 iCarry, int32 iSeek = 0);
+	int32 SetChildItem(CCronItem *pChild);
+	int32 ChangeValueMap(ItemValueMap& rItemValueMap);
+
+private:
+	bool m_bNeedAnalyze;
+	VALUE_TYPE m_emValueType;
+	AISTD string m_strCronExpress;
+	AISTD vector<CCronItem*> m_vecChildCronItem;
+};
+
+NAMESPACE_OD_CRON_END
+
+#endif

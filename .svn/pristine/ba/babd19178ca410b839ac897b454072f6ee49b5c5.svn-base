@@ -1,0 +1,78 @@
+#!/usr/bin/perl 
+use IO;
+
+my($param1, $param2) = @ARGV;
+print $param1," ",$param2,"\n";
+
+my $file = "./".$ENV{CPF_FLOW_ID}."_".$ENV{CPF_SRV_ID}."_".$ENV{CPF_PROC_ID}.".info";
+
+sub handler{
+open(HANDOUT, ">$file") || die "Can't open newfile: $!\n";
+seek(HANDOUT,0,0);
+my $first1 =<<FIRST1;
+pid=$$
+init_progress=1
+init_error_info=
+stop_progress=100
+FIRST1
+print HANDOUT $first1;
+close(HANDOUT);
+
+exit;
+}
+
+sub interrupt{
+open(HANDOUT, ">$file") || die "Can't open newfile: $!\n";
+seek(HANDOUT,0,0);
+my $first1 =<<FIRST1;
+pid=$$
+init_progress=1
+init_error_info=stop by keyboard
+stop_progress
+FIRST1
+print HANDOUT $first1;
+close(HANDOUT);
+exit;
+}
+
+# perl信号 TERM终端信号 INT键盘中断信号
+$SIG{'TERM'} = 'handler';
+$SIG{'INT'} = 'interrupt';
+
+$| =1;
+open(HANDOUT, ">$file") || die "Can't open newfile: $!\n";
+init();
+close(HANDOUT);
+sleep (10);
+
+
+
+sub init{
+seek(HANDOUT,0,0);
+my $first =<<FIRST;
+pid=$$
+init_progress=1
+init_error_info=
+stop_progress=
+FIRST
+print HANDOUT $first;
+HANDOUT->autoflush;
+
+for (my$i=0; $i<11; $i++)
+{
+	sleep(5);
+	seek(HANDOUT,0,0);
+	my $p = $i*10;
+my $second =<<SECOND;
+pid=$$
+init_progress=1
+init_error_info=
+stop_progress=$p
+SECOND
+print HANDOUT $second;
+HANDOUT->autoflush;
+}
+
+}
+
+

@@ -1,0 +1,81 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_base_mgr.h）
+/// brief
+///				管理类基础接口
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-16）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_BASE_MGR_H___
+#define __DBE2_BASE_MGR_H___
+
+#include "dbe2_base_def.h"
+
+namespace MDbe
+{
+class CMsgHelper;
+class CMsgAddr;
+class CMgrInitHelper;
+typedef CMsgAddr CSendSource;
+typedef CMsgAddr CSendTarget;
+
+
+class IBaseMgr
+{
+public:
+    IBaseMgr()
+    {}
+
+    virtual ~IBaseMgr()
+    {}
+
+    /**
+     * 初始化
+     * @exception 初始化异常
+     */
+    virtual void Init(CMgrInitHelper & cMgrInitHelper)
+    {
+    }
+
+    /**
+     * 销毁
+     */
+    virtual void Destroy()
+    {
+    }
+
+    /**
+     * 获取MsgHelper类用于发送
+     * 用完不需要delete
+     */
+    CMsgHelper * GetMsgHelper();
+
+    /**
+     * 获取SendSource类
+     * @return
+     */
+    CSendSource * GetSendSource();
+
+    /**
+     * 获取CSendTarget类
+     * @return
+     */
+    CSendTarget * GetSendTarget();
+
+    static void SetTlsVal(CMsgHelper * pMsgHelper, CSendSource * pSendSource, CSendTarget * pSendTarget);
+};
+
+} // namespace MDbe
+
+
+#endif /* __DBE2_BASE_MGR_H___ */

@@ -1,0 +1,357 @@
+#!/usr/bin/perl -w
+#############################################################
+##系统库
+#############################################################
+use FindBin qw($Bin);
+use lib "$Bin/../lib/cpf_console_common";
+use Ca;
+use ClassForName;
+#use DBI;
+############################################################
+##无参数
+############################################################
+my $head  = "(dbm_console)\#";
+my $usage= <<END_OF_STRING;
+Usage: dbm_console  1.0.0   cpf version:2.5.1
+[Params]:
+        Must input
+                -ip=192.168.1.1             srm ip
+                -port=1234                  srm port
+        Options
+                -vm=123456                  vm id,the default value 666666
+        External Call                       							
+                -cmd=command                include the command in help
+                -params=param
+END_OF_STRING
+if(@ARGV<2)
+{
+    print $usage;
+    exit;
+}
+
+#############################################################
+##全局变量
+#############################################################
+my $ca = new Ca;
+my %hashParam = (); 
+
+my $vm_id    =666666;
+my $srm_ip   ="";
+my $srm_port ="";
+my $pluginNam= ""; 
+my $pluginPar= ""; 
+my $pplugin ="null";
+
+my @custom_lib = ();
+my @commands   =();
+my $plib ={
+            flow =>{
+                    libname =>undef,
+                    usage   =>undef, 
+            },
+            job  =>{
+                    libname =>undef,
+                    usage   =>undef,
+            },
+};
+my $poper={};
+my $extra_data={
+       query => {
+                _Usename  =>undef,
+                _Password =>undef,
+                _Database =>undef,
+                _Space    =>undef,
+       },
+    };
+############################################################
+###查找可用的库 并获取接口usage
+############################################################
+&find_fileindir($ENV{OB_REL});
+if(@custom_lib==0){
+    die "[fatal]:can not find command lib in dir $ENV{OB_REL}.\n";
+}
+
+while(@custom_lib){
+    my $test_name = shift @custom_lib;
+    my ($test_lib,$eval_cmd,$usage_note,$ret);
+    $usage_note =""; 
+    $test_name =~ m#(.+).pm#;
+    $test_lib = $1;
+    
+    eval("use $test_lib;");
+    $eval_cmd = "\&".$test_lib."::usage_note";
+    $ret =eval('$usage_note='."$eval_cmd"."(".'$poper'.");");
+    if (!(defined $ret) or $usage_note eq ""){
+        print "[warn]:can not get $test_lib usage note,please add\n";
+        next;
+     }
+
+    $plib->{'flow'}->{'libname'}="LIB->".$test_lib,$plib->{'flow'}->{'usage'}= $usage_note if($test_lib =~ /flow/);
+    $plib->{'job'}->{'libname'}="LIB->".$test_lib,$plib->{'job'}->{'usage'}= $usage_note if($test_lib =~ /job/);
+    $plib->{'query'}->{'libname'}="LIB->".$test_lib,$plib->{'query'}->{'usage'}= $usage_note if($test_lib =~ /query/);
+}
+
+#print $plib->{'flow'}->{'libname'},$plib->{'flow'}->{'usage'};
+#print $plib->{'job'}->{'libname'},$plib->{'job'}->{'usage'};
+
+#print  %$poper,"\n";
+#####递归查找制定文件夹下Cpf_console_xxxxx.pm文件###########
+sub find_fileindir(){
+    local($dir) = @_; 
+    opendir(DIR,"$dir")|| die "can't open this $dir";
+
+    local @files =readdir(DIR);
+    closedir(DIR);
+    for $file (@files){
+        next if($file=~m/\.$/ || $file =~m/\.\.$/);
+
+        if ($file =~m/^(Cpf\_console\_)(.+)\.(pm)$/i){
+            push @custom_lib,$file;
+            push @commands,$2;
+        }   
+        elsif(-d "$dir/$file"){
+            &find_fileindir("$dir/$file" );
+        }   
+    }   
+}
+
+############################################################
+####由库反推启动命令，告知用户可以使用那些命令。
+############################################################
+
+sub putin{
+    my($tip) = shift;
+    my $flag =1;
+    my $value="";
+    while($flag){
+        print $head,$tip;
+        chomp($value =<STDIN>);
+        if($value ne ""){
+            return $value;
+        }
+    }
+}
+
+goto PARAMSPARSE;
+
+STARTCA:
+$srm_ip   = putin("Enter srm host ip:");
+$srm_port = putin("Enter srm port:");
+    
+$ca ->set_data($srm_ip,$srm_port);
+$ca ->Connect;
+   
+#STARTPLUGIN:
+$pluginNam = putin("Enter pluginNam:");
+$pluginPar = putin("Enter pluginPar:");
+
+$pplugin=newInstance($ca,$pluginNam,"",$pluginPar);
+
+if($pplugin eq "null"){
+    print "[fatal]:load -n=$pluginNam lib error\n";
+##commond
+}
+$pplugin->run($extra_data);
+
+LOOPFORINPUT:
+print $head;
+while(chomp($put=<STDIN>))
+{
+    if($put eq "exit"){
+        print"Disconnected from Srm Release 2.5.1 - AIOPENBILLING CPF\n";
+        exit;
+     }
+     if($put =~ /^help/){
+        #print $usage,$head;
+        parsehelp($put);
+     }
+     elsif($put eq ""){
+        print $head;
+        next;
+     }
+     elsif(parseput($put)){
+        print $head;
+     }
+     else{
+        print "$put: Command not found. Enter 'help' for instructions.\n",$head;
+     }
+}
+############################################################
+#解析help
+############################################################
+sub parsehelp{
+my $input = shift;
+my @in = split(/\s+/,$input);
+
+if(@in==1){
+    showcmd();
+    print "[Logout] exit\n";
+    print $head;
+    return 1;
+}
+(print "help param too manay\n")if(@in>2);
+shift @in;
+my $key = shift @in;
+
+if (defined($plib->{$key})){
+    print $plib->{$key}->{'usage'},$head;
+    return 1;
+}
+
+if (defined($poper->{$key})){
+     print $poper->{$key}->{'help'},"\n",$head;
+     return 1;
+}
+if ($key eq "exit"){
+    print "console will logout\n",$head;
+    return 1;
+}
+print "help $key command not found\n",$head;
+return 0;
+}
+############################################################
+#解析交互输入
+############################################################
+sub parseput{
+my $input = shift;
+#print $input,"\n";
+my @in = split(/\s+/,$input); 
+#print "parse put in:@in\n";
+my $cmd = shift @in;
+
+if (!defined($poper->{$cmd}))
+{
+    #print "put in error\n";
+    return 0;
+}
+
+(print "lack param for $cmd. help:$poper->{$cmd}->{'help'}\n"),return 0 if($poper->{$cmd}->{'num'}!=@in);
+$pluginPar ="";
+while(@in){
+    my $param =shift @in;
+    if($pluginPar eq ""){
+        $pluginPar ="\"$param\"";
+    }
+    else
+    {
+        $pluginPar = $pluginPar.",".$param;
+    }
+
+}
+$pluginNam =$poper->{$cmd}->{'lib'};
+$pluginPar =$pluginPar.","."$poper->{$cmd}->{'type'}";
+#print "$pluginNam:$pluginPar\n";
+
+$pplugin=newInstance($ca,$pluginNam,"",$pluginPar);
+if($pplugin eq "null"){
+            die "[fatal]:load -n=$pluginNam lib error\n";
+}
+$pplugin->run($extra_data);
+
+return 1;
+}
+
+############################################################
+#参数获取
+############################################################
+PARAMSPARSE:
+%hashParam = &string2hash;
+&getParam();
+
+sub getParam{
+    while(($key,$value)=each %hashParam)
+    {
+         if($key eq "ip"){
+            $srm_ip = $value;
+         }
+
+         if($key eq "port"){
+            $srm_port = $value;
+         }
+        
+         if($key eq "vm"){
+            $vm_id =$value;
+         }
+         
+         if($key eq "cmd"){
+            $extern_cmd = $value;
+            $extern_cmd =~ s/,/ /g;
+         }
+
+         if($key eq "n"){
+            $pluginNam = $value;
+            print "plugin name:$pluginNam\n";
+         }
+
+         if($key eq "params"){
+            $pluginPar =  $value;
+            #print "plugin param:$pluginPar\n";
+            $pluginPar =~ s/,/ /g;
+            
+         }
+    }
+   
+    die "[fatal]:can not get srm ip\n" if($srm_ip eq "");
+    die "[fatal]:can not get srm port\n" if($srm_port eq "");
+##################################
+my $new_date= `date "+%Y-%m-%d %H:%M:%S"`;
+my $preface =<<PREFACE;
+
+DBM*CONSOLE: Release 2.5.1 - Production on $new_date
+Copyright (c) 2013, Cpf, Asiainfo-Linkage .  All rights reserved.
+
+PREFACE
+####################################
+	print $preface;
+    $ca ->set_data($srm_ip,$srm_port,$vm_id);
+    $ca ->Connect;
+    if(defined $extern_cmd and defined $pluginPar){
+        parseput("$extern_cmd  $pluginPar");
+        exit(0);
+    }
+    if($pluginNam eq ""){
+    #    showcmd();
+        goto LOOPFORINPUT;
+    }
+}
+
+sub string2hash{
+    my %hash;
+    foreach(@ARGV)
+    {
+        if(m#(\w+)\s*=\s*(\w+\S*)#)
+        {
+            $hash{$1}=$2;
+        }
+        else
+        {
+            die "[fatal]:param format error\n$usage";
+        }
+    }
+    return %hash;
+}
+
+
+$pplugin=newInstance($ca,$pluginNam,"",$pluginPar);
+if($pplugin eq "null"){
+        die "[fatal]:load -n=$pluginNam lib error\n";
+}
+$pplugin->run($extra_data);
+###########################################################
+###交互模式展示命令与用法
+###########################################################
+sub showcmd{
+    while(($key,$value)=each(%$plib)){
+        # %{$plib->{$key}}
+        print "Usage $key:\n";
+        while(($ikey,$ivalue)= each  %{$plib->{$key}})
+        {
+            if (defined  $plib->{$key}->{$ikey}){
+                print "$ivalue";
+            }
+        }
+        print "\n---------------------------------------------------------------------------------------------------\n\n";
+    }
+
+}
+

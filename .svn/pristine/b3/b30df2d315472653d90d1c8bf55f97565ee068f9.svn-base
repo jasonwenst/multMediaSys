@@ -1,0 +1,130 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_config_data.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-22）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __NRM_CONFIG_DATA_H___
+#define __NRM_CONFIG_DATA_H___
+
+#include <list>
+#include <string>
+#include <vector>
+#include <map>
+#include "public/odframe/frame_interface.h"
+#include "dbe2_base_mgr.h"
+#include "nrm_def_sdl_c.h"
+#include "dbe_base_def_sdl_c.h"
+#include "dbe_public.h"
+#include "nrm_error_code.h"
+
+#define DEFAULT_SOFT_BACKUP_PATH 	"$OB_REL/bak"
+
+namespace MDbe
+{
+
+const int32 CONFIG_BUFF_SIZE = 512;
+const int32 PROC_OUT_TIME = 15;
+const int32 PROC_INIT_OUT_TIME = 60; // 30 * 24 * 60 * 60
+const int32 PROC_SEND_OUT_TIME = 10;
+const int32 READ_NR_INTERVAL = 5;
+const int32 WRITE_VM_INTERVAL = 5;
+const int32 STOP_PROC_TIME = 60;
+const int32 NRM_SOFT_TIME = 120;
+const double NRM_HD_USED = 80.00;
+#define PROC_ACK_COUNT 3
+#define PROC_ACK_FAILED 10
+#define PROC_RESTART_NUMBER 5
+#define PROC_NOT_REFRESH_NUM 3
+#define PROC_REFRESH_NUM 4
+#define SYSTEM_PROC_REFRESH_NUM 3
+
+typedef AISTD vector<aistring> EnvPathVec; //环境变量path
+
+class CProcConfig
+{
+public:
+    char    m_szXmlPathFile[MAX_PATH];
+    int32   m_iFlowId;       
+    int32   m_iServId;
+    int32   m_iProcId;
+READ_CONFIG_BEGIN
+    READ_VALUE2(m_szXmlPathFile, "xml_path_file", "", NAMESPACE_XML_CONFIG emValueOptional)
+    READ_VALUE2(m_iFlowId, "flow_id", -1, NAMESPACE_XML_CONFIG emValueOptional)
+    READ_VALUE2(m_iServId, "serv_id", 0, NAMESPACE_XML_CONFIG emValueOptional)
+    READ_VALUE2(m_iProcId, "proc_id", 0, NAMESPACE_XML_CONFIG emValueOptional)
+READ_CONFIG_END
+};
+    
+
+typedef NAMESPACE_XML_CONFIG  CConfigList<CProcConfig> CSystemProcessConfigList;
+
+
+class CNrmConfig
+{
+public:
+	int32 init();
+	int32 initProcKey();
+
+	char  m_szLogCfgPath[CONFIG_BUFF_SIZE];
+	char  m_szTbTsCfgPath[CONFIG_BUFF_SIZE];
+	char  m_szBackPath[CONFIG_BUFF_SIZE];
+	char  m_szRootPath[CONFIG_BUFF_SIZE];//运行环境根目录
+	int32 m_nProcOutTime;	//进程重启间隔
+	int32 m_nProcInitOutTime;//进程初始化超时间隔
+	int32 m_nProcSendOutTime; //发送进程迁移间隔
+	int32 m_nProcStopOutTime; //停止进程超时间隔
+	int32 m_nReadNrInterval; //读取nr内容的间隔
+	int32 m_nWriteNrInterval; //获取虚拟机静态信息
+	int32 m_nProcRestartNumber; //进程重启次数
+	int32 m_nPollDeal; //轮询处理
+    int32 m_nSystemProcRestartNumber; // 系统进程重启次数
+    int32 m_nStartProcSleepTime;    // nrm启动进程间隔时间，单位微妙
+    int32 m_nXcUseRatioThreshold; // xc使用率告警配置
+    od_srm::CProcKey m_objNrmKey;
+
+    od_srm::CProcKey m_ZeroProcKey;
+    EnvPathVec m_vecEnvPath; //环境变量path的列表（查找可执行程序用）
+    CSystemProcessConfigList m_cSystemProcConfigList;
+
+
+READ_CONFIG_BEGIN
+        READ_VALUE2(m_szTbTsCfgPath, "tbts_cfg_path", "", NAMESPACE_XML_CONFIG emValueRequire)
+        READ_VALUE2(m_szBackPath, "back_path", DEFAULT_SOFT_BACKUP_PATH, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nProcOutTime, "proc_out_time",PROC_OUT_TIME, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nProcInitOutTime, "proc_initout_time",PROC_INIT_OUT_TIME, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nProcSendOutTime, "proc_sendout_time",PROC_SEND_OUT_TIME, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nProcStopOutTime, "proc_stopout_time",STOP_PROC_TIME, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nReadNrInterval, "read_nr_interval",READ_NR_INTERVAL, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nWriteNrInterval, "write_nr_interval",WRITE_VM_INTERVAL, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nProcRestartNumber, "proc_restart_number",PROC_REFRESH_NUM, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nPollDeal, "proc_poll_deal",0, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nSystemProcRestartNumber, "system_proc_restart_number", SYSTEM_PROC_REFRESH_NUM, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nStartProcSleepTime, "start_proc_sleep_time", 0, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_nXcUseRatioThreshold, "xc_use_ratio_threshold", 80, NAMESPACE_XML_CONFIG emValueOptional)
+
+        READ_OBJ2(m_cSystemProcConfigList, "system_process", NAMESPACE_XML_CONFIG emValueOptional);
+READ_CONFIG_END
+};
+
+extern CNrmConfig g_objNrmConfig;
+
+
+} // namespace MDbe
+
+
+
+#endif /* __NRM_CONFIG_DATA_H___ */
+

@@ -1,0 +1,115 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_record_mgr_impl.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "srm_record_mgr_impl.h"
+#include "srm_rdc_mgr.h"
+#include "srm_vm_mgr.h"
+#include "msg_dispatch_mgr.h"
+#include "dbe2_util.h"
+namespace MDbe
+{
+class CRecordConfig
+{
+public:
+	CRecordConfig()
+    {}
+    virtual ~CRecordConfig()
+    {}
+
+READ_CONFIG_BEGIN
+    READ_VALUE2(m_iCleanInterval, "clean_interval", 1800, NAMESPACE_XML_CONFIG emValueOptional)
+
+
+READ_CONFIG_END
+
+public:
+    int32 m_iCleanInterval;
+};
+void CSrmRecordMgrImpl::Init(CMgrInitHelper & cMgrInitHelper)
+{
+	CRecordConfig cRecordConfig;
+	cMgrInitHelper.ReadConfig(cRecordConfig);
+	m_iCleanInterval = cRecordConfig.m_iCleanInterval;
+	DBE2_LOG(INFO_LOGGER, "clean interval :%d", m_iCleanInterval);
+}
+CSrmRecordMgrImpl::CSrmRecordMgrImpl()
+{
+
+}
+
+void CSrmRecordMgrImpl::UpdateVmAndProcoInfo(SSrmVmProcStatus &rcVmProcState)
+{
+	ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+	SBaseVmUpdInfo &rcVmUpdInfo = rcVmProcState.vmInfo();
+	CBSDateTime cUpdTime;
+	cUpdTime.setTime_t(rcVmUpdInfo.get_updateTime());
+	int32 iVmId = rcVmUpdInfo.get_vmId();
+
+	// 更新虚拟机的动态信息
+	CRdcVmStateRecord cVmState;
+	cVmState.set_vmId(iVmId);
+	cVmState.set_vmState(rcVmUpdInfo.get_status());
+	cVmState.set_procCount(rcVmUpdInfo.get_runningCount());
+	cVmState.set_cpuLeft((int64)rcVmUpdInfo.get_cpuLeft());
+	cVmState.set_memLeft((int64)rcVmUpdInfo.get_memLeft());
+	cVmState.set_netUse((int64)rcVmUpdInfo.get_netUse());
+	cVmState.set_xcUse(rcVmUpdInfo.get_xcUse());
+	cVmState.set_cpuUseRatio((int32)(10000 * rcVmUpdInfo.get_cpuUseRatio()));
+	cVmState.set_memUseRatio((int32)(10000 * rcVmUpdInfo.get_memUseRatio()));
+	cVmState.set_netUseRatio((int32)(10000 * rcVmUpdInfo.get_netUseRatio()));
+	cVmState.set_xcUseRatio((int32)(10000 * rcVmUpdInfo.get_xcUseRatio()));
+	cVmState.set_updateTime(cUpdTime);
+	rRdcMgr.InsertVmDynamicInfo(cVmState);
+
+	// 更新虚拟上运行的进程信息
+	SBaseProcUpdStatusList &rcProcUpdList = rcVmProcState.procStatusList();
+	SBaseProcUpdStatusList::iterator itProcUpdInfo;
+	CRdcProcStateRecordList cProcStateList;
+	for (itProcUpdInfo = rcProcUpdList.begin();
+		itProcUpdInfo != rcProcUpdList.end(); ++itProcUpdInfo)
+	{
+		CRdcProcStateRecord cProcRecord;
+		cProcRecord.set_appId(itProcUpdInfo->baseProcKey().get_appId());
+		cProcRecord.set_procId(itProcUpdInfo->baseProcKey().get_procId());
+		cProcRecord.set_vmId(rcVmUpdInfo.get_vmId());
+		cProcRecord.set_cpuUse(itProcUpdInfo->get_cpuUse());
+		cProcRecord.set_memUse(itProcUpdInfo->get_memUse());
+		cProcRecord.set_netUse(itProcUpdInfo->get_netUse());
+		cProcRecord.set_modifySec(itProcUpdInfo->get_secModify());
+		cProcRecord.set_updateTime(cUpdTime);
+		cProcStateList.push_back(cProcRecord);
+	}
+	rRdcMgr.InsertVmProcInfo(iVmId, cProcStateList);
+	rRdcMgr.SetVmUpdateTime(iVmId, cUpdTime);
+}
+
+void CSrmRecordMgrImpl::DeleteRedundantData()
+{
+	ISrmRdcMgr::GetInstance().DeleteRedundantData(m_iCleanInterval);
+}
+
+void CSrmRecordMgrImpl::WriteRecordToDb()
+{
+	ISrmRdcMgr::GetInstance().WriteRecordToDb();
+}
+
+
+} // namespace MDbe
+

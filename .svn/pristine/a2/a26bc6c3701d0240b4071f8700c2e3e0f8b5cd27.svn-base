@@ -1,0 +1,181 @@
+#include <unittest_cp_dbe2_base_main.h>
+
+SUITE(SUITE_dbe2_common_struct_cpp)
+{
+	//Fuction: bool CProcKey :: operator!= ( const CProcKey & rPk ) const
+	TEST_FIXTURE(TestFixture,TestCProcKey_operatorExclamationEqual)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CProcKey :: operator() ( const CProcKey & rPk ) const
+	TEST_FIXTURE(TestFixture,TestCProcKey_operatorOpenParenCloseParen)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CProcKey :: operator< ( const CProcKey & rPk ) const
+	TEST_FIXTURE(TestFixture,TestCProcKey_operatorLess)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CProcKey :: operator== ( const CProcKey & rPk ) const
+	TEST_FIXTURE(TestFixture,TestCProcKey_operatorEqualEqual)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CRouteData :: exchange ( )
+	TEST_FIXTURE(TestFixture,TestCRouteData_exchange)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmHeadData :: GenerateSequence ( )
+	TEST_FIXTURE(TestFixture,TestCSrmHeadData_GenerateSequence)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrvKey :: operator() ( const CSrvKey & rSk )
+	TEST_FIXTURE(TestFixture,TestCSrvKey_operatorOpenParenCloseParen)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrvKey :: operator< ( const CSrvKey & rSk ) const
+	TEST_FIXTURE(TestFixture,TestCSrvKey_operatorLess)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrvKey :: operator== ( const CSrvKey & rSk ) const
+	TEST_FIXTURE(TestFixture,TestCSrvKey_operatorEqualEqual)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: SRM_UDP_BROADCAST_PKG :: SRM_UDP_BROADCAST_PKG ( int32 _type , int32 _length , int64 _time ) : type_ ( _type ) , length_ ( _length ) , byte_order_ ( system_endian ( ) ) , padding_ ( 0 ) , time_ ( _time )
+	TEST_FIXTURE(TestFixture,TestSRM_UDP_BROADCAST_PKG_SRM_UDP_BROADCAST_PKG)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: SRM_UDP_BROADCAST_PKG * SRM_UDP_BROADCAST_PKG :: create ( int32 _length , const void * buf , int64 _time )
+	TEST_FIXTURE(TestFixture,TestSRM_UDP_BROADCAST_PKG_create)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void SRM_UDP_BROADCAST_PKG :: destory ( void * pkg )
+	TEST_FIXTURE(TestFixture,TestSRM_UDP_BROADCAST_PKG_destory)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 SRM_UDP_BROADCAST_PKG :: get_length ( ) const
+	TEST_FIXTURE(TestFixture,TestSRM_UDP_BROADCAST_PKG_get_length)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int64 SRM_UDP_BROADCAST_PKG :: get_time ( ) const
+	TEST_FIXTURE(TestFixture,TestSRM_UDP_BROADCAST_PKG_get_time)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 SRM_UDP_BROADCAST_PKG :: get_type ( ) const
+	TEST_FIXTURE(TestFixture,TestSRM_UDP_BROADCAST_PKG_get_type)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool SRM_UDP_BROADCAST_PKG :: peer_to_local ( )
+	TEST_FIXTURE(TestFixture,TestSRM_UDP_BROADCAST_PKG_peer_to_local)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: size_t SRM_UDP_BROADCAST_PKG :: size ( ) const
+	TEST_FIXTURE(TestFixture,TestSRM_UDP_BROADCAST_PKG_size)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgData :: ~ CMsgData ( )
+	TEST_FIXTURE(TestFixture,TestCMsgData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgData * CMsgData :: Alloc ( )
+	TEST_FIXTURE(TestFixture,TestCMsgData_Alloc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgData :: CMsgData ( ) : m_pCommData ( 0 )
+	TEST_FIXTURE(TestFixture,TestCMsgData_CMsgData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgData :: Dealloc ( CMsgData * pMsgData )
+	TEST_FIXTURE(TestFixture,TestCMsgData_Dealloc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgData :: delete_self ( od_frame :: CThread * pThread )
+	TEST_FIXTURE(TestFixture,TestCMsgData_delete_self)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

@@ -1,0 +1,1624 @@
+/* $Id: srm_job_mgr_impl.cpp 382292 2013-11-18 10:28:28Z hupj $  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_job_mgr_impl.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#include "srm_job_mgr_impl.h"
+#include "rdc_table_def_sdl_c.h"
+#include "srm_error_code.h"
+#include "srm_rdc_mgr_impl.h"
+#include "srm_app_mgr.h"
+#include "dbe2_util.h"
+#include "srm_util.h"
+#include "dbe2_common_struct.h"
+#include "dbm_def_sdl_c.h"
+#include "../msg_dispatch/msg_dispatch_mgr.h"
+#include "public/common/base/base_func.h"
+#include "srm_other_mgr.h"
+#include <time.h>
+
+namespace MDbe
+{
+
+CSrmJobMgrImpl::CSrmJobMgrImpl()
+{
+
+}
+
+CSrmJobMgrImpl::~CSrmJobMgrImpl()
+{
+
+}
+
+void CSrmJobMgrImpl::Init(CMgrInitHelper & cMgrInitHelper)
+{
+    cMgrInitHelper.ReadConfig(m_config);
+}
+
+void CSrmJobMgrImpl::StartJob(int32 iJobId)
+{
+    CRdcJobIns cJobInfo;
+
+
+    ISrmRdcMgr::GetInstance().GetJobInfo(iJobId, cJobInfo);
+    if (!cJobInfo.expirydate().isNull() && cJobInfo.expirydate() < GetCurrentTime())
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_OPER_JOB_ILLEGAL, "job[?] is on expiry:?")
+                << iJobId << cJobInfo.expirydate().toString("%Y-%M-%D %H:%N:%S").c_str();
+    }
+
+    if (cJobInfo.jobInsStatus() != JOB_READY_
+            && cJobInfo.jobInsStatus() != JOB_FAIL_
+            && cJobInfo.jobInsStatus() != JOB_STOP_
+            && cJobInfo.jobInsStatus() != JOB_COMPLETE_)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_OPER_JOB_ILLEGAL, "job [?] no finished, can not start again, JOB_STATUS[?]")
+                << iJobId << cJobInfo.jobInsStatus();
+    }
+
+    DBE2_LOG(DEBUG_LOGGER, "job %d refresh! ", iJobId);
+    ISrmRdcMgr::GetInstance().RefreshJobInfo(iJobId);
+    SetJobStatus(iJobId, JOB_STARTING_, JOB_READY_);
+    DBE2_LOG(DEBUG_LOGGER, "ready to start job %d.", iJobId);
+
+    SStepIdList sHeadStepList;
+
+
+    ISrmRdcMgr::GetInstance().GetHeadSteps(iJobId, sHeadStepList); // 获取依赖的step
+    if(sHeadStepList.size() == 0)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_GET_HEAD_STEP_FAILED, "job [?] can not find head steps please check data!")
+                << iJobId ;
+    }
+
+    SStepIdList::iterator it = sHeadStepList.begin();
+    for (; it != sHeadStepList.end(); ++it)
+    {
+        DBE2_LOG(DEBUG_LOGGER, "head step %d.", it->stepinsId());
+        StartStep(*it);
+    }
+}
+
+void CSrmJobMgrImpl::StopJob(int32 iJobId)
+{
+    CRdcJobIns cJobInfo;
+
+
+    ISrmRdcMgr::GetInstance().GetJobInfo(iJobId, cJobInfo);
+    if (cJobInfo.jobInsStatus() != JOB_START_ && cJobInfo.jobInsStatus() != JOB_STARTING_ &&
+            cJobInfo.jobInsStatus() != JOB_PAUSE_ && cJobInfo.jobInsStatus() != JOB_PAUSING_)
+    {
+
+        THROW_CAIEXCEPTION(DBE2_SRM_OPER_JOB_ILLEGAL, "job [?] can not stop, JOB_STATUS[?]")
+                << iJobId << cJobInfo.jobInsStatus();
+    }
+
+    if (!CheckHasRuningStep(iJobId))
+    {
+        SetJobStatus(iJobId, JOB_STOP_, cJobInfo.jobInsStatus());
+    }
+    else
+    {
+        SetJobStatus(iJobId, JOB_STOPING_, cJobInfo.jobInsStatus());
+    }
+}
+
+void CSrmJobMgrImpl::ForceJob(int32 iJobId)
+{
+    CRdcJobIns cJobInfo;
+
+
+    ISrmRdcMgr::GetInstance().GetJobInfo(iJobId, cJobInfo);
+    DBE2_LOG(DEBUG_LOGGER, "ready to force stop job %d.", iJobId);
+    if (!CheckHasRuningStep(iJobId) && cJobInfo.get_jobInsStatus() != JOB_STARTING_)
+    {
+        DBE2_LOG(DEBUG_LOGGER, "job has been stopped %d.", iJobId);
+        SetJobStatus(iJobId, JOB_STOP_);
+    }
+    else
+    {
+        //找出job运行中的flowId
+        SJobAppIdList sJobAppIdList;
+        CRdcJobRunStepAppList sErrorAppList;
+        aistring strErroappList = "force stop fail app_id";
+
+
+        ISrmRdcMgr::GetInstance().GetJobAppByStatus(iJobId, sJobAppIdList, APP_START_);
+        ISrmRdcMgr::GetInstance().GetJobAppByStatus(iJobId, sJobAppIdList, APP_RUN_EXCEPTION_);
+		ISrmRdcMgr::GetInstance().GetJobAppByStatus(iJobId, sJobAppIdList, APP_STOP_FAIL_);
+		ISrmRdcMgr::GetInstance().GetJobAppByStatus(iJobId, sJobAppIdList, APP_START_FAIL_);
+		ISrmRdcMgr::GetInstance().GetJobAppByStatus(iJobId, sJobAppIdList, APP_STOPING_);
+		ISrmRdcMgr::GetInstance().GetJobAppByStatus(iJobId, sJobAppIdList, APP_STARTING_);
+
+        if(sJobAppIdList.size() > 0)
+            SetJobStatus(iJobId, JOB_FORCESTOPING_);
+        else
+            SetJobStatus(iJobId, JOB_STOP_);
+
+        SJobAppIdList::iterator it = sJobAppIdList.begin();
+        for (; it != sJobAppIdList.end(); ++it)
+        {
+            try
+            {
+                //调强停流程接口
+                SetAppStatus(*it, APP_STOPING_);
+                if(0 == ISrmAppMgr::GetInstance().ForceStopApp(it->appId(), TRANS_JOB, NULL))
+                {
+                    SSrmExeCallBack  rExeSCallBack;
+                    aistring param = FormatString("%d_%d_%d", it->jobinsId(), it->stepinsId(), it->appId());
+
+
+                    rExeSCallBack.set_param(param);
+                    rExeSCallBack.set_exeResult(APP_EXE_SUCCESS);
+                    AppEndCallback(rExeSCallBack);
+                }
+            }
+            catch(CAIException &e)
+            {
+                DBE2_LOG_EXCEPTION(e);
+                strErroappList = FormatString("%s:%d", strErroappList.c_str(), it->appId());
+                continue;
+            }
+        }
+        if (sErrorAppList.size() > 0)
+        {
+            THROW_CAIEXCEPTION(DBE2_SRM_FORCE_STOP_JOB_FAILED, "?") << strErroappList.c_str();
+        }
+    }
+}
+
+void CSrmJobMgrImpl::PauseJob(SJobContrlInfo& rcJobCtrlInfo)
+{
+    CRdcJobIns cJobInfo;
+    ISrmRdcMgr::GetInstance().GetJobInfo(rcJobCtrlInfo.jobinsId(), cJobInfo);
+    DBE2_LOG(DEBUG_LOGGER, "ready to pause job %d.", rcJobCtrlInfo.jobinsId());
+
+
+    if (cJobInfo.jobInsStatus() != JOB_START_ && cJobInfo.jobInsStatus() != JOB_STARTING_
+            && cJobInfo.jobInsStatus() != JOB_PAUSE_ &&  cJobInfo.jobInsStatus() != JOB_PAUSING_)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_OPER_JOB_ILLEGAL, "can not pause job [?] , JOB_STATUS[?]")
+                << rcJobCtrlInfo.jobinsId() << cJobInfo.jobInsStatus();
+    }
+
+    if (rcJobCtrlInfo.stepCtrlinfolist().size() == 0) //暂停整个job
+    {
+        if (cJobInfo.jobInsStatus() == JOB_PAUSE_ || cJobInfo.jobInsStatus() == JOB_PAUSING_)
+        {
+            DBE2_LOG(DEBUG_LOGGER, "you has psused it already! job status [?]", cJobInfo.jobInsStatus());
+            return;
+        }
+
+        SStepIdList sStepIdList;
+        SStepIdSet sNeedPauseSet;
+
+
+        ISrmRdcMgr::GetInstance().GetJobStepByStatus(rcJobCtrlInfo.jobinsId(), sStepIdList, STEP_START_);
+        ISrmRdcMgr::GetInstance().GetJobStepByStatus(rcJobCtrlInfo.jobinsId(), sStepIdList, STEP_STARTING_);
+        SStepIdList::iterator it = sStepIdList.begin();
+        for (; it != sStepIdList.end(); ++it)
+        {
+            //获得next_steps
+            ISrmRdcMgr::GetInstance().GetNextSteps(*it, sNeedPauseSet);
+        }
+        if(sNeedPauseSet.size() == 0)
+        {
+            DBE2_LOG(INFO_LOGGER, "nothing next step to pause,job[%d] can not pause!", rcJobCtrlInfo.jobinsId());
+            THROW_CAIEXCEPTION(DBE2_SRM_OPER_JOB_ILLEGAL, "nothing next step to pause,job[?] can not pause!")
+                    << rcJobCtrlInfo.jobinsId();
+            return;
+        }
+
+        SStepIdSet::iterator itNeed = sNeedPauseSet.begin();
+        for (; itNeed != sNeedPauseSet.end(); ++itNeed)
+        {
+            SStepId tmpStepId = *itNeed;
+            SetStepStatus(tmpStepId, STEP_PAUSE_);
+        }
+    }
+    else //指定step暂停
+    {
+        //设置step为暂停
+        SStepContrlInfoList::iterator it = rcJobCtrlInfo.stepCtrlinfolist().begin();
+        for (; it != rcJobCtrlInfo.stepCtrlinfolist().end(); ++it)
+        {
+            CRdcJobRunStep cJobRunStep;
+
+
+            ISrmRdcMgr::GetInstance().GetStepInfo(it->stepId(), cJobRunStep);
+            if (cJobRunStep.get_stepStatus() == STEP_COMPLETE_ || cJobRunStep.get_stepStatus() == STEP_START_
+                    || cJobRunStep.get_stepStatus() == STEP_STARTING_)
+            {
+                THROW_CAIEXCEPTION(DBE2_SRM_OPER_JOB_ILLEGAL, "step can not pause jobid [?] stepid[?] , job_status[?], step_status[?]")
+                        << rcJobCtrlInfo.jobinsId()  << cJobRunStep.jobRunStepId() << cJobInfo.jobInsStatus() << cJobRunStep.stepStatus() ;
+            }
+            else
+            {
+                DBE2_LOG(DEBUG_LOGGER, "ready to pause step %d.", cJobRunStep.jobRunStepId());
+                SetStepStatus(it->stepId(), STEP_PAUSE_);
+            }
+        }
+    }
+
+    if(CheckHasRuningStep(rcJobCtrlInfo.jobinsId()))
+        SetJobStatus(rcJobCtrlInfo.jobinsId(), JOB_PAUSING_);
+    else
+        SetJobStatus(rcJobCtrlInfo.jobinsId(), JOB_PAUSE_);
+}
+
+void CSrmJobMgrImpl::ContinueJob(SJobContrlInfo& rcJobCtrlInfo)
+{
+    CRdcJobIns cJobInfo;
+    ISrmRdcMgr::GetInstance().GetJobInfo(rcJobCtrlInfo.jobinsId(), cJobInfo);
+
+
+    //	if (cJobInfo.jobInsStatus() != JOB_FAIL_ && cJobInfo.jobInsStatus() != JOB_PAUSE_
+    //			 &&cJobInfo.jobInsStatus() != JOB_STOP_ && cJobInfo.jobInsStatus() != JOB_STOPING_)
+    //	{
+    //		THROW_CAIEXCEPTION(DBE2_SRM_OPER_JOB_ILLEGAL,"can not continue job [?] , JOB_STATUS[?]")
+    //						<< rcJobCtrlInfo.jobinsId() << cJobInfo.jobInsStatus();
+    //	}
+
+    DBE2_LOG(DEBUG_LOGGER, "ready to continue job %d.", rcJobCtrlInfo.jobinsId());
+    if (rcJobCtrlInfo.stepCtrlinfolist().size() == 0) //整个job continue
+    {
+        SStepIdList sStepIdList;
+
+
+        ISrmRdcMgr::GetInstance().GetJobStepByStatus(rcJobCtrlInfo.jobinsId(), sStepIdList, STEP_PAUSE_);
+        SStepIdList::iterator it = sStepIdList.begin();
+        for (; it != sStepIdList.end(); ++it)
+        {
+            //设置为ready
+            DBE2_LOG(DEBUG_LOGGER, "job continue step %d.", it->get_stepinsId());
+            SetStepStatus(*it, STEP_READY_);
+            StartStep(*it);
+        }
+    }
+    else //指定step continue
+    {
+        SStepContrlInfoList::iterator it = rcJobCtrlInfo.stepCtrlinfolist().begin();
+        for (; it != rcJobCtrlInfo.stepCtrlinfolist().end(); ++it)
+        {
+            DBE2_LOG(DEBUG_LOGGER, "force continue step %d.", it->stepId().get_stepinsId());
+            StartStep(it->stepId(), 1);
+        }
+    }
+
+    SStepIdList rStepIdList;
+
+
+    if(cJobInfo.jobInsStatus() == JOB_FAIL_ || cJobInfo.jobInsStatus() == JOB_STOP_ || cJobInfo.jobInsStatus() == JOB_UNCONFIRMED)
+    {
+        ISrmRdcMgr::GetInstance().GetJobStepByStatus(rcJobCtrlInfo.jobinsId(), rStepIdList, STEP_STOP_);
+        ISrmRdcMgr::GetInstance().GetJobStepByStatus(rcJobCtrlInfo.jobinsId(), rStepIdList, STEP_FAIL_);
+        ISrmRdcMgr::GetInstance().GetJobStepByStatus(rcJobCtrlInfo.jobinsId(), rStepIdList, STEP_UNCONFIRMED);
+        if(rStepIdList.size() == 0)
+        {
+            rStepIdList.Clear();
+            ISrmRdcMgr::GetInstance().GetJobStepByStatus(rcJobCtrlInfo.jobinsId(), rStepIdList, STEP_PAUSE_);
+            if(rStepIdList.size() > 0)
+                SetJobStatus(rcJobCtrlInfo.jobinsId(), JOB_PAUSE_, cJobInfo.jobInsStatus());
+            else
+                SetJobStatus(rcJobCtrlInfo.jobinsId(), JOB_START_, cJobInfo.jobInsStatus());
+        }
+    }
+    else
+    {
+        ISrmRdcMgr::GetInstance().GetJobStepByStatus(rcJobCtrlInfo.jobinsId(), rStepIdList, STEP_PAUSE_);
+        if(rStepIdList.size() == 0)
+            SetJobStatus(rcJobCtrlInfo.jobinsId(), JOB_START_, cJobInfo.jobInsStatus());
+    }
+}
+
+void CSrmJobMgrImpl::StartRemovedStep(SJobContrlInfo& rcJobCtrlInfo)
+{
+    ISrmRdcMgr &rdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcJobRunStepList cRemovedStepList;
+    // 获取所有被移除的step信息
+    CRdcJobRunStep cRemovedCond;
+
+
+    cRemovedCond.set_stepStatus(STEP_READY_);
+    cRemovedCond.set_breakpoint(STEP_REMOVED);
+    cRemovedCond.set_jobInsId(rcJobCtrlInfo.get_jobinsId());
+    DBE2_LOG(DEBUG_LOGGER, "ready to start job(%d) removed steps.", rcJobCtrlInfo.jobinsId());
+    if (0 == rcJobCtrlInfo.stepCtrlinfolist().size())
+    {
+        rdcMgr.GetJobSteps(cRemovedCond, cRemovedStepList);
+    }
+    else
+    {
+        // 按照ID获取step信息
+        SStepContrlInfoList::iterator itStartStep;
+        for (itStartStep = rcJobCtrlInfo.stepCtrlinfolist().begin();
+                itStartStep != rcJobCtrlInfo.stepCtrlinfolist().end(); ++itStartStep)
+        {
+            CRdcJobRunStep cStepCond;
+
+
+            cRemovedCond.set_jobRunStepId(itStartStep->stepId().get_stepinsId());
+            rdcMgr.GetJobSteps(cRemovedCond, cRemovedStepList);
+        }
+    }
+
+    // 没有可以启动的被移除step
+    if (0 == cRemovedStepList.size())
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_START_REMOVED_STEP, "job [?] have no removed step to start")
+                << rcJobCtrlInfo.get_jobinsId() ;
+    }
+    CRdcJobRunStepList::iterator itRemovedStep;
+    for (itRemovedStep = cRemovedStepList.begin();
+            itRemovedStep != cRemovedStepList.end(); ++itRemovedStep)
+    {
+        SStepId cStepId;
+
+
+        cStepId.set_jobinsId(itRemovedStep->get_jobInsId());
+        cStepId.set_stepinsId(itRemovedStep->get_jobRunStepId());
+        StartStep(cStepId, EXE_REMOVED_STEP);
+    }
+}
+
+void CSrmJobMgrImpl::AppStartCallback(SSrmExeCallBack & rExeSCallBack)
+{
+    aistring param = rExeSCallBack.get_param();
+    CStringList	out_list;
+    base_divide_str(param, "_", out_list);
+    DBE2_LOG(DEBUG_LOGGER, "job app start call back  param %s result %d", param.c_str(), rExeSCallBack.get_exeResult());
+
+    //构造Id
+    SJobAppId cJobAppId;
+    cJobAppId.set_jobinsId(atoi(out_list[0].c_str()));
+    cJobAppId.set_stepinsId(atoi(out_list[1].c_str()));
+    cJobAppId.set_appId(atoi(out_list[2].c_str()));
+
+    SStepId cStepId;
+    cStepId.set_jobinsId(atoi(out_list[0].c_str()));
+    cStepId.set_stepinsId(atoi(out_list[1].c_str()));
+    int32 iJobinsId = atoi(out_list[0].c_str());
+
+
+    if(iJobinsId == 0)
+    {
+        return;
+    }
+
+    CRdcJobIns cJobInfo;
+
+
+    ISrmRdcMgr::GetInstance().GetJobInfo(iJobinsId, cJobInfo);
+    if(APP_EXE_SUCCESS == rExeSCallBack.get_exeResult())
+    {
+        SetAppStatus(cJobAppId, APP_START_);
+
+        //判断step启动成功与否
+        if(CheckStepStart(cStepId))
+        {
+            SetStepStatus(cStepId, STEP_START_);
+            if((cJobInfo.jobInsStatus() == JOB_STARTING_ || JOB_READY_ == cJobInfo.jobInsStatus()) &&
+                    CheckJobStart(iJobinsId))
+            {
+                SetJobStatus(iJobinsId, JOB_START_, cJobInfo.jobInsStatus());
+            }
+
+            if(cJobInfo.jobInsStatus() == JOB_FAIL_ || cJobInfo.jobInsStatus() == JOB_STOP_ || cJobInfo.jobInsStatus() == JOB_UNCONFIRMED)
+            {
+                CRdcJobRunStepList cSteplist;
+                ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobinsId, cSteplist, STEP_FAIL_);
+                ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobinsId, cSteplist, STEP_STOP_);
+                ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobinsId, cSteplist, STEP_UNCONFIRMED);
+                if(cSteplist.size() == 0)
+                {
+                    cSteplist.Clear();
+                    ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobinsId, cSteplist, STEP_PAUSE_);
+                    if(cSteplist.size() > 0)
+                        SetJobStatus(iJobinsId, JOB_PAUSE_, cJobInfo.jobInsStatus());
+                    else
+                        SetJobStatus(iJobinsId, JOB_START_, cJobInfo.jobInsStatus());
+                }
+            }
+        }
+    }
+    else if(APP_EXE_CANCEL == rExeSCallBack.get_exeResult() || APP_EXE_FAIL == rExeSCallBack.get_exeResult())
+    {
+        DBE2_LOG(WARN_LOGGER, "result:%d app %s start fail  reason %s ", rExeSCallBack.get_exeResult(), param.c_str(), rExeSCallBack.get_errorInfo().c_str());
+        aistring strErrorMsg;
+        if (rExeSCallBack.get_errorInfo().size() >= 512)
+        {
+            strErrorMsg = FormatString("result:%d app %s start fail  reason too lang,check trans table.", rExeSCallBack.get_exeResult(), param.c_str());
+        }
+        else
+        {
+            strErrorMsg = rExeSCallBack.get_errorInfo();
+        }
+
+        SetAppStatus(cJobAppId, APP_START_FAIL_, strErrorMsg);
+        SetStepStatus(cStepId, STEP_FAIL_, strErrorMsg);
+        SetJobStatus(iJobinsId , JOB_FAIL_, JOB_START_, strErrorMsg);
+    }
+}
+
+bool CSrmJobMgrImpl::CheckHasRuningStep(int32 iJobId)
+{
+    SJobAppIdList rcJobAppIdList;
+
+
+    ISrmRdcMgr::GetInstance().GetJobAppByStatus(iJobId, rcJobAppIdList, APP_START_);
+    SStepIdList rcStepIdList;
+    ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobId, rcStepIdList, STEP_STARTING_);
+    if( rcJobAppIdList.get_size() > 0 || rcStepIdList.size() > 0)
+        return true;
+    return false;
+}
+
+bool CSrmJobMgrImpl::CheckJobStart(int32 iJobId)
+{
+    SStepIdList sHeadStepList;
+
+
+    ISrmRdcMgr::GetInstance().GetHeadSteps(iJobId, sHeadStepList);
+    SStepIdList::iterator it = sHeadStepList.begin();
+    for (; it != sHeadStepList.end(); ++it)
+    {
+        CRdcJobRunStep cStepInfo;
+        ISrmRdcMgr::GetInstance().GetStepInfo(*it, cStepInfo);
+		if (STEP_REMOVED == cStepInfo.get_breakpoint()) // zhangneng 2015.05.13
+			continue;
+        if(cStepInfo.get_stepStatus() != STEP_START_ && cStepInfo.get_stepStatus() != STEP_COMPLETE_)
+            return false;
+    }
+    return true;
+}
+
+bool CSrmJobMgrImpl::CheckStepStart(SStepId& rcStepId)
+{
+    SJobAppIdList appIdlist;
+
+
+    ISrmRdcMgr::GetInstance().GetAppsByStep(rcStepId, appIdlist);
+    SJobAppIdList::iterator it = appIdlist.begin();
+    for(; it != appIdlist.end(); ++it)
+    {
+        CRdcJobRunStepApp cAppInfo;
+        ISrmRdcMgr::GetInstance().GetJobAppInfo(*it, cAppInfo);
+        if(cAppInfo.appStatus() != APP_START_ && cAppInfo.appStatus() != APP_COMPLETE_)
+            return false;
+    }
+    return true;
+}
+
+bool CSrmJobMgrImpl::CheckStepFinish(SStepId& rcStepId)
+{
+    SJobAppIdList appIdlist;
+
+
+    ISrmRdcMgr::GetInstance().GetAppsByStep(rcStepId, appIdlist);
+    SJobAppIdList::iterator it = appIdlist.begin();
+    for(; it != appIdlist.end(); ++it)
+    {
+        CRdcJobRunStepApp cAppInfo;
+        ISrmRdcMgr::GetInstance().GetJobAppInfo(*it, cAppInfo);
+        if( cAppInfo.appStatus() != APP_COMPLETE_  && cAppInfo.appStatus() != APP_STOP_ )
+            return false;
+    }
+    return true;
+}
+
+bool CSrmJobMgrImpl::CheckJobFinish(int32 iJobId)
+{
+    SStepIdList sStepList;
+    ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobId, sStepList);
+    SStepIdList::iterator it = sStepList.begin();
+
+
+    for (; it != sStepList.end(); ++it)
+    {
+        CRdcJobRunStep cStepInfo;
+
+
+        ISrmRdcMgr::GetInstance().GetStepInfo(*it, cStepInfo);
+		 DBE2_LOG(DEBUG_LOGGER, "m_config.m_iEndJudge is %d", m_config.m_iEndJudge);
+        if (m_config.m_iEndJudge == END_JUDGE_WITHOUT_REMOVED &&
+                STEP_REMOVED == cStepInfo.get_breakpoint())
+        {
+            DBE2_LOG(DEBUG_LOGGER, "job(%d)-step(%d) is removed", iJobId, it->get_stepinsId());
+            continue;
+        }
+        if(cStepInfo.get_stepStatus() != STEP_COMPLETE_ && cStepInfo.get_stepStatus() != STEP_STOP_&& cStepInfo.get_stepStatus() != STEP_UNCONFIRMED)
+            return false;
+    }
+    return true;
+}
+
+bool CSrmJobMgrImpl::CheckJobPaused(int32 iJobId)
+{
+    SStepIdList sStepList;
+    ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobId, sStepList);
+    SStepIdList::iterator it = sStepList.begin();
+
+
+    for (; it != sStepList.end(); ++it)
+    {
+        CRdcJobRunStep cStepInfo;
+
+
+        ISrmRdcMgr::GetInstance().GetStepInfo(*it, cStepInfo);
+        if(cStepInfo.get_stepStatus() == STEP_START_ )
+            return false;
+    }
+    return true;
+}
+
+void CSrmJobMgrImpl::AppEndCallback(SSrmExeCallBack & rExeSCallBack)
+{
+    aistring param = rExeSCallBack.get_param();
+    CStringList	out_list;
+    base_divide_str(param, "_", out_list);
+    DBE2_LOG(DEBUG_LOGGER, "job app end call back param %s result %d", param.c_str(), rExeSCallBack.get_exeResult());
+    //构造Id
+    SJobAppId cJobAppId;
+    cJobAppId.set_jobinsId(atoi(out_list[0].c_str()));
+    cJobAppId.set_stepinsId(atoi(out_list[1].c_str()));
+    cJobAppId.set_appId(atoi(out_list[2].c_str()));
+    SStepId cStepId;
+    cStepId.set_jobinsId(atoi(out_list[0].c_str()));
+    cStepId.set_stepinsId(atoi(out_list[1].c_str()));
+
+    // 获取stepid是否是待确认
+    CRdcJobIns cJobInfo;
+
+
+    int32 iJobId = atoi(out_list[0].c_str()) ;
+    if(iJobId == 0)
+    {
+        return;
+    }
+
+    if(APP_EXE_SUCCESS == rExeSCallBack.get_exeResult())
+    {
+        CRdcJobRunStepApp cRdcJobApp;
+
+
+        ISrmRdcMgr::GetInstance().GetJobAppInfo(cJobAppId, cRdcJobApp);
+        int32 iAppStatus = cRdcJobApp.appStatus();
+        if(iAppStatus == APP_START_)
+            SetAppStatus(cJobAppId, APP_COMPLETE_);
+        else if(iAppStatus == APP_STOPING_)
+            SetAppStatus(cJobAppId, APP_STOP_);
+
+        if(CheckStepFinish(cStepId))
+        {
+            CRdcJobIns cJobInfo;
+            ISrmRdcMgr::GetInstance().GetJobInfo(iJobId, cJobInfo);
+            CRdcJobRunStepAppList stepAppList;
+            ISrmRdcMgr::GetInstance().GetStepAppByStatus(cStepId, stepAppList, APP_STOP_);
+
+
+            //判断step待确认状态modify 2015.01.20
+            CRdcJobRunStep cJobRunStep;
+            ISrmRdcMgr::GetInstance().GetStepInfo(cStepId, cJobRunStep); // 需要获取的step字段信息函数
+            int iUnconfirmed = cJobRunStep.get_unconfirmed(); // 获取前台待确认配置
+            DBE2_LOG(DEBUG_LOGGER, "the step unconfirmed is [%d]!", iUnconfirmed);
+            if ( iUnconfirmed == 1 ) // 待确认状态
+            {
+                SetAppStatus(cJobAppId, APP_COMPLETE_);
+                SetStepStatus(cStepId, STEP_UNCONFIRMED);
+                SetJobStatus(iJobId, JOB_UNCONFIRMED, JOB_START_);
+                return;
+            }
+
+            if(cJobInfo.jobInsStatus() == JOB_FORCESTOPING_ || stepAppList.size() > 0)
+                SetStepStatus(cStepId, STEP_STOP_);
+            else// pausing .start stoping fail
+                SetStepStatus(cStepId, STEP_COMPLETE_);
+            DBE2_LOG(DEBUG_LOGGER, "step finish[%d]!", cStepId.stepinsId());
+
+            if(CheckJobFinish(iJobId))
+            {
+                CRdcJobRunStepList stepList;
+                ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobId, stepList, STEP_STOP_);
+                if(cJobInfo.jobInsStatus() == JOB_FORCESTOPING_ ||
+                        cJobInfo.jobInsStatus() == JOB_STOPING_ || stepList.size() > 0)
+                {
+                    SetJobStatus(iJobId,  JOB_STOP_, cJobInfo.jobInsStatus());
+                }
+                else
+                {
+                    SetJobStatus(iJobId, JOB_COMPLETE_, cJobInfo.jobInsStatus());
+                    //cp to result
+                    ISrmRdcMgr::GetInstance().BackUpJobInfo(iJobId);
+                }
+                DBE2_LOG(DEBUG_LOGGER, "job finish[%d]!", cStepId.jobinsId());
+
+
+                //next job
+                CRdcJobRelationList jobRelationList;
+                CRdcJobRelationList jobRelationListPre;
+                if(ISrmRdcMgr::GetInstance().GetNextJob(cStepId.jobinsId(), jobRelationList) > 0)
+                {
+                    DBE2_LOG(DEBUG_LOGGER, "next job count [%d]!", jobRelationList.size());
+                    CRdcJobRelationList::iterator it = jobRelationList.begin();
+                    for(; it != jobRelationList.end(); ++it)
+                    {
+                        if (ISrmRdcMgr::GetInstance().GetPrevJob(it->nextJobInsId(), jobRelationListPre) > 0)
+                        {
+                            CRdcJobRelationList::iterator itPre = jobRelationListPre.begin();
+                            for(; itPre != jobRelationListPre.end(); ++itPre)
+                            {
+                                if(CheckJobFinish(it->jobInsId()))
+                                {
+                                    DBE2_LOG(DEBUG_LOGGER, "cn.log pre job [%d] finish!", it->jobInsId());
+                                    continue;
+                                }
+                                else
+                                {
+                                    DBE2_LOG(DEBUG_LOGGER, "cn.log pre job [%d] is not finish!", it->jobInsId());
+                                    return;
+                                }
+                            }
+                            DBE2_LOG(DEBUG_LOGGER, "cn.log start next job [%d]!", it->nextJobInsId());
+                            StartJob(it->nextJobInsId());
+                        }
+                        /*
+                        			if(CheckJobFinish(it->nextJobInsId()))
+                        			{
+                        	StartJob(it->nextJobInsId());
+                        }
+                        */
+                    }
+                }
+            }
+            else//job未结束
+            {
+                if(cJobInfo.jobInsStatus() == JOB_STOPING_ || cJobInfo.jobInsStatus() == JOB_FORCESTOPING_ || stepAppList.size() > 0)
+                {
+                    if(!CheckHasRuningStep(iJobId))
+                        SetJobStatus(iJobId,  JOB_STOP_);
+                }
+                else if(cJobInfo.jobInsStatus() == JOB_PAUSING_ && CheckJobPaused(iJobId))
+                {
+                    SetJobStatus(iJobId,  JOB_PAUSE_, cJobInfo.jobInsStatus());
+                }
+                else if(cJobInfo.jobInsStatus() != JOB_STOPING_
+                        && cJobInfo.jobInsStatus() != JOB_FORCESTOPING_ )
+                {
+                    //驱动下批steps
+                    SStepIdSet rcStepIdSet;
+                    DBE2_LOG(DEBUG_LOGGER, "job %d still not finish!", cStepId.jobinsId());
+                    CRdcJobRunStep cEndStep;
+                    // 被移除的step执行完之后，不驱动别的step
+                    ISrmRdcMgr::GetInstance().GetStepInfo(cStepId, cEndStep);
+                    if(STEP_REMOVED == cEndStep.get_breakpoint())
+                    {
+                        return;
+                    }
+                    ISrmRdcMgr::GetInstance().GetNextSteps(cStepId, rcStepIdSet);
+                    SStepIdSet::iterator it = rcStepIdSet.begin();
+                    for(; it != rcStepIdSet.end(); ++it)
+                    {
+                        DBE2_LOG(DEBUG_LOGGER, "ready to start next step %d!", it->get_stepinsId());
+                        SStepId stepId = *it;
+                        StartStep(stepId);
+                    }
+                }
+            }
+        }
+    }
+    else if (APP_EXE_FAIL == rExeSCallBack.get_exeResult())
+    {
+        DBE2_LOG(WARN_LOGGER, "app %s end fail  reason %s ", param.c_str(), rExeSCallBack.get_errorInfo().c_str());
+        SetAppStatus(cJobAppId, APP_STOP_FAIL_, rExeSCallBack.get_errorInfo());
+        SetStepStatus(cStepId, STEP_FAIL_, rExeSCallBack.get_errorInfo());
+        SetJobStatus(iJobId,  JOB_FAIL_, JOB_START_, rExeSCallBack.get_errorInfo());
+    }
+    else
+    {
+        return;
+    }
+}
+
+void CSrmJobMgrImpl::JobScheduleProcess()
+{
+    ISrmRdcMgr& rdcMgr = ISrmRdcMgr::GetInstance();
+    // 增加定时功能判断开关
+    aistring strName = "dbe.runjobschdule";
+
+
+    bool bRun = rdcMgr.GetSysParam(strName, true);
+    if (!bRun)
+    {
+        DBE2_LOG(TRACE_LOGGER, "job schdule is invalid.");
+        return;
+    }
+
+    //delete invalid data
+    time_t now_time = GetCurrentTime().toTimet();
+    ISrmRdcMgr::GetInstance().DeleteInvalidJobData();
+    //add new job schedule
+    ISrmRdcMgr::GetInstance().AutoAddJobSchedule();
+    //start time arrived job
+    CRdcJobScheduleList cJobScheduleList;
+
+    ISrmRdcMgr::GetInstance().GetJobSchedule(cJobScheduleList);
+    CRdcJobScheduleList::iterator it = cJobScheduleList.begin();
+    std::map<int32, int32> jobIdMap; //用于记录收集的jobid
+    DBE2_LOG(DEBUG_LOGGER, "job schedule count:%d", cJobScheduleList.size());
+    for(; it != cJobScheduleList.end(); ++it)
+    {
+        try
+        {
+            //没记录的才会去起
+            if( jobIdMap.find(it->jobInsId()) == jobIdMap.end())
+            {
+                if(JobVocation(*it))
+                {
+                    CRdcJobIns jobInfo;
+                    rdcMgr.GetJobInfo(it->jobInsId(), jobInfo);
+                    CRdcJobSchedule cDelaySchedule = *it;
+                    // 推延一天
+                    cDelaySchedule.set_jobInsScheduleTime(cDelaySchedule.get_jobInsScheduleTime().addDays(1));
+                    rdcMgr.UpdateShedule( cDelaySchedule, *it, jobInfo.validdate(), jobInfo.expirydate());
+                    continue;
+                }
+                StartJob(it->jobInsId());
+            }
+            else
+            {
+                DBE2_LOG(WARN_LOGGER, "job schedule duplication ignore jobid:%d", it->jobInsId());
+                //告警
+                aistring strError = FormatString("job %d schedule duplication ignore!schedule time: %lld", it->jobInsId(), it->jobInsScheduleTime().toTimet());
+                SendJobAlarm(it->jobInsId(), strError);
+            }
+        }
+        catch(CAIException &e)
+        {
+            if(e.get_code() == DBE2_SRM_OPER_JOB_ILLEGAL)
+            {
+                SendJobAlarm(it->jobInsId(), std::string("time start job fail ! ") + e.get_message());
+            }
+        }
+        //更新schedule
+        CRdcJobSchedule rApdJobSchedule, lastJobSchedule;
+        rApdJobSchedule = lastJobSchedule = *it;
+        time_t next_time;
+        ISrmRdcMgr::GetInstance().GetLastSchedule(it->jobInsId(), lastJobSchedule);
+        try
+        {
+            rdcMgr.ParaseTime(it->jobCronExpress(), lastJobSchedule.jobInsScheduleTime().toTimet(), next_time);
+            if(next_time < now_time)
+            {
+                rdcMgr.ParaseTime(it->jobCronExpress(), now_time, next_time);
+            }
+            CBSDateTime cbTime;
+            cbTime.setTime_t(next_time);
+            rApdJobSchedule.set_jobInsScheduleTime(cbTime);
+            CRdcJobIns jobInfo;
+            rdcMgr.GetJobInfo(it->jobInsId(), jobInfo);
+            rdcMgr.UpdateShedule( rApdJobSchedule, *it, jobInfo.validdate(), jobInfo.expirydate());
+            jobIdMap.insert(std::map<int32, int32>::value_type(it->jobInsId(), 0));
+        }
+        catch(CAIException & e)
+        {
+            DBE2_LOG(INFO_LOGGER, "%s", e.get_message().c_str());
+        }
+    }
+}
+
+void CSrmJobMgrImpl::StartStep(SStepId& rStepId, int32 iExeFlage)
+{
+    CAutoLock cAutoLock(m_stepLock[rStepId.stepinsId() % SRM_STEP_LOCK_SIZE]);
+    StartStepNoLock(rStepId, iExeFlage);
+}
+
+void CSrmJobMgrImpl::StartStepNoLock(SStepId& rStepId, int32 iExeFlage)
+{
+    CRdcJobRunStep cCurrStep;
+
+
+    ISrmRdcMgr::GetInstance().GetStepInfo(rStepId, cCurrStep);
+    if(STEP_BREAK == cCurrStep.breakpoint() && cCurrStep.get_stepStatus() == STEP_READY_)
+    {
+        SetStepStatus(rStepId, STEP_PAUSE_);
+        SetJobStatus(rStepId.jobinsId(),  JOB_PAUSE_);
+        DBE2_LOG(DEBUG_LOGGER, "step %d has being setted breakpoint  pause!", rStepId.stepinsId());
+        return;
+    } //判断当前step是否被设了断点
+
+    if(cCurrStep.get_stepStatus() == STEP_STARTING_ || cCurrStep.get_stepStatus() == STEP_START_)
+    {
+        DBE2_LOG(DEBUG_LOGGER, "step %d is starting or started can not start again!", rStepId.stepinsId());
+        return;
+    }
+    if(cCurrStep.get_stepStatus() == STEP_PAUSE_ && !iExeFlage)
+    {
+        DBE2_LOG(DEBUG_LOGGER, "step %d is paused not to start!", rStepId.stepinsId());
+        return;
+    }
+
+    // 强制执行，被移除step直接执行
+    bool bCanstart = true;
+    if(EXE_STEP_NOMAL == iExeFlage)
+    {
+        // 普通step检查前置step是否全部完成
+        bCanstart = CheckRelyStepFinish(rStepId);
+    }
+    if(!bCanstart)
+    {
+        // 当前step不允许启动
+        return;
+    }
+
+
+    SJobAppIdList appIdlist;
+    ISrmRdcMgr::GetInstance().GetAppsByStep(rStepId, appIdlist);
+    SJobAppIdList::iterator itApp = appIdlist.begin();
+    DBE2_LOG(DEBUG_LOGGER, "ready to start step %d app count %d", rStepId.stepinsId(), appIdlist.size());
+
+    // step中不含流程，step直接完成
+    if(appIdlist.size() == 0 && STEP_REMOVED != cCurrStep.get_breakpoint())
+    {
+        SetStepStatus(rStepId, STEP_START_);
+        SetStepStatus(rStepId, STEP_COMPLETE_);
+        cCurrStep.set_stepStatus(STEP_COMPLETE_);
+    }
+
+    // step为已完成状态，或者被移除状态，直接执行依赖的下一批step
+    if(cCurrStep.get_stepStatus() == STEP_COMPLETE_ ||
+            (STEP_REMOVED == cCurrStep.get_breakpoint() && iExeFlage != EXE_REMOVED_STEP))
+    {
+        SStepIdSet rcStepIdSet;
+        ISrmRdcMgr::GetInstance().GetNextSteps(rStepId, rcStepIdSet);
+        SStepIdSet::iterator it = rcStepIdSet.begin();
+        for(; it != rcStepIdSet.end(); ++it)
+        {
+            DBE2_LOG(DEBUG_LOGGER, "ready to start next step %d!", it->get_stepinsId());
+            SStepId stepId = *it;
+            StartStepNoLock(stepId);
+        }
+        if(CheckJobFinish(rStepId.jobinsId()))
+        {
+            CRdcJobRunStepList stepList;
+            ISrmRdcMgr::GetInstance().GetJobStepByStatus(rStepId.jobinsId(), stepList, STEP_STOP_);
+            ISrmRdcMgr::GetInstance().GetJobStepByStatus(rStepId.jobinsId(), stepList, STEP_FAIL_);
+            ISrmRdcMgr::GetInstance().GetJobStepByStatus(rStepId.jobinsId(), stepList, STEP_UNCONFIRMED);
+            if(stepList.size() == 0)
+            {
+                SetJobStatus(rStepId.jobinsId(),  JOB_COMPLETE_);
+                ISrmRdcMgr::GetInstance().BackUpJobInfo(rStepId.jobinsId());
+            }
+        }
+        return;
+    }
+
+    // 启动当前step
+    SetStepStatus(rStepId, STEP_STARTING_);
+    for(; itApp != appIdlist.end(); ++itApp)
+    {
+        try
+        {
+            DBE2_LOG(DEBUG_LOGGER, "ready to start app %d", itApp->appId());
+            CRdcJobRunStepApp cAppInfo;
+            ISrmRdcMgr::GetInstance().GetJobAppInfo(*itApp, cAppInfo);
+            if(cAppInfo.appStatus() == APP_COMPLETE_)
+            {
+                DBE2_LOG(DEBUG_LOGGER, "app finished%d", itApp->appId());
+                continue;
+            }
+            aistring param = FormatString("%d_%d_%d", itApp->jobinsId(), itApp->stepinsId(), itApp->appId());
+            ISrmAppMgr::GetInstance().StartApp(itApp->appId(), MSG_REP_JOB_START_APP, param,
+                                               MSG_REP_JOB_STOP_APP, param, TRANS_JOB, NULL);
+        }
+        catch(CAIException & e)
+        {
+            //设置环节及任务状态后返回
+            SJobAppId cAppId;
+            cAppId.set_jobinsId(itApp->jobinsId());
+            cAppId.set_stepinsId(itApp->stepinsId());
+            cAppId.set_appId(itApp->appId());
+            SetAppStatus(cAppId, APP_START_FAIL_, e.get_message());
+            SetStepStatus(rStepId, STEP_FAIL_);
+            SetJobStatus(rStepId.jobinsId(), JOB_FAIL_, JOB_START_, e.get_message());
+        }
+    }
+}
+
+bool CSrmJobMgrImpl::CheckRelyStepFinish(SStepId& rcStepId)
+{
+    //判断前置step是否全部完成
+    SStepIdSet sStepSet;
+
+
+    ISrmRdcMgr::GetInstance().GetPreSteps(rcStepId, sStepSet);
+    SStepIdSet::iterator itStep = sStepSet.begin();
+    for(; itStep != sStepSet.end(); ++itStep)
+    {
+        SStepId &relyStep = (SStepId &) * itStep;
+        CRdcJobRunStep cPreStep;
+        ISrmRdcMgr::GetInstance().GetStepInfo(relyStep, cPreStep);
+        // 跳过的step的前置step有未完成的情况
+        if (STEP_REMOVED == cPreStep.breakpoint())
+        {
+            if(!CheckRelyStepFinish(relyStep)) return false;
+        }
+        else if(STEP_COMPLETE_ != cPreStep.stepStatus())
+        {
+            // step状态不是完成状态
+            DBE2_LOG(DEBUG_LOGGER, "can not start step[%d],pre_step[%d] pre_step_status[%d]",
+                     rcStepId.stepinsId(), cPreStep.jobRunStepId(), cPreStep.stepStatus());
+            return false;
+        }
+    }
+    return true;
+}
+
+void CSrmJobMgrImpl::SetJobStatus(int32 iJobId, int32 JobStatus, int32 iCurrJobStatus, aistring erroinfo)
+{
+    CRdcJobIns rRdcJobInsData;
+    CRdcJobIns rCond;
+    rRdcJobInsData.set_jobInsStatus(JobStatus);
+    rRdcJobInsData.set_errorMsg(erroinfo);
+    rCond.set_jobInsId(iJobId);
+
+    //获得当前时间 设置启动时间
+    int64 iTime;
+    CBSDateTime baseTime;
+    GetCurrentTime(baseTime);
+    GetCurrentTime(iTime);
+
+
+    if(JobStatus == JOB_STARTING_)
+    {
+        if(iCurrJobStatus == JOB_READY_)
+        {
+            rRdcJobInsData.set_jobInsStartTime(baseTime);
+        }
+        else if(iCurrJobStatus == JOB_PAUSE_)
+        {
+            CRdcJobIns cJobInfo;
+            ISrmRdcMgr::GetInstance().GetJobInfo(iJobId, cJobInfo);
+            int64 dureTime = iTime - cJobInfo.jobInsPauseTime().toTimet();
+            rRdcJobInsData.set_jobInsPauseDureSecond(dureTime);
+        }
+    }
+    else if(JobStatus == JOB_COMPLETE_ || JobStatus == JOB_STOP_ || JOB_FAIL_ == JobStatus || JobStatus == JOB_UNCONFIRMED)
+    {
+        CRdcJobIns cJobInfo;
+        ISrmRdcMgr::GetInstance().GetJobInfo(iJobId, cJobInfo);
+        int32 dureTime = iTime - cJobInfo.jobInsStartTime().toTimet();
+        rRdcJobInsData.set_jobInsEndTime(baseTime);
+        rRdcJobInsData.set_duration(dureTime);
+    }
+    else if(JobStatus == JOB_PAUSE_)
+    {
+        rRdcJobInsData.set_jobInsPauseTime(baseTime);
+    }
+
+    ISrmRdcMgr::GetInstance().SetJobInfo(rRdcJobInsData, rCond);
+}
+bool CSrmJobMgrImpl::JudgeLeapYear(int32 iYear)
+{
+    return (iYear % 400 == 0) || (iYear % 100 != 0 && iYear % 4 == 0);
+}
+
+
+int32 CSrmJobMgrImpl::FindParamValue(aistring& srcStr, const char* param1, const char* param2, int32 startPos, int32& value)
+{
+    int32 iSite1 = srcStr.find(param1, startPos);
+    int32 iSite2 = srcStr.find(param2, startPos);
+
+    if ((-1 != iSite1) && (-1 != iSite2))
+    {
+        aistring valueStr = srcStr.substr(iSite1 + strlen(param1), iSite2 - iSite1);
+        value = atoi(valueStr.c_str());
+        return iSite1;
+    }
+    else
+    {
+        DBE2_LOG(WARN_LOGGER, " find %s and %s fail.", param1, param2);
+        return -1;
+    }
+}
+
+
+
+bool CSrmJobMgrImpl::ChangeParamValue(aistring& srcStr, const char* param1, const char* param2, int32 startPos, int32 value)
+{
+    int32 iSite1 = srcStr.find(param1, startPos);
+    int32 iSite2 = srcStr.find(param2, startPos);
+
+    if ((-1 != iSite1) && (-1 != iSite2))
+    {
+        iSite2 += strlen(param2);
+        char valueStr[32];
+        sprintf(valueStr, "%d", value);
+        srcStr = srcStr.substr(0, iSite1) + valueStr + srcStr.substr(iSite2);
+        return true;
+    }
+    else
+    {
+        DBE2_LOG(WARN_LOGGER, " find %s and %s fail.", param1, param2);
+        return false;
+    }
+
+
+}
+
+bool CSrmJobMgrImpl::ChangeDaytoTm(struct tm& tmTime, int32 day)
+{
+    int32 dayofmonth[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    int32 year = 2001;
+
+    while (true)
+    {
+        if (JudgeLeapYear(year))
+        {
+            day -= 366;
+        }
+        else
+        {
+            day -= 365;
+        }
+
+        if (0 < day)
+        {
+
+        }
+        else
+        {
+            if (JudgeLeapYear(year))
+            {
+                day += 366;
+            }
+            else
+            {
+                day += 365;
+            }
+            tmTime.tm_year = year;
+            break;
+        }
+        ++year;
+    }
+
+
+    for (int32 mon = 0; mon != 12; mon++)
+    {
+        if (JudgeLeapYear(tmTime.tm_year) && mon == 1)
+        {
+            day -= 29;
+        }
+        else
+        {
+            day -= dayofmonth[mon];
+        }
+
+
+        if (0 < day)
+        {
+            continue;
+        }
+        else
+        {
+            if (JudgeLeapYear(tmTime.tm_year) && mon == 1)
+            {
+                day += 29;
+            }
+            else
+            {
+                day += dayofmonth[mon];
+            }
+            tmTime.tm_mon = mon;
+            tmTime.tm_mday = day;
+            break;
+        }
+    }
+    return true;
+}
+
+bool CSrmJobMgrImpl::changeTmtoDay(struct tm tmTime, int32& day)
+{
+    int32 dayofmonth[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    struct tm tempTm = tmTime;
+    day = 0;
+    if (tempTm.tm_year < 1900)
+    {
+        tempTm.tm_year += 1900;
+    }
+    day += tempTm.tm_mday;
+    --tempTm.tm_mon;
+
+    for (tempTm.tm_mon; tempTm.tm_mon != -1; tempTm.tm_mon--)
+    {
+        if (JudgeLeapYear(tempTm.tm_year) && tempTm.tm_mon == 1)
+        {
+            day += 29;
+        }
+        else
+        {
+            day += dayofmonth[tempTm.tm_mon];
+        }
+
+    }
+    --tempTm.tm_year;
+    for (tempTm.tm_year; tempTm.tm_year != 2000; tempTm.tm_year--)
+    {
+        if (JudgeLeapYear(tempTm.tm_year))
+        {
+            day += 366;
+        }
+        else
+        {
+            day += 365;
+        }
+    }
+    return true;
+}
+
+void CSrmJobMgrImpl::SetStepStatus(SStepId& rcStepId, int32 iStepStatus, aistring erroinfo)
+{
+    int32 dayofmonth[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    CRdcJobRunStep rRdcStepData;
+    CRdcJobRunStep rCond;
+    CRdcJobRunStepList listRdcJobRunStep;
+    rCond.set_jobRunStepId(rcStepId.get_stepinsId());
+    rCond.set_jobInsId(rcStepId.get_jobinsId());
+    ISrmRdcMgr::GetInstance().GetJobSteps(rCond, listRdcJobRunStep);
+    if (listRdcJobRunStep.begin() != listRdcJobRunStep.end())
+    {
+        rRdcStepData = listRdcJobRunStep[0];
+    }
+
+    rRdcStepData.set_stepStatus(iStepStatus);
+    rRdcStepData.set_errorMsg(erroinfo);
+
+    CBSDateTime baseTime;
+    GetCurrentTime(baseTime);
+
+    if(iStepStatus == STEP_STARTING_ || iStepStatus == STEP_START_)
+    {
+        rRdcStepData.set_stepStartTime(baseTime);
+
+        CRdcJobIns cJobInfo;
+        ISrmRdcMgr::GetInstance().GetJobInfo(rRdcStepData.jobInsId(), cJobInfo);
+        CBSDateTime jobStartTime = cJobInfo.jobInsStartTime();
+        time_t _jobStartTime = jobStartTime.toTimet();
+        time_t _stepStartTime = baseTime.toTimet();
+        struct tm tm_jobStart;
+        struct tm tm_stepStart;
+        localtime_r(&_jobStartTime, &tm_jobStart);
+        localtime_r(&_stepStartTime, &tm_stepStart);
+
+        if (tm_jobStart.tm_year < 1900)
+        {
+            tm_jobStart.tm_year += 1900;
+        }
+        if (tm_stepStart.tm_year < 1900)
+        {
+            tm_stepStart.tm_year += 1900;
+        }
+
+        CRdcApp cApp;
+        SStepId rcStepId;
+        rcStepId.set_jobinsId(rRdcStepData.jobInsId());
+        rcStepId.set_stepinsId(rRdcStepData.jobRunStepId());
+        SJobAppIdList rcJobAppIdList;
+        ISrmRdcMgr::GetInstance().GetAppsByStep(rcStepId, rcJobAppIdList);
+        SJobAppIdList::iterator it = rcJobAppIdList.begin();
+        int32 adjust_switch = 0, day_offset = 0, month_offset = 0, year_offset = 0;
+        int32 startPos = 0;
+        int32 tempStartPos = 0;
+
+        for (; it != rcJobAppIdList.end(); ++it)
+        {
+            ISrmRdcMgr::GetInstance().QueryApp(it->appId(), cApp);
+            DBE2_LOG(DEBUG_LOGGER, "SetStepStatus,get appid");
+            aistring appParam = cApp.get_appParam();
+
+
+            if (-1 != FindParamValue(appParam, "<adjust_switch>", "</adjust_switch>", 0, adjust_switch))
+            {
+                if (0 == adjust_switch)
+                {
+                    startPos = 0;
+                    for (;;)
+                    {
+                        tempStartPos = FindParamValue(appParam, "<day_offset>", "</day_offset>", startPos, day_offset);
+                        if (-1 == tempStartPos)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            ChangeParamValue(appParam, "<day_offset>", "</day_offset>", startPos, day_offset);
+                            startPos = tempStartPos;
+                        }
+                    }
+
+                    startPos = 0;
+                    for (;;)
+                    {
+                        tempStartPos = FindParamValue(appParam, "<month_offset>", "</month_offset>", startPos, month_offset);
+                        if (-1 == tempStartPos)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            ChangeParamValue(appParam, "<month_offset>", "</month_offset>", startPos, month_offset);
+                            startPos = tempStartPos;
+                        }
+                    }
+
+                    startPos = 0;
+                    for (;;)
+                    {
+                        tempStartPos = FindParamValue(appParam, "<year_offset>", "</year_offset>", startPos, year_offset);
+                        if (-1 == tempStartPos)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            ChangeParamValue(appParam, "<year_offset>", "</year_offset>", startPos, year_offset);
+                            startPos = tempStartPos;
+                        }
+                    }
+
+                }
+                if (1 == adjust_switch)
+                {
+                    startPos = 0;
+                    for (;;)
+                    {
+                        tempStartPos = FindParamValue(appParam, "<day_offset>", "</day_offset>", startPos, day_offset);
+                        if (-1 == tempStartPos)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            int32 account_day;
+                            changeTmtoDay(tm_jobStart, account_day);
+                            account_day += day_offset;
+                            struct tm tm_account;
+                            ChangeDaytoTm(tm_account, account_day);
+                            int32 step_day;
+                            changeTmtoDay(tm_stepStart, step_day);
+                            DBE2_LOG(TRACE_LOGGER, "account_day: %d   step_day: %d", account_day, step_day);
+                            int32 real_day_offset = account_day - step_day;
+
+                            ChangeParamValue(appParam, "<day_offset>", "</day_offset>", startPos, real_day_offset);
+                            startPos = tempStartPos;
+                            DBE2_LOG(DEBUG_LOGGER, "replace one day_offset.");
+                        }
+
+                    }
+
+                    startPos = 0;
+                    for (;;)
+                    {
+                        tempStartPos = FindParamValue(appParam, "<month_offset>", "</month_offset>", startPos, month_offset);
+                        if (-1 == tempStartPos)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            int32 real_mon_offset = (tm_jobStart.tm_mon + month_offset + 12 * 2000) % 12 - tm_stepStart.tm_mon;
+                            ChangeParamValue(appParam, "<month_offset>", "</month_offset>", startPos, real_mon_offset);
+                            startPos = tempStartPos;
+                            DBE2_LOG(DEBUG_LOGGER, "replace one month_offset.");
+                        }
+                    }
+
+                    startPos = 0;
+                    for (;;)
+                    {
+                        tempStartPos = FindParamValue(appParam, "<year_offset>", "</year_offset>", startPos, year_offset);
+                        if (-1 == tempStartPos)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            if (tm_stepStart.tm_year < 1900)
+                            {
+                                tm_stepStart.tm_year += 1900;
+                            }
+                            int32 real_year_offset = tm_jobStart.tm_year + year_offset - tm_stepStart.tm_year;
+                            ChangeParamValue(appParam, "<year_offset>", "</year_offset>", startPos, real_year_offset);
+                            startPos = tempStartPos;
+                            DBE2_LOG(DEBUG_LOGGER, "replace one year_offset.");
+                        }
+                    }
+                }
+
+
+                int32 iSite1;
+                int32 iSite2;
+                iSite1 = appParam.find("<adjust_switch>");
+                iSite2 = appParam.find("</adjust_switch>");
+                if (-1 != iSite1 && -1 != iSite2)
+                {
+                    iSite2 += sizeof("</adjust_switch>") - 1;
+                    appParam = appParam.substr(0, iSite1) + appParam.substr(iSite2);
+                    DBE2_LOG(DEBUG_LOGGER, "replace app_param success,drop <adjust_switch> label success.");
+                }
+                else
+                {
+                    DBE2_LOG(WARN_LOGGER, "drop <adjust_switch> label fail.");
+                }
+            }
+
+            cApp.set_appParam(appParam);
+            ISrmRdcMgr::GetInstance().UpdateAppState(cApp);
+        }
+
+    }
+    else if(iStepStatus == STEP_COMPLETE_ || iStepStatus == STEP_STOP_)
+    {
+        CRdcJobRunStep cStepInfo;
+        ISrmRdcMgr::GetInstance().GetStepInfo(rcStepId, cStepInfo);
+        int32 durTime = baseTime.toTimet() - cStepInfo.get_stepStartTime().toTimet();
+        rRdcStepData.set_duration(durTime);
+        rRdcStepData.set_stepEndTime(baseTime);
+    }
+    ISrmRdcMgr::GetInstance().SetStepInfo(rRdcStepData, rCond);
+}
+
+void CSrmJobMgrImpl::SetAppStatus(SJobAppId& rcAppId, int32 iAppStatus, aistring erroinfo)
+{
+    CRdcJobRunStepApp rJobApp;
+    CRdcJobRunStepApp rCond;
+
+
+    rCond.set_jobInsId(rcAppId.jobinsId());
+    rCond.set_jobRunStepId(rcAppId.stepinsId());
+    rCond.set_appId(rcAppId.appId());
+    rJobApp.set_appStatus(iAppStatus);
+    if(!erroinfo.empty()) rJobApp.set_errorMsg(erroinfo);
+
+
+    CBSDateTime baseTime;
+
+
+    GetCurrentTime(baseTime);
+    if(iAppStatus == APP_START_)
+    {
+        rJobApp.set_startTime(baseTime);
+    }
+    else if(iAppStatus == APP_STOP_ || iAppStatus == APP_COMPLETE_ )
+    {
+        CRdcJobRunStepApp cApp;
+        ISrmRdcMgr::GetInstance().GetJobAppInfo(rcAppId, cApp);
+        int32 durTime = baseTime.toTimet() - cApp.get_startTime().toTimet();
+        rJobApp.set_duration(durTime);
+        rJobApp.set_endTime(baseTime);
+    }
+
+    ISrmRdcMgr::GetInstance().SetJobAppInfo(rJobApp, rCond);
+}
+
+void CSrmJobMgrImpl::SendJobAlarm(int32 iJobId, aistring erroinfo)
+{
+    aistring strKey = FormatString("(%d-%d-%d)_%d", -1, 8, 2, iJobId);
+    SDbmWarnInfo cWarnInfo;
+
+
+    // cWarnInfo.set_moniId(911);
+    // cWarnInfo.procKey().set_appId(-1);
+    // cWarnInfo.procKey().set_procId(2);
+    // cWarnInfo.set_vmId(-1);
+    // cWarnInfo.set_score(1);
+    // cWarnInfo.set_message(strKey);
+    // cWarnInfo.set_description(erroinfo);
+    // ISrmOtherMgr::GetInstance().SendWarnInfo(cWarnInfo);
+}
+
+void CSrmJobMgrImpl::AppOperate(SJobAppContrlInfoList &rJobAppOperateList)
+{
+    ISrmAppMgr &rAppMgr = ISrmAppMgr::GetInstance();
+    SJobAppContrlInfoList::iterator itAppOperate = rJobAppOperateList.begin();
+
+
+    for (; itAppOperate != rJobAppOperateList.end(); ++itAppOperate)
+    {
+        aistring param = FormatString("%d_%d_%d", itAppOperate->jobinsId(), itAppOperate->stepinsId(), itAppOperate->appinsId());
+        int32 iReturn = -1;
+        try
+        {
+            switch (itAppOperate->get_operateType())
+            {
+            case STOP_JOB_APP:
+                {
+                    DBE2_LOG(DEBUG_LOGGER, "ready to stop app %d", itAppOperate->appinsId());
+                    rAppMgr.UpdateAppCbParam(itAppOperate->appinsId(), MSG_REP_JOB_STOP_APP, param); // flowinsId是否需要改动zhangneng
+                    if(itAppOperate->jobinsId() != 0)
+                    {
+                        SJobAppId cAppId;
+                        cAppId.set_jobinsId(itAppOperate->jobinsId());
+                        cAppId.set_stepinsId(itAppOperate->stepinsId());
+                        cAppId.set_appId(itAppOperate->appinsId());
+                        SetAppStatus(cAppId, APP_STOPING_);
+                    }
+                    iReturn = rAppMgr.StopApp(itAppOperate->appinsId(), TRANS_JOB, NULL);
+                    break;
+                }
+            case START_JOB_APP:
+                {
+                    DBE2_LOG(DEBUG_LOGGER, "ready to start app %d", itAppOperate->appinsId());
+					if (itAppOperate->jobinsId() != 0)
+					{
+						SJobAppId cAppId;
+						cAppId.set_jobinsId(itAppOperate->jobinsId());
+						cAppId.set_stepinsId(itAppOperate->stepinsId());
+						cAppId.set_appId(itAppOperate->appinsId());
+						SetAppStatus(cAppId, APP_STARTING_);
+					}
+                    rAppMgr.StartApp(itAppOperate->appinsId(), MSG_REP_JOB_START_APP, param,
+                                     MSG_REP_JOB_STOP_APP, param, TRANS_JOB, NULL); // 需要改动
+                    break;
+                }
+            case FORCE_STOP_JOB_APP:
+                {
+                    DBE2_LOG(DEBUG_LOGGER, "ready to force stop app %d", itAppOperate->appinsId());
+                    rAppMgr.UpdateAppCbParam(itAppOperate->appinsId(), MSG_REP_JOB_STOP_APP, param);
+                    if(itAppOperate->jobinsId() != 0)
+                    {
+                        SJobAppId cAppId;
+
+
+                        cAppId.set_jobinsId(itAppOperate->jobinsId());
+                        cAppId.set_stepinsId(itAppOperate->stepinsId());
+                        cAppId.set_appId(itAppOperate->appinsId());
+                        SetAppStatus(cAppId, APP_STOPING_);
+                    }
+
+                    iReturn = rAppMgr.ForceStopApp(itAppOperate->appinsId(), TRANS_JOB, NULL);
+                    break;
+                }
+            case REPAIR_JOB_APP:
+                {
+                    DBE2_LOG(DEBUG_LOGGER, "ready to repaire app %d", itAppOperate->appinsId());
+                    rAppMgr.RepairApp(itAppOperate->appinsId(), TRANS_JOB, param, NULL);
+                    break;
+                }
+            default :
+                {
+                    DBE2_LOG(WARN_LOGGER, "unknow job(%d) app(%d) operation, exe type is %d.",
+                             itAppOperate->get_jobinsId(), itAppOperate->get_appinsId(), itAppOperate->get_operateType());
+                    break;
+                }
+            }
+        }
+        catch(CAIException &e)
+        {
+            DBE2_LOG_EXCEPTION(e);
+            SSrmExeCallBack  rExeSCallBack;
+
+
+            rExeSCallBack.set_param(param);
+            rExeSCallBack.set_errorInfo(e.get_message());
+            rExeSCallBack.set_exeResult(APP_EXE_FAIL);
+
+            if(e.get_code() == DBE2_SRM_STOP_APP_ILLEGAL )
+            {
+                AppEndCallback(rExeSCallBack);
+            }
+            else if(e.get_code() == DBE2_SRM_START_APP_ILLEGAL )
+            {
+                AppStartCallback(rExeSCallBack);
+            }
+            else if( e.get_code() == DBE2_SRM_NOT_EXE_APP && itAppOperate->get_operateType() == START_JOB_APP )
+            {
+                //若是启动中或者其他操作中的状态，执行结束回调的时候会设置
+                CRdcApp cApp;
+                ISrmRdcMgr::GetInstance().QueryApp(itAppOperate->appinsId(), cApp);
+                if(cApp.get_appState() == APP_START_SUCCESS) // get_appState
+                    rExeSCallBack.set_exeResult(APP_EXE_SUCCESS);
+                AppStartCallback(rExeSCallBack);
+            }
+        }
+        if(iReturn == 0 && itAppOperate->get_operateType() != REPAIR_JOB_APP)
+        {
+            SSrmExeCallBack  rExeSCallBack;
+
+
+            rExeSCallBack.set_param(param);
+            rExeSCallBack.set_exeResult(APP_EXE_SUCCESS);
+            AppEndCallback(rExeSCallBack);
+        }
+    }
+}
+
+bool CSrmJobMgrImpl::JobVocation(CRdcJobSchedule &rJobSchedule)
+{
+    CBSDateTime &rdate = rJobSchedule.jobInsScheduleTime();
+    ISrmRdcMgr &rdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcJobVacationList cJobVacateList;
+    rdcMgr.GetJobVacationList(rJobSchedule.get_jobId(), cJobVacateList);
+    CRdcJobVacationList::iterator itVacate;
+
+
+    for(itVacate = cJobVacateList.begin(); itVacate != cJobVacateList.end(); ++itVacate)
+    {
+        LogSdl(*itVacate);
+        if(WEEKEND == itVacate->get_vacationType())
+        {
+            int32 iWeekDate = GetWeekDate(rdate.year(), rdate.month(), rdate.day());
+            if(6 == iWeekDate || 7 == iWeekDate)
+            {
+                DBE2_LOG(INFO_LOGGER, "job %d is vacate on weekends", rJobSchedule.get_jobId());
+                return true;
+            }
+        }
+        else
+        {
+            if(itVacate->get_startTime().isNull())
+                continue;
+            CBSDateTime &rStartTime = itVacate->startTime();
+            CBSDateTime &rEndTime = itVacate->endTime();
+            if(itVacate->get_endTime().isNull())
+                rEndTime = itVacate->get_startTime();
+            if(MONTH_DAY == itVacate->get_vacationType() &&
+                    CompareDateBE(rdate, rStartTime, 1) &&
+                    CompareDateBE(rEndTime, rdate, 1))
+            {
+                DBE2_LOG(INFO_LOGGER, "job %d is vacate on (%d-%d) everyear",
+                         rJobSchedule.get_jobId(), rdate.month(), rdate.day());
+                return true;
+            }
+            else if(SPECIAL_DAY == itVacate->get_vacationType() &&
+                    CompareDateBE(rdate, rStartTime, 2) &&
+                    CompareDateBE(rEndTime, rdate, 2))
+            {
+                DBE2_LOG(INFO_LOGGER, "job %d is vacate on (%d-%d-%d)",
+                         rJobSchedule.get_jobId(), rdate.year(), rdate.month(), rdate.day());
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void CSrmJobMgrImpl::AppExcptionCallback( SSrmExeCallBack & rExeSCallBack )
+{
+    SStepId cStepId;
+    SJobAppId cJobAppId;
+    aistring param = rExeSCallBack.get_param();
+    CStringList	out_list;
+    base_divide_str(param, "_", out_list);
+
+
+    cJobAppId.set_jobinsId(atoi(out_list[0].c_str()));
+    cJobAppId.set_stepinsId(atoi(out_list[1].c_str()));
+    cJobAppId.set_appId(atoi(out_list[2].c_str()));
+
+    cStepId.set_jobinsId(atoi(out_list[0].c_str()));
+    cStepId.set_stepinsId(atoi(out_list[1].c_str()));
+    int32 iJobinsId = atoi(out_list[0].c_str());
+
+    DBE2_LOG(ERROR_LOGGER, "job(%d) step(%d) app(%d) run exception",
+             cJobAppId.get_jobinsId(), cJobAppId.get_stepinsId(), cJobAppId.get_appId());
+
+    SetAppStatus(cJobAppId, APP_RUN_EXCEPTION_, rExeSCallBack.get_errorInfo());
+    SetStepStatus(cStepId, STEP_FAIL_, rExeSCallBack.get_errorInfo());
+    SetJobStatus(iJobinsId , JOB_FAIL_, JOB_START_, rExeSCallBack.get_errorInfo());
+}
+
+}
+

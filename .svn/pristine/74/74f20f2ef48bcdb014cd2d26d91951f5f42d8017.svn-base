@@ -1,0 +1,77 @@
+#include <unittest_cp_dbe2_base_main.h>
+
+SUITE(SUITE___cron_cron_util_cpp)
+{
+	//Fuction: bool CheckExpressValidity ( const char * szExpress )
+	TEST_FIXTURE(TestFixture,TestCheckExpressValidity)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: char GetCurrentChar ( const char * * szExpress )
+	TEST_FIXTURE(TestFixture,TestGetCurrentChar)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 GetCurrentNum ( const char * * szExpress )
+	TEST_FIXTURE(TestFixture,TestGetCurrentNum)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_CRON_BEGIN int32 GetMaxValue ( VALUE_TYPE em )
+	TEST_FIXTURE(TestFixture,TestGetMaxValue)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: char * IsChar ( char * * pszExpress , char * ch )
+	TEST_FIXTURE(TestFixture,TestIsChar)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool IsNumber ( char * * pszExpress , int32 & iNextNum )
+	TEST_FIXTURE(TestFixture,TestIsNumber)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool IsSpecifiedChar ( char * * pszExpress , struct tm & tmInput , int32 & iNextNum , VALUE_TYPE em )
+	TEST_FIXTURE(TestFixture,TestIsSpecifiedChar)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool JudgeLeapYear ( int32 iYear )
+	TEST_FIXTURE(TestFixture,TestJudgeLeapYear)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void ModifyFormatTime ( struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestModifyFormatTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

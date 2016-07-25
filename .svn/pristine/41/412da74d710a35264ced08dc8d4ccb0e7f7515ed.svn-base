@@ -1,0 +1,340 @@
+#include "nr_api_impl.h"
+#include "nr_common_struct.h"
+#include "nr_common_tool.h"
+#include "dbe2_log.h"
+#include "dbe2_util.h"
+
+namespace MDbe
+{
+int32 CNrApiImpl::NrInit(od_frame:: CThread *pThread)
+{
+	int32 iRet = pThread->read_config(g_cDbeNrConfig);
+	if (0 != iRet)
+	{
+		return iRet;
+	}
+	// 去除路径中重复的斜杠
+	RejectDualChar(g_cDbeNrConfig.m_szNrRootDir);
+	RejectDualChar(g_cDbeNrConfig.m_szNrRootBakDir);
+	return iRet;
+}
+
+int32 CNrApiImpl::CheckNrRootPath()
+{
+	int32 iRet = MakeDirExist(g_cDbeNrConfig.m_szNrRootDir);
+	iRet |= MakeDirExist(g_cDbeNrConfig.m_szNrRootBakDir);
+	return iRet;
+}
+
+int32 CNrApiImpl::CreateProcNr(MDbe::CProcKey &rPk)
+{
+	if (0 == rPk.m_objSKey.m_iFlowId ||
+		0 == rPk.m_objSKey.m_iSrvId || 0 == rPk.m_iProcId)
+	{
+		DBE2_LOG(WARN_LOGGER, "unkown prockey(%d-%d-%d), hold nr forbidden",
+			rPk.m_objSKey.m_iFlowId, rPk.m_objSKey.m_iSrvId, rPk.m_iProcId);
+		return -1;
+	}
+	if (0 == strlen(g_cDbeNrConfig.m_szNrRootDir))
+	{
+		DBE2_LOG(ERROR_LOGGER, "nr root dir is null,create nr forbidden",
+			rPk.m_objSKey.m_iFlowId, rPk.m_objSKey.m_iSrvId, rPk.m_iProcId);
+		return -1;
+	}
+	aistring strNrPath = GetDirByProcKey(rPk);
+	RemoveDirectory(strNrPath.c_str());
+
+	DBE2_LOG(DEBUG_LOGGER, "mkdir path %s", strNrPath.c_str());
+	// 创建NR目录
+	if(mkdir(strNrPath.c_str(), FILE_PERMISSION))
+	{
+		DBE2_LOG(ERROR_LOGGER, "mkdir path %s fail,errno %d, err_msg:%s",
+			strNrPath.c_str(), errno, strerror(errno));
+		return -1;
+	}
+	// 创建四个nr文件
+	char szFileContent[DEFAULT_FILE_LEN] = {0};
+	memset(szFileContent, ' ', DEFAULT_FILE_LEN - 1);
+	szFileContent[DEFAULT_FILE_LEN - 2] = '\n';
+	szFileContent[DEFAULT_FILE_LEN - 1] = '\0';
+
+	aistring strNrFile = strNrPath + CMD_LINE_FILE;
+	int32 iRet = WriteToFile(rPk, strNrFile.c_str(), szFileContent);
+	strNrFile = strNrPath + STATUS_FILE;
+	iRet |= WriteToFile(rPk, strNrFile.c_str(), szFileContent);
+	strNrFile = strNrPath + PID_FILE;
+	iRet |= WriteToFile(rPk, strNrFile.c_str(), szFileContent);
+	strNrFile = strNrPath + CAPABILITY_FILE;
+	iRet |= WriteToFile(rPk, strNrFile.c_str(), szFileContent);
+	return iRet;
+}
+
+int32 CNrApiImpl::HoldNr(MDbe::CProcKey &rPk, const char* szCmd)
+{
+	aistring strNrPath = GetDirByProcKey(rPk);
+	if (0 == TestDir(strNrPath.c_str())) return 0;
+	return CreateProcNr(rPk);
+}
+
+int32 CNrApiImpl::UnholdNr(MDbe::CProcKey& rPk)
+{
+	aistring strBakNr = GetDirByProcKey(rPk, NR_BAK_PATH);
+	int32 iRet;
+	aistring strNr = GetDirByProcKey(rPk);
+	// 删除NR备份目录
+	for (int32 i=0; i<3; i++)
+	{
+		if (0 != RemoveDirectory(strBakNr.c_str()))
+		{
+			DBE2_LOG(ERROR_LOGGER, "delete nr bak path %s failed", strBakNr.c_str());
+		}
+		// NR目录移至备份目录
+		iRet = rename(strNr.c_str(), strBakNr.c_str());
+		if (0 == iRet) break;
+		DBE2_LOG(WARN_LOGGER, "rename move nr %s to %s failed ret:%d, error no:%d,error info:%s",
+			strNr.c_str(), strBakNr.c_str(), iRet, errno, strerror(errno));
+	}
+	DBE2_LOG(DEBUG_LOGGER, "move nr %s to %s .result:%d", strNr.c_str(), strBakNr.c_str(), iRet);
+	return iRet;
+}
+
+int32 CNrApiImpl::WriteProcCmds(MDbe::CProcKey &rPk, ListNrProcCmd &rlstProcCmd)
+{
+	aistring strNrFile = GetNrFileByPk(rPk, CMD_LINE_FILE);
+	aistring strCmdContent = "";
+	char szText[CMD_MAX_LEN] ={0};
+	ListNrProcCmd::iterator itProcCmd;
+	if (0 == rlstProcCmd.size()) return 0;
+	for (itProcCmd = rlstProcCmd.begin(); itProcCmd != rlstProcCmd.end(); ++itProcCmd)
+	{
+		snprintf(szText, sizeof(szText), "%s%s%s,%s\n", GetCmdName(itProcCmd->m_emCmdType),
+			SEPARATOR, itProcCmd->m_szProcCmd, itProcCmd->m_szProcParameter);
+		strCmdContent += szText;
+	}
+	strCmdContent += "\n";
+	WriteToFile(rPk, strNrFile.c_str(), strCmdContent.c_str());
+	return 0;
+}
+
+int32 CNrApiImpl::ReadProcCmd(MDbe::CProcKey &rPk, CNrProcCmd& rNrProcCmd, EmNrProcCmdType em)
+{
+	memset(&rNrProcCmd, 0, sizeof(CNrProcCmd));
+	rNrProcCmd.m_emCmdType = em;
+	MapNrRecord cMapNrRecord;
+	// nr文件
+	aistring strNrFile = GetNrFileByPk(rPk, CMD_LINE_FILE);
+	aistring strKey = GetCmdName(em);
+
+	ReadNrRecord(rPk, strNrFile, cMapNrRecord, strKey);
+	MapNrRecord::iterator itRecord = cMapNrRecord.find(strKey);
+	if (itRecord != cMapNrRecord.end())
+	{
+		int32 iSite = itRecord->second.find(",");
+		aistring strCmd = itRecord->second.substr(0, iSite);
+		memcpy(rNrProcCmd.m_szProcCmd, itRecord->second.c_str(), iSite);
+		strncpy(rNrProcCmd.m_szProcParameter, itRecord->second.c_str() + iSite +1,sizeof(rNrProcCmd.m_szProcParameter));
+		return 0;
+	}
+	return -1;
+}
+
+int32 CNrApiImpl::WritePid(MDbe::CProcKey &rPk, int32 &iPid )
+{
+	aistring strNrFile = GetNrFileByPk(rPk, PID_FILE);
+	aistring strCmdContent = FormatString("pid%s%d\n\n", SEPARATOR, iPid);
+	return WriteToFile(rPk, strNrFile.c_str(), strCmdContent.c_str());
+}
+
+int32 CNrApiImpl::ReadPid(MDbe::CProcKey &rPk, int32 &iPid )
+{
+	aistring strNrFile = GetNrFileByPk(rPk, PID_FILE);
+	MapNrRecord cMapNrRecord;
+	aistring strKey = "pid";
+	ReadNrRecord(rPk, strNrFile, cMapNrRecord, strKey);
+	MapNrRecord::iterator itRecord = cMapNrRecord.find(strKey);
+	if (itRecord != cMapNrRecord.end())
+	{
+		iPid = atoi(itRecord->second.c_str());
+		return 0;
+	}
+	// 区分NR路径存在与不存在的情况
+	aistring strNrDir = GetDirByProcKey(rPk);
+	iPid = TestDir(strNrDir.c_str());
+	return iPid;
+}
+
+int32 CNrApiImpl::WriteProcStatus(MDbe::CProcKey &rPk, MDbe:: CProcStat& rProcStat )
+{
+	aistring strNrFile = GetNrFileByPk(rPk, STATUS_FILE);
+	MapNrRecord cMapRecord;
+	aistring strKey = "";
+	// 读取旧的信息
+	ReadNrRecord(rPk, strNrFile, cMapRecord, strKey);
+	// 准备要写入的数据
+	aistring strContent = rProcStat.TransInfo2Map(cMapRecord);
+	int32 iRet = WriteToFile(rPk, strNrFile.c_str(), strContent.c_str());
+	return iRet;
+}
+
+int32 CNrApiImpl::ReadProcStatus(MDbe::CProcKey &rPk, CProcStat& rProcStat )
+{
+	rProcStat.init();
+	aistring strNrFile = GetNrFileByPk(rPk, STATUS_FILE);
+	MapNrRecord cMapNrRecord;
+	aistring strKey = "";
+	int32 iResult = ReadNrRecord(rPk, strNrFile, cMapNrRecord, strKey);
+	MapNrRecord::iterator itRecord;
+	for (itRecord = cMapNrRecord.begin(); itRecord != cMapNrRecord.end(); ++itRecord)
+	{
+		if (0 == itRecord->first.compare("emProcStat"))
+		{
+			rProcStat.m_emProcStat = (MDbe::EmNrProcStatus)atoi(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("iCount"))
+		{
+			rProcStat.m_iCount = atoi(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("iDataType"))
+		{
+			rProcStat.m_iDataType = atoi(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("iSrcMsg"))
+		{
+			rProcStat.m_iSrcMsg = atoi(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("iStopProgress"))
+		{
+			rProcStat.m_iStopProgress = atoi(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("lluLastOperateTime"))
+		{
+			rProcStat.m_lluLastOperateTime = atol(itRecord->second.c_str());
+		}
+	}
+	return iResult;
+}
+
+int32 CNrApiImpl::WriteProcResoure(MDbe::CProcKey &rPk, MDbe:: CProcPid& rProcPid )
+{
+	aistring strNrFile = GetNrFileByPk(rPk, CAPABILITY_FILE);
+	aistring strCmdContent = "";
+	strCmdContent += FormatString("iPid%s%d\n", SEPARATOR, rProcPid.m_iPid);
+	strCmdContent += FormatString("dbCpuUse%s%f\n", SEPARATOR, rProcPid.m_dbCpuUse);
+	strCmdContent += FormatString("dbMemUse%s%f\n", SEPARATOR, rProcPid.m_dbMemUse);
+	strCmdContent += FormatString("fNetUse%s%f\n", SEPARATOR, rProcPid.m_fNetUse);
+	strCmdContent += FormatString("dbHandleRate%s%f\n", SEPARATOR, rProcPid.m_dbHandleRate);
+	strCmdContent += FormatString("llUpdateTime%s%lld\n", SEPARATOR, rProcPid.m_llUpdateTime);
+	strCmdContent += FormatString("iSecModify%s%d\n\n", SEPARATOR, rProcPid.m_iSecModify);
+	int32 iRet = WriteFileNoLock(rPk, strNrFile.c_str(), strCmdContent.c_str());
+	return iRet;
+}
+
+int32 CNrApiImpl::ReadProcResoure(MDbe::CProcKey &rPk, MDbe:: CProcPid& rProcPid )
+{
+	aistring strNrFile = GetNrFileByPk(rPk, CAPABILITY_FILE);
+	MapNrRecord cMapNrRecord;
+	aistring strKey = "";
+	int32 iResult = ReadNrRecord(rPk, strNrFile, cMapNrRecord, strKey);
+	MapNrRecord::iterator itRecord;
+	for (itRecord = cMapNrRecord.begin(); itRecord != cMapNrRecord.end(); ++itRecord)
+	{
+		if (0 == itRecord->first.compare("iPid"))
+		{
+			rProcPid.m_iPid = atoi(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("dbCpuUse"))
+		{
+			rProcPid.m_dbCpuUse = atof(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("dbMemUse"))
+		{
+			rProcPid.m_dbMemUse = atof(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("llUpdateTime"))
+		{
+			rProcPid.m_llUpdateTime = atol(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("iSecModify"))
+		{
+			rProcPid.m_iSecModify = atoi(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("dbHandleRate"))
+		{
+			rProcPid.m_dbHandleRate = atof(itRecord->second.c_str());
+		}
+		else if (0 == itRecord->first.compare("fNetUse"))
+		{
+			rProcPid.m_fNetUse = atof(itRecord->second.c_str());
+		}
+	}
+	return iResult;
+}
+
+int32 CNrApiImpl::ReadAllProcKey(CProcKeyVec& rProcKeyVec )
+{
+	return GetNrList(g_cDbeNrConfig.m_szNrRootDir, rProcKeyVec);
+}
+
+int32 CNrApiImpl::ReadAllProcResource(ProcPidMap& rProcPidMap )
+{
+	CProcKeyVec cPkVec;
+	CProcKeyVec::iterator itPk;
+	int32 iRet = GetNrList(g_cDbeNrConfig.m_szNrRootDir, cPkVec);
+	for (itPk = cPkVec.begin(); itPk != cPkVec.end(); ++itPk)
+	{
+		CProcPid cPid;
+		if (0 != ReadProcResoure(*itPk, cPid)) continue;
+		rProcPidMap[*itPk] = cPid;
+	}
+	return 0;
+}
+
+void CNrApiImpl::RejectDualChar(char *rszData)
+{
+	if (NULL == rszData) return;
+	char szResult[MAX_PATH_LEN] = {0};
+	int32 iStart = 0;
+	int32 iNumber = 0;
+	int32 iCopy = 0;
+	while(0 != rszData[iStart + iNumber])
+	{
+		if (0 < iNumber && '/' == rszData[iStart + iNumber])
+		{
+			if (rszData[iStart+iNumber-1] == rszData[iStart + iNumber])
+			{
+				memcpy(szResult + iCopy, rszData + iStart, iNumber);
+				iStart += iNumber + 1;
+				iCopy += iNumber;
+				iNumber = 0;
+				continue;
+			}
+		}
+		iNumber ++;
+	}
+	if (0 == iCopy) return;
+	memcpy(szResult + iCopy, rszData + iStart, iNumber);
+	memcpy(rszData, szResult, iCopy + iNumber);
+	rszData[iCopy + iNumber] = 0;
+}
+
+const char* CNrApiImpl::GetCmdName(EmNrProcCmdType em)
+{
+	switch(em)
+	{
+	case EM_NR_PROC_CMD_START:
+		return "start_proc_cmd";
+	case EM_NR_PROC_CMD_STOP:
+		return "stop_proc_cmd";
+	case EM_NR_PROC_CMD_CHECK:
+		return "check_proc_cmd";
+	case EM_NR_PROC_CMD_RESTART:
+		return "restart_proc_cmd";
+	case EM_NR_PROC_CMD_FORCED_STOP:
+		return "force_stop_proc_cmd";
+	default:
+		break;
+	}
+	return "";
+}
+
+}

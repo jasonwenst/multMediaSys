@@ -1,0 +1,75 @@
+#ifndef _DBE_MSG_INTERFACE_H_
+#define _DBE_MSG_INTERFACE_H_
+
+#include <compile.h>
+
+namespace MDbe
+{
+
+typedef enum {
+    //DBE公共消息段
+    DBE_COM_MSG_TYPE_BEG = 901,
+    DBE_COM_MSG_TYPE_END = 1000,
+    //SRM处理消息段
+    SRM_MSG_TYPE_BEG = 1001,
+    SRM_MSG_TYPE_END = 5000,
+    //DBM处理消息段
+    DBM_MSG_TYPE_BEG = 5001,
+    DBM_MSG_TYPE_END = 6000,
+    //CAC处理消息段
+    CAC_MSG_TYPE_BEG = 6001,
+    CAC_MSG_TYPE_END = 6100,
+    //CAS处理消息段
+    CAS_MSG_TYPE_BEG = 6101,
+    CAS_MSG_TYPE_END = 7000,
+    //NRM处理消息段[7001,7500]是SRM发送给NRM的，[7501,8000]是PT发送给NRM的
+    NRM_MSG_TYPE_BEG = 7001,
+    NRM_MSG_TYPE_END = 8000,
+    //DBE-TSTB处理消息段(DBE使用)
+    DBE_TSTB_MSG_TYPE_BEG = 8001,
+    DBE_TSTB_MSG_TYPE_END = 8200,
+    //经过SRM广播到TSTB的处理消息段
+    TSTB_MSG_BROAD_BY_SRM_BEG = 8201,
+    TSTB_MSG_BROAD_BY_SRM_END = 8300,
+    //APP-TSTB处理消息段(应用使用)
+    APP_TSTB_MSG_TYPE_BEG = 8301,
+    APP_TSTB_MSG_TYPE_END = 9000,
+    //TSTB处理的消息段
+    TSTB_MSG_TYPE_BEG = DBE_TSTB_MSG_TYPE_BEG,
+    TSTB_MSG_TYPE_END = APP_TSTB_MSG_TYPE_END,
+    //PT处理消息段
+    PT_MSG_TYPE_BEG = 9001,
+    PT_MSG_TYPE_END = 10000,
+    //日志广播消息段
+    LOG_MSG_TYPE_BEG = 10001,
+    LOG_MSG_TYPE_END = 11000,
+    //TB&TS广播消息段
+    MSG_BROAD_CAST_BEG = 11001,
+    MSG_BROAD_CAST_END = 12000,
+    //按主机广播消息段
+    MSG_VM_BROAD_CAST_BEG = 12001,
+    MSG_VM_BROAD_CAST_END = 13000,
+    //按流程广播消息段
+    MSG_FLOW_BROAD_CAST_BEG = 13001,
+    MSG_FLOW_BROAD_CAST_END = 14000,
+    SIMULATOR_MSG_TYPE_BEG = 15001,
+    SIMULATOR_MSG_TYPE_END = 16000,
+    RSP_SIMULATOR_MSG_TYPE_BEG = 16001,
+    RSP_SIMULATOR_MSG_TYPE_END = 17000,
+}DBE_MSG_TYPE_SECTION;
+
+typedef enum {
+	//数据访问响应
+	DATA_ACCESS_RSP = DBE_COM_MSG_TYPE_BEG
+}DBE_COM_MSG_TYPE;
+
+enum {
+	PROC_BC_LOG = 20,
+	PROC_BC_DBE,
+	PROC_BC_VM,
+	PROC_BC_FLOW
+};
+
+} //end namespace
+
+#endif

@@ -1,0 +1,373 @@
+#include "adapter_analyze.h"
+
+
+int32 CAdapterAnalyzeThread::init()
+{
+	char szProcKey[64];
+	m_objConfig.m_strProcKey = "0-0-1";
+
+	int32 iRet = read_config(m_objConfig);
+	if(iRet != 0) 
+		return iRet;
+
+	sprintf(szProcKey,"%d-%d-%d", get_flowId(), 0, get_procId());
+	m_objConfig.m_strProcKey = szProcKey;
+	m_objConfig.m_strStdOut = m_objConfig.m_strProcKey + "_stdout";
+
+	if (m_objConfig.m_strRunCommand.length() != 0)
+	{
+		m_objConfig.m_strRunCommandShell = std::string(m_objConfig.m_strRunCommand.c_str());
+		
+	}
+
+	// 获得路径
+	std::vector<string> vecEnvPath;
+	string strEnvPath = getenv("PATH");
+	char *saveptr;
+	char *strPath = strtok_r((char*)strEnvPath.c_str(), ":", &saveptr);
+	vecEnvPath.push_back(string(strPath));
+	for(;;)
+	{
+		strPath = strtok_r(NULL, ":", &saveptr);
+		if(NULL != strPath)
+		{
+			vecEnvPath.push_back(string(strPath));
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if(!CheckExecutable(vecEnvPath,m_objConfig.m_strCheckCommand) ||
+	   !CheckExecutable(vecEnvPath,m_objConfig.m_strRunCommand) ||
+	   !CheckExecutable(vecEnvPath,m_objConfig.m_strStopCommand))
+	{
+		return -1;
+	}
+	signal(SIGCHLD, 0);
+	return 0;
+}
+
+int32 CAdapterAnalyzeThread::destroy()
+{
+	return 0;
+}
+
+int32 CAdapterAnalyzeThread::control(NAMESPACE_BILLING40_FRAME CControlPkg& controlPkg)
+{
+	return 0;
+}
+
+
+int32 CAdapterAnalyzeThread::run(bs_frame_file::CFrameFile *pFrameFile)
+{
+	int32 iRet= -1;
+    m_objConfig.m_iChildPid = -1;
+
+	
+    if((m_objConfig.m_iChildPid = fork()) < 0)
+    {
+        return iRet;
+    }
+    else if(m_objConfig.m_iChildPid == 0)
+    {
+    	int32 iParamCount = 0;
+		char *arrArgv[200];   // 暂时支持的最大参数个数是200个，超过200个需要扩充参数个数
+		char *tok = NULL;
+
+        //子进程处理
+        int fd = open(m_objConfig.m_strStdOut.c_str(), O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
+        if (fd > 0)
+        {
+           dup2(fd, STDOUT_FILENO);
+           dup2(fd, STDERR_FILENO);
+           close(fd);
+        }
+		
+		char *shell_buf = (char *)m_objConfig.m_strRunCommandShell.c_str();
+		char *shell_tbuf = (char *)m_objConfig.m_strParams.c_str(); // 添加第三方启动参数
+		strcat(shell_buf, shell_tbuf);
+
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "shell name is  %s!", shell_buf);
+
+        tok = strtok(shell_buf, " ");
+        arrArgv[iParamCount++] = tok;
+        while (tok) 
+		{
+            tok = strtok(NULL, " ");
+            arrArgv[iParamCount++] = tok;
+        }
+
+        arrArgv[iParamCount++] = NULL;
+        iRet = execvp(arrArgv[0], arrArgv);	
+        exit(iRet);
+    }
+    else
+    {
+    	// 启动check脚本
+    	string checkCommand= AdapterAnalyzeFormatString("%s %s %d %d &",
+    			m_objConfig.m_strCheckCommand.c_str(),
+    			m_objConfig.m_strProcKey.c_str(),
+    			getpid(),
+    			m_objConfig.m_iChildPid);
+    	iRet=ExecuteCommand(checkCommand.c_str());
+    	if(iRet!=0)
+    		return iRet;
+			
+        // 等待子进程退出
+        while(waitpid(m_objConfig.m_iChildPid, &iRet, WNOHANG) != m_objConfig.m_iChildPid)
+        {
+        	sleep (1);
+        }
+        printf("exec shell wait pid:%s![pid:%d, ret:%d]", m_objConfig.m_strRunCommand.c_str(), m_objConfig.m_iChildPid, iRet);
+    }
+	
+	StopSubProcess(m_objConfig.m_iChildPid);
+	return 999;
+}
+
+int	ConvertEnvPath(const string &strEnv,  string& strDes)
+{
+#if defined(SOLARIS)
+	strDes = string("");
+#else
+	strDes="" ;
+#endif
+	basic_string <char>::size_type 	iPosX = 0,iPosY = 0,iPosZ =0,iOffset = 0;
+	string	strEnvPara;
+	string::iterator	str1_cIter ;
+
+	if(strEnv.empty())	return	0;
+
+	iPosX = strEnv.find("$");
+	while(iPosX < string::npos){
+
+		if(iPosX - iPosY >0)
+			strDes.append(strEnv, iPosY ,iPosX - iPosY);
+
+		if(strEnv.at(iPosX + 1) == '$')
+		{
+			strDes.append(1, '$');
+			iPosZ = iPosX + 2;
+			iOffset = 1;
+		}
+		else
+		{
+			if(!strDes.empty() && *(str1_cIter = strDes.end() - 1) != '/')
+				strDes.append("/");
+	
+			if((iPosZ = strEnv.find_first_of("/",iPosX)) != string::npos){
+				iOffset = iPosZ - iPosX;
+			}else{
+				iOffset = 0;
+			}
+	
+			if( strEnv[iPosX + 1] == '(' ){
+	
+				string::size_type	iBackParenthPos = 0;
+	
+				iPosX++;
+	
+				if( (iBackParenthPos = strEnv.find_first_of( ")",iPosX) ) != string::npos ){
+					if(iBackParenthPos > iPosZ && iPosZ >0)
+					{
+						iOffset = iOffset - 1;
+					}
+					else
+					{
+						iOffset = iBackParenthPos - iPosX;
+						iPosZ = iBackParenthPos + 1;
+					}
+				}else{
+					iOffset--;
+				}
+			}
+
+			strEnvPara = (iOffset > 0)? strEnv.substr(iPosX+1,iOffset - 1):
+				strEnv.substr(iPosX+1, strEnv.length() - iPosX -1 + iOffset);
+	
+			if(!strEnvPara.empty()){
+				char *pEnv = NULL;
+
+				if((pEnv = getenv(strEnvPara.data()))!= NULL){
+					(pEnv[0] == '/' && iPosX >0) ?
+						( (iPosX == 1 && strEnv[iPosX] == '(')?strDes.append(pEnv): strDes.append(pEnv+1) ) :
+						strDes.append(pEnv);
+	
+					if(iPosY > 0){
+						str1_cIter = strDes.end() - 1;
+						if(iOffset > 0 && *str1_cIter == '/')
+							strDes.erase(str1_cIter);
+					}
+				}else{
+					cout << "ERROR : COULDN'T MATCH ENV_PARAM [" << strEnvPara	<< "] OF "
+						 << strEnv	<< '\n' << endl;
+					return	-1;
+				}
+			}
+		}
+		iPosY = iPosZ;
+		iPosX = strEnv.find("$",(iPosX+iOffset+1));
+	}
+
+	if(strDes.empty() && iPosX == string::npos)
+		strDes.assign(strEnv);
+	else if(iPosZ != string::npos)
+		strDes.append(strEnv.substr(iPosZ,strEnv.length() - iPosZ));
+
+	return	0;
+}
+
+bool CAdapterAnalyzeThread::CheckExecutable(std::vector<std::string> vecEnvPath, std::string szFile)
+{
+	if (szFile.empty()) 
+	{
+		return false;
+	}
+    const char* szShellFile = szFile.c_str();
+	if (szShellFile == NULL)
+	{
+		return false;
+	}
+
+    if(szFile.c_str())
+    {
+        char *saveptr;
+        szShellFile = strtok_r((char*)szFile.c_str(), " ", &saveptr);
+    }
+
+    // 判断是否是全路径或者带$的路径
+    if('/' == szShellFile[0] || '$' == szShellFile[0])
+    {
+        string strDst;
+
+        if('$' == szShellFile[0])
+        {
+            int32 iRetPath = ConvertEnvPath(szShellFile, strDst);
+            if(iRetPath != 0)
+            {
+               LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "command %s not exists please check!", szFile.c_str());
+               return false;
+            }
+        }
+        else
+        {
+            strDst = szShellFile;
+        }
+		
+        int32 iRet=access(strDst.c_str(), X_OK);
+        if(iRet!=0)
+        {
+        	LogAppend( NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "command %s not exists please check!", szFile.c_str());
+        	return false;
+        }
+        return true;
+
+    }
+	
+    char szGetCmd[1024];
+    for(std::vector<string>::iterator it = vecEnvPath.begin();
+            it != vecEnvPath.end();
+            ++it)
+    {
+        memset(szGetCmd, 0x00, sizeof(szGetCmd));
+        snprintf(szGetCmd, sizeof(szGetCmd) -1,"%s/%s", (*it).c_str(), szShellFile);
+        if(access(szGetCmd, X_OK) == 0)
+        {
+            return true;
+        }
+    }
+    LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "command %s not exists please check!", szFile.c_str());
+    return false;
+}
+
+void CAdapterAnalyzeThread::StopSubProcess(pid_t pid)
+{
+	string cmd = AdapterAnalyzeFormatString("%s %d",m_objConfig.m_strStopCommand.c_str(),pid);
+	int32 iRet = ExecuteCommand(cmd.c_str());
+	if(iRet != 0)
+	{
+		return;
+	}
+}
+
+int32 CAdapterAnalyzeThread::ExecuteCommand(const char *cszCommand)
+{
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "run shell:%s", cszCommand);
+	int32 iRet = system(cszCommand);
+	if(iRet < 0)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "execute %s error, return %d, errno:%d",
+			cszCommand,
+			iRet,
+			errno);
+		 return -1;
+	}
+	return iRet >> 8;
+}
+
+string CAdapterAnalyzeThread::AdapterAnalyzeFormatString(const char * format, ...)
+{
+    char buf[4096];
+    string strRet;
+	
+    if ( format != 0 )
+    {
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buf, sizeof(buf), format, args);
+        buf[sizeof(buf) - 1] = 0;
+        va_end(args);
+        strRet = buf;
+    }
+    return strRet;
+}
+
+bool CAdapterAnalyzeThread::CheckCommand(const char* szCommand)
+{
+	string command = AdapterAnalyzeFormatString("which %s",szCommand);
+	if(system(command.c_str()) !=0)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "command %s not exists please check!", szCommand);
+		return false;
+	}
+	return true;
+}
+
+/*
+void CAdapterAnalyzeThread::InputLog(const char* fileName)
+{
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "-----input log flie:%s----", fileName);
+	string strOutInfo;
+	std::ifstream infile(fileName);
+	if(!infile.is_open())
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "open file:%s failed", fileName);
+		return ;
+	}
+	char *buf = new char[4000];
+	while(!infile.eof())
+	{
+		memset(buf, 0, 4000);
+		infile.read(buf, 4000);
+		LogAppend( NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "%s", buf);
+	}
+	delete[] buf;
+	infile.clear();
+	infile.close();
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "-----input log end file:%s-----", fileName);
+}
+*/
+
+CAdapterAnalyzeThread::CAdapterAnalyzeThread() : m_lLastCheckTime(0)
+{ 
+	
+}
+
+CAdapterAnalyzeThread::~CAdapterAnalyzeThread()
+{ 
+	
+}
+
+

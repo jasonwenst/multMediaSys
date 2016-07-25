@@ -1,0 +1,75 @@
+//////////////////////////////////////////////////////////////////////////  								 
+///	COPYRIGHT NOTICE  							 
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）  							 
+///	All rights reserved. 
+///   
+/// \file	cron_main.h 
+/// \brief	cron表达式的操作类 
+///  
+/// 解析cron的表达式，获取下个时间点 
+/// 
+/// \version 1.0 
+/// \author		jinxin2	 
+/// \date		2011-11-21 
+/// 
+/// 
+///	修订说明：最初版本 
+////////////////////////////////////////////////////////////////////////// 
+#ifndef _CRON_MAIN_H 
+#define _CRON_MAIN_H 
+#include "cron_define.h" 
+ 
+#include "cron_item.h" 
+ 
+NAMESPACE_OD_CRON_BEGIN 
+ 
+class CCronMain 
+{ 
+public: 
+	CCronMain() 
+	{ 
+		InitCron(); 
+	} 
+	virtual ~CCronMain() 
+	{ 
+	} 
+private: 
+	CCronMain(const CCronMain& rh); 
+	CCronMain& operator=(const CCronMain& rh); 
+	 
+public: 
+	int32 InitCron(); 
+	int32 CheckExpress(const char* szExpress); 
+ 
+	/**
+	 * 解析cron表达式
+	 * return 0 解析正确
+	 * return -1 解析错误
+	 */ 
+	int32 ParseExpress(const char* szExpress); 
+	/**
+	 * 取距离tCurrentTime 最近的一次执行时间
+	 * 
+	 */ 
+	int32 GetNearTime(time_t &tCurrentTime, time_t &tNextTime); 
+	/**
+	 * 取距离tmCurrentTime 最近的一次执行时间
+	 * 
+	 */ 
+	int32 GetNearTime(struct tm &tmCurrentTime, struct tm &tmNextTime); 
+	 
+private: 
+	bool CheckSpecialTimeErr(struct tm &tmInput); 
+private:	 
+	CCronSec m_cCronSec; 
+	CCronMin m_cCronMin; 
+	CCronHour m_cCronHour; 
+	CCronDay m_cCronDay; 
+	CCronMonth m_cCronMonth; 
+	CCronYear m_cCronYear; 
+	CCronWeek m_cCronWeek; 
+}; 
+ 
+NAMESPACE_OD_CRON_END
+ 
+#endif 

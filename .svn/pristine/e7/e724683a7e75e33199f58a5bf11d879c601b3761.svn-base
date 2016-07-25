@@ -1,0 +1,212 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+#set 
+my $warnLimit = 100;
+
+my $sqlKey = "(select|update|insert|delete|direct_exec)";
+my $singleKey = "(select|update|insert|delete)";
+my $msgId = 0;
+my %msgType = ();
+my @msgCount = ();
+my @msgCosts = ();
+my @msgMax = ();
+my @msgMin = ();
+my $startTime = 0;
+my $endTime = 0;
+
+my %warnTimes = ();
+my %warnKeys = ();
+my %warnLogs = ();
+my %warnFlags = ();
+
+my $sqlId = 0;
+my %sqlType = ();
+my @sqlCount = ();
+my @sqlCosts = ();
+my @sqlMax = ();
+my @sqlMin = ();
+my @writeContent = ();
+
+my $subLine = "";
+
+die("please input analyse file name\n") if(@ARGV < 1);
+
+my @files=();
+foreach my $file(@ARGV){
+    if($file=~m#^-?[0-9]+$#){$warnLimit = $file;}
+    else{push @files, $file;}
+}
+
+print "sql warn limit is $warnLimit ms\n";
+print "analyse file have @files \n";
+print "analyse file number is ".@files, "\n";
+foreach(@files){
+    print "current analyse file is $_.\n";
+    &searchFie($_);
+}
+
+&printResult;
+
+
+sub searchFie{
+    open LOGFILE, $_[0];
+    %warnKeys = ();
+    %warnTimes = ();
+    foreach my $line(reverse <LOGFILE>)
+    {
+        #sql analyse
+        if($line =~ m#\[(\d+)\].+?[ob_kernel|ob_kernel_impl]\.cpp(.+)#){
+            my $threadId = $1;
+            my $left = $2;
+            if($left=~m#$sqlKey:.+?(\d+.?\d*) ms#){
+                if($2 > $warnLimit) {                   #print "$threadId  $1  $2 \n";
+                    $warnTimes{$threadId} = $2;
+                    if($1 eq "direct_exec"){$warnKeys{$threadId} = $singleKey;}
+                    elsif($1 eq "insert"){$warnKeys{$threadId} = "insert into|insert  into";}
+                    else{$warnKeys{$threadId} = $1;}
+                }
+            }
+            elsif(exists $warnKeys{$threadId})
+            {
+                if($left=~m#($warnKeys{$threadId})\b#i){       #print $line;
+                    &detailSql($warnTimes{$threadId}, $left);
+                    push @writeContent, (sprintf "%d ms\t,%s", $warnTimes{$threadId}, $line);
+                    delete $warnKeys{$threadId};
+                    delete $warnTimes{$threadId};
+                }
+            }
+        }
+
+        #message analyse
+        if($line =~ m#(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+).*msg_type:(-?\d+), cost_time:(\d+)#){
+            my $time=$2*1e8+$3*1e6 +$4*1e4 +$5*1e2 +$6;
+            if($startTime == 0 || $startTime > $time){$startTime = $time};
+            if($endTime == 0 || $endTime < $time){$endTime = $time};
+            my $msg = $7;
+            my $id;
+            my $cost = $8;
+            unless(exists $msgType{$msg}){
+                $msgType{$msg} = $msgId;
+                $msgCount[$msgId] = 0;
+                $msgMax[$msgId] = $cost;
+                $msgMin[$msgId] = $cost;
+                $msgCosts[$msgId] = 0;
+                $msgId += 1;
+            }
+            $id = $msgType{$msg};
+            $msgCount[$id] += 1;
+            $msgCosts[$id] += $cost;
+            if($msgMax[$id] < $cost){ $msgMax[$id] = $cost;}
+            if($msgMin[$id] > $cost){ $msgMin[$id] = $cost;}
+        }
+    }
+    close LOGFILE;
+}
+
+sub detailSql{
+    my ($time, $content) = @_;
+    if ($content =~ m/\d+\s+(.+)/){
+        unless(exists $sqlType{$1}){
+            $sqlType{$1} = $sqlId;
+            $sqlCount[$sqlId] = 0;
+            $sqlMax[$sqlId] = $time;
+            $sqlMin[$sqlId] = $time;
+            $sqlCosts[$sqlId] = 0;
+            $sqlId ++;
+        }
+        my $id = $sqlType{$1}; 
+        $sqlCount[$id] ++;
+        $sqlCosts[$id] += $time;
+        if($sqlMax[$id] < $time) {$sqlMax[$id] = $time;}
+        if($sqlMin[$id] > $time) {$sqlMin[$id] = $time;}
+    }
+    else{
+        print ("$content is not useable sql\n");
+    }
+}
+
+sub changeTime
+{
+    my $month = ($_[0]/1e8)%100;
+    my $day = ($_[0]/1e6)%100;
+    my $hour = ($_[0]/1e4)%100;
+    my $minite = ($_[0]/1e2)%100;
+    my $second = $_[0]%100;
+    my $time = "$month-$day $hour:$minite:$second";
+}
+
+sub printResult
+{
+    $startTime = &changeTime($startTime);
+    $endTime = &changeTime($endTime);
+    my %printMap = ();
+    print "message time from $startTime to $endTime.\n";
+    print "time unit is ms.\n";
+    print "msg_type    timecost    count    average    max_time    min_time\n";
+    while ((my $msg, my $id) = each %msgType)
+    {
+        my $key = $msgCosts[$id];
+        my $line = sprintf "%8d%12d%9d%11d%12d%12d\n", $msg, $msgCosts[$id], $msgCount[$id], $msgCosts[$id]/$msgCount[$id], $msgMax[$id], $msgMin[$id];
+        $printMap{$key} .= $line;
+    }
+    foreach (sort {$b <=> $a} keys%printMap)
+    {
+        print $printMap{$_};
+    }
+    %printMap = ();
+
+    #print warn_sql_log
+    if(@writeContent == 0) {return;}
+    open WARNLOG, ">sql_warn_log";
+    print "sql beyond $warnLimit have ".@writeContent." records. detail see sql_warn_log and total_sql_warn\n"; 
+    print WARNLOG reverse @writeContent; 
+    close WARNLOG;
+
+    open WARNTOTAL, ">total_sql_warn";
+    print WARNTOTAL "timecost  count    average    max_time    min_time  exec_sql\n";
+    while (my ($msg, $id) = each %sqlType)
+    {
+        my $key = $sqlCosts[$id];
+        my $line = sprintf "%8d%7d%11d%12d%12d  %s\n",  $sqlCosts[$id], $sqlCount[$id], $sqlCosts[$id]/$sqlCount[$id], $sqlMax[$id], $sqlMin[$id], $msg;
+        $printMap{$key} .= $line;
+    }
+    foreach (sort {$b <=> $a} keys%printMap)
+    {
+        print WARNTOTAL $printMap{$_};
+    }
+    close WARNTOTAL;
+}
+
+sub setLog{
+    if(exists $warnLogs{$_[0]}){
+        $warnLogs{$_[0]} = "$_$subLine${warnLogs{$_[0]}}";
+    }else{
+        $warnLogs{$_[0]} = "$_[1]";
+    }
+    $subLine = "";
+}
+
+sub selectLog{
+    my $count = 0;
+    foreach(reverse <>)
+    {
+        if(m#\[(\d+)\].+?[ob_kernel|ob_kernel_impl]\.cpp.+?(\d+) ms#){
+            &setLog($1, $_);
+            if($2 > $warnLimit) {print "$count: $1   $2\n";
+                $count += 1;
+                $warnFlags{$1} = 1;
+            }
+        }elsif(m#\[(\d+)\].+?.>>>>>>>>>>>>>>>>>>dispatch msg start#){
+            if(exists $warnFlags{$1} && exists $warnLogs{$1}){
+                push @writeContent, "$_${warnLogs{$1}}";
+            } 
+            delete $warnLogs{$1};
+        }elsif(m#\[(\d+)\].+?.cpp#){
+            &setLog($1, $_);
+        }
+        else{
+            $subLine = "$_$subLine";
+        }
+    }
+}

@@ -1,0 +1,43 @@
+#include <iostream>
+#include <string.h>
+
+namespace epa{
+	
+	/*
+	 *	写入初始化进度
+	 *	@ iInitValue:
+	 *	0 失败
+	 *	1 成功
+	 *	2 初始化中
+	 *	@ strInitErrorInfo:
+	 *	如果初始化失败，写入错误信息
+	 */
+	int SetInitInfo(
+		int iInitValue, 
+		std::string strInitErrorInfo = "");
+
+	/*
+	 * 写入结束程度
+	 * @iStopProcess 100 表示完全退出
+	 * @strStopErrorInfo 错误退出信息
+	 */
+	int SetStopInfo(
+		int iStopProgress, 
+		std::string strStopErrorInfo = "");
+
+
+	/*
+	 * 设置运行时的信息
+	 */
+	// int SetRunInfo(std::string strRunInfo);
+
+	int SetShellInitInfo(
+		int iInitValue, 
+		std::string strInitErrorInfo = "");
+
+	int SetShellStopInfo(
+		int iStopProgress,
+		std::string strStopErrorInfo = "");
+	
+
+}

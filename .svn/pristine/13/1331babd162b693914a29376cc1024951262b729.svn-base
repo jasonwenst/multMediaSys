@@ -1,0 +1,146 @@
+#!/bin/bash 
+
+# NRM config file path
+# edit it if this path is not the right path
+NRM_PATH=$OB_REL/config/nrm
+
+
+# NRM日志路径
+NRM_LOG_PATH=$HOME/log/dbe
+
+# NRM日志文件的完整文件名
+NRM_LOG=$NRM_LOG_PATH/dbe/nrm_-1.1.1_
+
+# check timer
+SLEEP_TIME=5
+
+##############################################################################
+# 死锁检查(通过日志刷新时间间隔来判断)
+HAS_CHECK_DEATH_LOCK=0
+
+# 日志超时时间
+# 如果日志超过这个时间还没有刷新过，那么认为NRM已经死锁，重启NRM
+TAP_TIMEOUT=1200         #20miniutes
+##############################################################################
+
+create_daemon_script()
+{
+    cat > $NRM_PATH/.nrm_real_start << EOF
+#!/bin/bash 
+
+
+NRM_PATH=$NRM_PATH
+NRM_LOG_PATH=$NRM_LOG_PATH
+NRM_LOG=$NRM_LOG
+TAP_TIMEOUT=$TAP_TIMEOUT
+HAS_CHECK_DEATH_LOCK=$HAS_CHECK_DEATH_LOCK
+
+# check timer
+SLEEP_TIME=$SLEEP_TIME
+pid=\$\$
+
+start_nrm()
+{
+    odframe -i \$NRM_PATH/nrm_1_1_1.xml -m > /dev/null  2>&1
+}
+
+#exit if other daemon script exist
+daemon_pids=\`ps -ef | grep -w \$USER | grep '.nrm_real_start' | grep -v grep | awk -v self_pid=\$pid '{if (!(\$2 == self_pid || \$3 == self_pid)) {print \$2} }'\`
+if [ ! "\$daemon_pids" = "" ]; then
+    exit 0
+fi
+
+
+while [ 1 ]; do
+    # NRM's prarent is must be 1
+    nrm_count=\`ps -ef | grep odframe | grep -w \$USER | grep nrm | grep -v grep | awk '{if (\$3 == 1) {print \$2} }' | wc -l\`
+    nrm_pids=\`ps -ef | grep odframe | grep -w \$USER | grep nrm | grep -v grep | awk '{ if (\$3 == 1) { print \$2} }'\`
+    if [ "\$nrm_count" = "0" ]; then
+        start_nrm
+    else
+        if [ \$HAS_CHECK_DEATH_LOCK ]; then
+            last_time=\`stat -c %Y \$NRM_LOG\`
+            current_time=\`date +%s\`
+            gap_time=\$[current_time-last_time]
+            if [ gap_time -ge \$TAP_TIMEOUT ]; then
+                if [ ! "\$nrm_pids" = "" ]; then
+                    for nrm_pid in nrm_pids; do
+                        kill -9 \$nrm_pid
+                    done
+                fi
+                start_nrm
+            fi
+        fi
+    fi
+
+    #sleep, wait for next time to check
+    sleep \$SLEEP_TIME
+done
+EOF
+}
+
+pid=$$
+
+kill_daemon()
+{
+    curpid=$1
+    daemon_pids=`ps -ef | grep -w $USER | grep '.nrm_real_start' | grep -v grep | awk -v self_pid=$curpid '{if (!($2 == self_pid || $3 == self_pid)) {print $2} }'`
+    # kill other nrm daemon process
+    for daemon_pid in $daemon_pids; do
+        kill -9 $daemon_pid > /dev/null 2>&1
+    done
+}
+
+kill_daemon_and_exit()
+{
+    kill_daemon $1
+    exit 0
+}
+
+clean()
+{
+    curpid=$1
+    daemon_pids=`ps -ef | grep -w $USER | grep '.nrm_real_start' | grep -v grep | awk -v self_pid=$curpid '{if (!($2 == self_pid || $3 == self_pid)) {print $2} }'`
+    # kill other nrm daemon process
+    for daemon_pid in $daemon_pids; do
+        kill -9 $daemon_pid > /dev/null 2>&1
+    done
+    [ -f $NRM_PATH/.nrm_real_start ] && rm $NRM_PATH/.nrm_real_start > /dev/null 2>&1
+}
+
+clean_and_exit()
+{
+    clean $1
+    exit 0
+}
+
+kill_nrm()
+{
+    nrmpids=`ps -ef | grep -w $USER | grep 'odframe' | grep nrm | awk '{print $2}'`
+    for nrmpid in $nrmpids; do
+        kill -15 $nrmpid
+    done
+}
+
+killall_and_exit()
+{
+    clean $1
+    kill_nrm
+    exit 0
+}
+
+if [ $# -ge 1 ]; then
+    case $1 in
+        stop ) kill_daemon_and_exit $pid;;
+        destroy ) clean_and_exit $pid;;
+        stopall ) killall_and_exit $pid;;
+    esac
+fi
+
+if [ ! -f $NRM_PATH/.nrm_real_start ]; then
+    create_daemon_script
+fi
+
+chmod +x $NRM_PATH/.nrm_real_start
+$NRM_PATH/.nrm_real_start &
+

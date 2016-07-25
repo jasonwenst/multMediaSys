@@ -1,0 +1,30 @@
+
+#ifndef _CA_DEFINE_H
+#define _CA_DEFINE_H
+
+#include <compile.h>
+#include <str.h>
+#include <vector>
+#include <srm_msg_interface.h>
+#include <dbe_public.h>
+
+const static int32 SRM_REPONSE_LEN = 64;
+const static int32 RECONNECT_TIMES = 10;
+
+#define NAMESPACE_OD_CA od_ca::
+
+#define NAMESPACE_OD_CA_BEGIN namespace od_ca {
+#define NAMESPACE_OD_CA_END }
+#define PRECISION 0.000001
+
+NAMESPACE_OD_CA_BEGIN
+
+enum CA_NOTIFY
+{
+	MSG_NOTIFY_CAC_CONN_INFO = NAMESPACE_OD_SRM MSG_NOTIFY_VM_CONN_INFO
+};
+
+NAMESPACE_OD_CA_END
+
+#endif	//_CA_DEFINE_H
+

@@ -1,0 +1,618 @@
+#include "msg_dispatch_mgr.h"
+#include "nrm_msg_process.h"
+#include "nrm_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include "dbe_base_def_sdl_c.h"
+#include "dbm_def_sdl_c.h"
+#include "dbe2_util.h"
+#include "nrm_nr_mgr.h"
+#include "nrm_proc_mgr.h"
+#include "nrm_vm_mgr.h"
+#include "nrm_error_code.h"
+#include "../mgr_impl/nrm_define.h"
+#include <public/common/base/virtual_time.h>
+#include "nrm_warn_mgr.h"
+
+namespace MDbe {
+
+using namespace common_base;
+
+static CLock g_cCount4WaitingLock;
+static int32 g_iCount4Waiting = -1;
+
+static void Send5017(CMsgHelper &cMsgHelper, SBaseProcKey & rcProcKey, int32 iMoniId, const aistring &strDes)
+{
+    SDbmWarnInfo sDbmWarnInfo;
+    aistring strMessage;
+    int64 time;
+
+    GetCurrentTime(time);
+
+    strMessage = FormatString("%d-%d", 
+            rcProcKey.appId(),
+            rcProcKey.procId());
+
+    sDbmWarnInfo.set_msgHead(GetMsgHead(5017));
+    // sDbmWarnInfo.set_warnId(0);  -- srm 确定
+    sDbmWarnInfo.set_score(0);
+	// warn_id 替换 moniId 
+    sDbmWarnInfo.set_moniId(iMoniId);                 // 500-600
+    sDbmWarnInfo.set_warnId(iMoniId);                 
+
+    sDbmWarnInfo.set_procKey(rcProcKey);
+    sDbmWarnInfo.set_vmId(od_system::get_vmId());
+    sDbmWarnInfo.set_message(strMessage);
+    sDbmWarnInfo.set_description(strDes);
+    sDbmWarnInfo.set_warnTime(time);
+
+    CSendTarget sendTarget = GetSrmAddress();
+    obb_stream stream = Sdl2Obbstream(sDbmWarnInfo);
+    LogSdl(sDbmWarnInfo);
+    cMsgHelper.Send(sendTarget, 5017, stream);
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcessForwardSrm::CMsgProcessForwardSrm()
+{
+
+}
+
+CMsgProcessForwardSrm::~CMsgProcessForwardSrm()
+{
+    
+}
+
+void CMsgProcessForwardSrm::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    CSendTarget sendTarget = GetSrmAddress();
+	cSendSource.m_iVmId = GetIpAddr(GetHostIp().c_str());
+    cMsgHelper.Send(cSendSource, sendTarget, iMsgType, cInObbStream);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcessForwardTbts::CMsgProcessForwardTbts()
+{
+
+}
+
+CMsgProcessForwardTbts::~CMsgProcessForwardTbts()
+{
+    
+}
+
+void CMsgProcessForwardTbts::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    cMsgHelper.Send(cSendSource, cSendTarget, iMsgType, cInObbStream);
+}
+///////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcess3001::CMsgProcess3001()
+{
+
+}
+
+CMsgProcess3001::~CMsgProcess3001()
+{
+
+}
+
+void CMsgProcess3001::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    SSrmNotifyProc cSrmNotifyProc(cInObbStream);
+    SSrmRepExeProc cSrmRepExeProc;
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+
+    LogSdl(cSrmNotifyProc);
+
+    int32 iOldMsgType = objNrMgr.GetProcMsgType(cSrmNotifyProc.procInfo().baseProcKey());
+    objNrMgr.SetProcMsgType(cSrmNotifyProc.procInfo().baseProcKey(), 3001);
+
+    DBE2_LOG(INFO_LOGGER, "receive 3001 from %d-%d", cSrmNotifyProc.procInfo().baseProcKey().appId(),cSrmNotifyProc.procInfo().baseProcKey().procId());
+
+    int32 iResult = cSrmNotifyProc.procExeResult().result();
+
+    // 3001成功
+    if ( iResult == 1 )
+    {
+        objNrMgr.SetProcStatus(cSrmNotifyProc.procInfo().baseProcKey(), EM_NR_RUN);
+        // 3001 更新进程pid
+        objNrMgr.SetProcPid(cSrmNotifyProc.procInfo().baseProcKey(), cSrmNotifyProc.procInfo().pid());
+    }
+    // 3001失败
+    else
+    {
+        // 不是原操作不是7001的3001消息，不回复3008消息给SRM，原操作消息保存在NR中，通过SetProcMsgType和GetProcMsgType来设置和获取
+        if ( iOldMsgType != 7001 ) 
+        {
+            objNrMgr.SetProcStatus(cSrmNotifyProc.procInfo().baseProcKey(), EM_NR_RESTART);
+            return;
+        }
+        else
+        {
+            Send5017(cMsgHelper, cSrmNotifyProc.procInfo().baseProcKey(), 501, "proc report 3001, start failed");
+            objNrMgr.DeleteProcInfo(cSrmNotifyProc.procInfo().baseProcKey());
+        }
+    }
+
+    cSrmRepExeProc.set_msgHead(GetMsgHead(3008));
+    cSrmRepExeProc.set_procExeResult(cSrmNotifyProc.procExeResult());
+    
+    cSrmRepExeProc.procExeResult().baseExeProc().set_baseProcKey(cSrmNotifyProc.procInfo().baseProcKey());
+    int32 procid = cSrmNotifyProc.procInfo().baseProcKey().procId();
+    int32 appid  = cSrmNotifyProc.procInfo().baseProcKey().appId();
+    cSrmRepExeProc.procExeResult().baseExeProc().baseProcKey().set_procId(procid);
+    cSrmRepExeProc.procExeResult().baseExeProc().baseProcKey().set_appId(appid);
+    cSrmRepExeProc.procExeResult().baseExeProc().set_flag(1);
+    cSrmRepExeProc.procExeResult().set_result(iResult);
+    cSrmRepExeProc.set_pid(cSrmNotifyProc.procInfo().pid());
+    cSrmRepExeProc.procExeResult().set_failReason(cSrmNotifyProc.procExeResult().get_failReason());
+
+    obb_stream stream = Sdl2Obbstream(cSrmRepExeProc);
+    LogSdl(cSrmRepExeProc);
+
+    CSendSource sendSource(-1, 5, 1, -1, 5);
+    cMsgHelper.Send(sendSource, 3008, stream);
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcess7001::CMsgProcess7001() 
+{
+}
+
+CMsgProcess7001::~CMsgProcess7001()
+{
+
+}
+
+void CMsgProcess7001::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream) {
+
+    INrmProcMgr &objProcMgr = INrmProcMgr::GetInstance();
+    int32 iNrmStatus = objProcMgr.GetNrmStatus();
+
+    if ( iNrmStatus == NRM_STATUS_INACTIVE ||iNrmStatus == NRM_STATUS_NEEDCLEAR_PROC )
+    {
+        cMsgHelper.Send(7001, cInObbStream);
+		return;
+    }
+
+    SNrmStartProc nrmStartProc(cInObbStream);
+    SSrmRepExeProc srmRepExeProc;
+    obb_stream stream;
+
+    int iResult;
+    aistring strReason;
+    bool bSend = false;
+
+    //先把配置文件设置为空,避免日志打印很多
+    aistring strConfigContent = nrmStartProc.get_configFile();
+    nrmStartProc.set_configFile("");
+    LogSdl(nrmStartProc);
+    nrmStartProc.set_configFile(strConfigContent);
+
+    DBE2_LOG(INFO_LOGGER, "recived 7001 msg from srm, start to start proc %d-%d",
+		nrmStartProc.get_baseProcKey().get_appId(),
+		nrmStartProc.get_baseProcKey().get_procId());
+
+    srmRepExeProc.set_msgHead(GetMsgHead(3008, nrmStartProc.msgHead().get_sequence()));
+
+    try {
+        INrmProcMgr::GetInstance().StartProc(nrmStartProc);
+    } catch (CAIException & e) {
+        if ( e.get_code() == DBE2_NRM_PROCMGR_PROC_ALREAD_STARTED )
+        {
+            iResult = START_OK;
+            strReason = e.get_message();
+            bSend = true;
+        }
+        else if ( e.get_code() == DBE2_NRM_NRMGR_HOLD_NR_FAIL ) 
+        {
+            bSend = true;
+            iResult = START_FAIL;
+            strReason = e.get_message();
+        }
+        else 
+        {
+            iResult = START_FAIL;
+            strReason = e.get_message();
+            bSend = true;
+            INrmNrMgr::GetInstance().DeleteProcInfo(nrmStartProc.baseProcKey());
+        }
+    }
+
+    if ( bSend ) 
+    {
+		aistring strResult = iResult?"START_OK":"START_FAIL";
+        DBE2_LOG(ERROR_LOGGER, "proc %s, send 3008 to srm,msg [ %s ]",
+			strResult.c_str(),
+			strReason.c_str());
+        srmRepExeProc.procExeResult().baseExeProc().set_baseProcKey(nrmStartProc.baseProcKey());
+        srmRepExeProc.procExeResult().baseExeProc().set_flag(START_FLAG);
+        srmRepExeProc.procExeResult().set_result(iResult);
+        srmRepExeProc.procExeResult().set_failReason(strReason);
+        srmRepExeProc.set_pid(INrmNrMgr::GetInstance().GetProcPid(nrmStartProc.baseProcKey()));
+        LogSdl(srmRepExeProc);
+        obb_stream stream =  Sdl2Obbstream(srmRepExeProc);
+        cMsgHelper.Send(cSendSource, 3008, stream);
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcess7002::CMsgProcess7002()
+{
+}
+
+CMsgProcess7002::~CMsgProcess7002()
+{
+}
+
+void CMsgProcess7002::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    SNrmStopProc nrmStopProc(cInObbStream);
+    SSrmRepExeProc srmRepExeProc;
+
+    INrmProcMgr &objProcMgr = INrmProcMgr::GetInstance();
+    int32 iNrmStatus = objProcMgr.GetNrmStatus();
+    if ( iNrmStatus == NRM_STATUS_INACTIVE ||iNrmStatus == NRM_STATUS_NEEDCLEAR_PROC )
+    {
+        cMsgHelper.Send(7002, cInObbStream);
+ 		return;
+    }
+
+    int iResult;
+    aistring strReason;
+    bool bSend = false;
+    const char *pszStopType = nrmStopProc.operateType() == 0 ? "normal stop" : "force stop";
+    const char *pszErrorType = NULL;
+
+	DBE2_LOG(INFO_LOGGER, "recived 7002 msg from srm, start to stop proc(app_id:%d,proc_id:%d), stop type is %s", 
+		nrmStopProc.get_baseProcKey().get_appId(),
+		nrmStopProc.get_baseProcKey().get_procId(),
+		pszStopType);
+    INrmNrMgr::GetInstance().SetProcMsgType(nrmStopProc.baseProcKey(), 7002);
+
+    LogSdl(nrmStopProc);
+    bool bError = false;
+
+    srmRepExeProc.set_msgHead(GetMsgHead(3008, nrmStopProc.msgHead().get_sequence()));
+    try {
+        INrmProcMgr::GetInstance().StopProc(nrmStopProc);
+    } catch (CAIException & e) {
+        if ( e.get_code() == DBE2_NRM_PROCMGR_PROC_ALREADY_STOPED ) 
+        {
+            iResult = STOP_OK;
+            strReason = e.get_message();
+            bSend = true; 
+            pszErrorType = "ok";
+        }
+        else if ( e.get_code() == DBE2_NRM_PROCMGR_PROC_STOPED_FAILED )
+        { 
+            iResult = STOP_FAIL;
+            strReason = e.get_message();
+            bSend = true; 
+            pszErrorType = "fail";
+            bError = true;
+        } 
+    }
+
+    if ( bSend ) 
+    {
+        if ( bError ) 
+        {
+            DBE2_LOG(ERROR_LOGGER, "proc %d-%d stop failed, %s %s ", 
+                    nrmStopProc.baseProcKey().appId(),
+                    nrmStopProc.baseProcKey().procId(),
+                    pszStopType, pszErrorType);
+        }
+        else
+        {
+            DBE2_LOG(INFO_LOGGER, "proc %d-%d stop ok, %s %s ", 
+					nrmStopProc.baseProcKey().appId(),
+                    nrmStopProc.baseProcKey().procId(),
+                    pszStopType, pszErrorType);
+        }
+        srmRepExeProc.procExeResult().baseExeProc().set_baseProcKey(nrmStopProc.baseProcKey());
+        srmRepExeProc.procExeResult().baseExeProc().set_flag(nrmStopProc.operateType());
+        srmRepExeProc.procExeResult().set_result(iResult);
+        srmRepExeProc.procExeResult().set_failReason(strReason);
+        srmRepExeProc.set_pid(INrmNrMgr::GetInstance().GetProcPid(nrmStopProc.baseProcKey()));
+
+        LogSdl(srmRepExeProc);
+        obb_stream stream =  Sdl2Obbstream(srmRepExeProc);
+        cMsgHelper.Send(cSendSource, 3008, stream);
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcess7004::CMsgProcess7004()
+{
+}
+
+CMsgProcess7004::~CMsgProcess7004()
+{
+}
+
+void CMsgProcess7004::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    SNrmStopProcProg cNrmStopProcProg(cInObbStream);
+    LogSdl(cNrmStopProcProg);
+    INrmProcMgr::GetInstance().StopProcProg(cNrmStopProcProg);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcess7007::CMsgProcess7007()
+{
+}
+
+CMsgProcess7007::~CMsgProcess7007()
+{
+}
+
+void CMsgProcess7007::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    SNrmResponseRegister cNrmReponseRegister(cInObbStream);
+    LogSdl(cNrmReponseRegister);
+
+    INrmProcMgr &objProcMgr = INrmProcMgr::GetInstance();
+	objProcMgr.SetNrmStatus(cNrmReponseRegister.regResult());
+
+	if (cNrmReponseRegister.regResult()!= NRM_STATUS_NOCLEAR_PROC)
+	{
+		CAutoLock cAutoLock(g_cCount4WaitingLock);
+		g_iCount4Waiting=10;
+	}
+
+	return; 
+}
+
+CMsgProcess7121::CMsgProcess7121()
+{
+}
+
+CMsgProcess7121::~CMsgProcess7121()
+{
+}
+
+void CMsgProcess7121::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    SNrmSoftWareUpdate rcNrmSoftWareUpdate(cInObbStream);
+    LogSdl(rcNrmSoftWareUpdate);
+    int32 iResult = 2;
+    aistring strError;
+    try {
+        INrmVmMgr::GetInstance().NotifyUpdate(rcNrmSoftWareUpdate);
+    } catch ( CAIException & e ) {
+        char szProcessFilePath[MAX_PATH];
+        strError = e.get_message();
+        iResult = 0;
+        // snprintf(szProcessFilePath,sizeof(szProcessFilePath) ,"%s/ipc/upgrade_process.cpf", getenv("HOME"));
+		snprintf(szProcessFilePath,sizeof(szProcessFilePath) ,"%s/ipc/upgrade_process.cpf", getenv("CPF_HOME"));
+        //remove(szProcessFilePath); 
+    }
+	
+    // send 4122
+    CSendTarget sendTarget = GetSrmAddress();
+	SSrmUpGradeProcess cSrmUpGradeProcess;
+	cSrmUpGradeProcess.set_msgHead(GetMsgHead(4122));
+	cSrmUpGradeProcess.set_vmId(rcNrmSoftWareUpdate.get_vmId());
+	cSrmUpGradeProcess.set_opId(rcNrmSoftWareUpdate.get_opId());
+	cSrmUpGradeProcess.set_state(iResult);
+	cSrmUpGradeProcess.set_process(0);
+	cSrmUpGradeProcess.set_processDesc(strError);
+
+    obb_stream stream = Sdl2Obbstream(cSrmUpGradeProcess);
+    LogSdl(cSrmUpGradeProcess);
+    cMsgHelper.Send(cSendSource, 4122, stream);
+}
+
+CMsgProcess7122::CMsgProcess7122()
+{
+}
+
+CMsgProcess7122::~CMsgProcess7122()
+{
+}
+
+void CMsgProcess7122::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    SNrmUpdateProcess rcNrmUpdateProcess(cInObbStream);
+    LogSdl(rcNrmUpdateProcess);
+    INrmVmMgr::GetInstance().UpdateProcess(rcNrmUpdateProcess);
+    return; 
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcess151::CMsgProcess151()
+{
+}
+
+CMsgProcess151::~CMsgProcess151()
+{
+}
+
+void CMsgProcess151::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    SSrmNrmRegister srmNrmRegister;
+
+    srmNrmRegister.set_msgHead(GetMsgHead(6102));
+    try {
+        INrmVmMgr::GetInstance().GetVmStaticInfo(srmNrmRegister.vmStaticInfo());
+        INrmNrMgr::GetInstance().GetVmProcListInfo(srmNrmRegister.procStatusList());
+    } catch (CAIException & e) {
+        DBE2_LOG(ERROR_LOGGER, "cannot get the vm static infomation, try it again");
+        sleep(1);
+        cMsgHelper.Send(151, cInObbStream);
+        return;
+    }
+    
+    obb_stream stream =  Sdl2Obbstream(srmNrmRegister);
+    LogSdl(srmNrmRegister);
+    cMsgHelper.Send(cSendSource, 6102, stream);
+}
+
+
+///////////////////////////////////////////////////////////
+CMsgProcessInner::CMsgProcessInner()
+{
+}
+
+CMsgProcessInner::~CMsgProcessInner()
+{
+}
+
+void CMsgProcessInner::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    SSrmVmProcStatus srmVmProcStatus;
+    
+    try {
+        INrmVmMgr::GetInstance().GetVmStatus(srmVmProcStatus);
+    } catch (CAIException & e) {
+        ;
+    }
+
+    obb_stream stream = Sdl2Obbstream(srmVmProcStatus);
+    CSendTarget sendTarget = GetSrmAddress();
+    cMsgHelper.Send(sendTarget, 3006, stream);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+CMsgProcess7013::CMsgProcess7013()
+{
+
+}
+
+CMsgProcess7013::~CMsgProcess7013()
+{
+    
+}
+
+void CMsgProcess7013::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+	/*
+    SNrmJavaThreadWriteNr nrmJavaThreadWriteNr(cInObbStream);
+    LogSdl(nrmJavaThreadWriteNr);
+    INrmNrMgr &objNrMgr = INrmNrMgr::GetInstance();
+    SBaseProcKey & procKey = nrmJavaThreadWriteNr.procPid().baseProcUpdateStatus().baseProcKey();
+    int32 iPid = nrmJavaThreadWriteNr.procPid().pid();
+    
+    if ( !objNrMgr.IsProcContain(procKey) ) 
+    {
+        DBE2_LOG(INFO_LOGGER, "this process is not nrm started, donot create the nr");
+        return;
+    }
+    objNrMgr.SetProcPid(procKey, iPid);
+    objNrMgr.SetProcStatus(procKey, EM_NR_RUN);
+    objNrMgr.UpdateProcInfo(procKey, nrmJavaThreadWriteNr.procPid().baseProcUpdateStatus());
+
+    return;
+	*/
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CMsgProcessTimer::CMsgProcessTimer()
+{
+
+}
+
+CMsgProcessTimer::~CMsgProcessTimer()
+{
+    
+}
+
+void CMsgProcessTimer::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+    INrmProcMgr &objProcMgr = INrmProcMgr::GetInstance();
+    int32 iNrmStatus = objProcMgr.GetNrmStatus();
+    if ( iNrmStatus == NRM_STATUS_NEEDCLEAR_PROC )
+    {
+        DBE2_LOG(ERROR_LOGGER, "kill status: kill all process, srm notify nrm to kill all the process in current vm");
+        objProcMgr.KillAllProcess(); 
+        objProcMgr.SetNrmStatus(NRM_STATUS_NOCLEAR_PROC);
+    } 
+    else if ( iNrmStatus == NRM_STATUS_NOCLEAR_PROC || iNrmStatus == 3)
+    {
+		if (iNrmStatus ==3)
+		{
+			CAutoLock cAutoLock(g_cCount4WaitingLock);
+			if (g_iCount4Waiting-- ==0)
+			{
+				DBE2_LOG(INFO_LOGGER, "srm notify nrm waiting for sync, remain wait %d times ,total count 10",g_iCount4Waiting);
+				objProcMgr.SetNrmStatus(NRM_STATUS_NOCLEAR_PROC);
+			}
+		}
+
+        try {
+            objProcMgr.CheckProcAllStatus();
+        } catch ( CAIException & e ) {
+            DBE2_LOG(ERROR_LOGGER, "check exception -- catch exception, exception info is [%s]", e.get_message().c_str());
+        }
+    } 
+    else if ( iNrmStatus == NRM_STATUS_INACTIVE )
+    {
+        // nothing to do here
+        // never add code here
+        objProcMgr.CheckSystemProcessStatus();
+        DBE2_LOG(ERROR_LOGGER, "inactive status: srm not notify nrm to start working, nrm is inactive");
+    }
+}
+
+
+
+
+
+
+
+/*
+ * 	告警信息处理信号
+ *
+ */
+
+
+CMsgProcessWarn::CMsgProcessWarn()
+{
+}
+
+CMsgProcessWarn::~CMsgProcessWarn()
+{
+}
+
+void CMsgProcessWarn::Process(
+		CMsgHelper & cMsgHelper, 
+		CSendSource & cSendSource, 
+		CSendTarget & cSendTarget, 
+		int32 iMsgType, 
+		obb_stream & cInObbStream)
+{
+
+   	DBE2_LOG(DEBUG_LOGGER, "Begin process warn info 5017. "); 
+	CSendTarget sendTarget = GetSrmAddress();
+
+	std::vector<SDbmWarnInfo> vecDbmWarnInfo;
+    try 
+	{
+		int iRet = INrmWarnMgr::GetInstance().GetWarnInfo(vecDbmWarnInfo);
+    } 
+	catch (CAIException & e) {
+		DBE2_LOG(ERROR_LOGGER, "get 5017 info error [%d:%s]", e.get_code(), e.get_message().c_str());	
+    }
+
+	obb_stream stream;
+	std::vector<SDbmWarnInfo>::iterator it = vecDbmWarnInfo.begin();
+	for( ; it != vecDbmWarnInfo.end(); ++it )
+	{
+		stream = Sdl2Obbstream(*it);
+		cMsgHelper.Send(sendTarget, 5017, stream);
+	}
+}
+
+
+
+}

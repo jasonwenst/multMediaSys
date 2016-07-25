@@ -1,0 +1,252 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_util.h）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_UTIL_H___
+#define __DBE2_UTIL_H___
+
+#include <signal.h>
+#include "dbe2_typedef.h"
+#include "public/common/sdlbuffer/sdl_basic_objs.h"
+#include "public/odframe/frame_interface.h"
+#include "public/common/communicate/communicate.h"
+
+#include "virtual_time.h"
+
+//包含的sdl
+#include "dbe_base_def_sdl_c.h"
+
+namespace MDbe
+{
+
+/**
+ * 格式化字符串
+ * @example
+ * 		aistring strResult = FormatString("code is %d", iCode);
+ * @param format
+ * @return 格式化后的字符串
+ */
+aistring FormatString(const char * format, ...);
+
+/**
+ * 通过日志记录SDL结构信息
+ * @param cSdlObject			sdl结构
+ * @param pLogLevel
+ */
+#define LogSdl(sdl) \
+do{ \
+    if (TAierrSvcLog::debugEnable()) \
+    { \
+        obb_stream obs(OBB_CODEC_JSON); \
+        obs.begin_stream("log"); \
+        obs << sdl; \
+        obs.end_stream(); \
+        aistring strOut; \
+        obs.export_data(strOut); \
+        DBE2_LOG(DEBUG_LOGGER, "sdl info[stream_len:%u]%s", strOut.length(), strOut.c_str()); \
+    } \
+}while(0);
+
+/**
+ * 通过日志记录OBB_STREAM信息
+ * @param cObbStream			obb_stream内容
+ * @param pLogLevel
+ */
+#define LogObbstream(obbstream) \
+do \
+{ \
+    if (TAierrSvcLog::debugEnable()) \
+    { \
+        aistring strOut; \
+        obbstream.export_data(strOut); \
+        DBE2_LOG(DEBUG_LOGGER, "sdl info[stream_len:%u]%s", strOut.length(), strOut.c_str()); \
+    } \
+} while(0);
+
+/**
+ * sdl转为obb_stream
+ * @param cSdlObject			sdl结构
+ * @return 返回obb_stream
+ */
+obb_stream Sdl2Obbstream(CSdlBasicStructObject & cSdlObject);
+
+/**
+ * sdl转为obb_stream
+ * @param cSdlObject			sdl结构
+ * @return 返回obb_stream
+ */
+obb_stream Sdl2Obbstream(CSdlBasicListObject & cSdlObject);
+
+/**
+ * 打开一个LIB库
+ * @param strLibName			库名
+ * @param pHandle				库指针
+ * @param cErrorMsg				错误信息
+ * @return 是否成功
+ */
+bool OpenLib(aistring strLibName, void *& pHandle, CBSErrorMsg & cErrorMsg);
+
+/**
+ * 关闭一个LIB库
+ * @param handle				库指针
+ * @return 是否成功
+ */
+bool CloseLib(void * pHandle);
+
+/**
+ * 从库中找到一个函数
+ * @param pHandle				库指针
+ * @param strFunctionName		函数名
+ * @param pFunc					返回的函数指针
+ * @param cErrorMsg				错误信息
+ * @return	是否成功
+ */
+bool ResolveFunctionFromLib(void * pHandle, aistring strFunctionName,
+		void *& pFunc, CBSErrorMsg & cErrorMsg);
+
+/**
+ * 返回当前虚拟时间，按照秒返回
+ * @param ri64Time 时间
+ * @return  当前虚拟时间
+ */
+void GetCurrentTime(int64 &iTime);
+
+/**
+ * 返回当前虚拟时间
+ * @return 当前虚拟时间
+ */
+CBSDateTime GetCurrentTime(void);
+
+/**
+ * 返回当前虚拟时间
+ * @return 当前虚拟时间
+ */
+void GetCurrentTime(CBSDateTime &rcTime);
+
+/**
+ * 获取本机ip的二进制网络字节序(按1,000,000,000取模)
+ * @param szIpAddr ip字符串（比较127.0.0.1）
+ * @return 取模后的ip二进制网络字节序，失败的情况返回0;
+ */
+int32 GetIpAddr(const char* szIpAddr);
+
+/**
+ * 发送消息时候获得一个消息头
+ * @param iCommandId 消息类型
+ * @param iSequence 消息的sequence
+ * @return 消息头
+ */
+SBaseHead GetMsgHead(int32 iCommandId, int64 iSequence = 0);
+
+/**
+ * 获取当前微妙(真实时间)
+ * @return
+ */
+int64 GetMicroSecTime();
+
+/**
+ * 获取当时毫秒(真实时间)
+ * @return
+ */
+int64 GetMilliSecTime();
+
+/**
+ * 执行shell命令
+ * @param strShellCmd		脚本
+ * @param isHaveOut			是否需要输出
+ * @param strOut			输出内容
+ * @return	执行状态
+ */
+int32 ExecShell(aistring strShellCmd, bool isHaveOut, aistring & strOut);
+
+/**
+ * 获取ca 客户端ip地址
+ * @return
+ */
+aistring GetHostIp();
+
+/**
+ * 设置ca 客户端ip地址
+ * @param strIp
+ */
+void SetCaClientIp(aistring strIp);
+
+/**
+ * 替换字符串
+ * @param strSrc 		原串
+ * @param strOld		需要替换的值
+ * @param strNew		替换后的值
+ * @return
+ */
+aistring ReplaceString(aistring strSrc, aistring strOld, aistring strNew);
+/**
+ *
+ * @param strSrc
+ * @param strKey 	需要作value替换的key
+ * param strFlag  	分割key的标示
+ * @param strValue	需要替换的值
+ * @return
+ */
+aistring ReplaceStringExe(aistring strSrc,aistring strKey,aistring strFlag,aistring strValue);
+
+/**
+ * 去除字符串前后的空格，回车换行，制表符
+ * @return
+ */
+void MyTrim(aistring &strInput);
+/**
+ * 探测指定ip的主机
+ * @return true 表示主机未宕机 false 则为宕机
+ */
+bool DetectHost(CHost& rcHost);
+
+
+/**
+ * 初始化VM的基本信息,例如VM_ID,等
+ */
+void InitVmInfo();
+
+/**
+ * 获取一个日期是星期几
+ */
+int32 GetWeekDate(int32 year, int32 month, int32 day);
+
+
+/**
+ * 在环境变量里搜寻某个命令是否存在
+ */
+bool JudgeCmdExist(aistring& strCmd);
+
+/**
+ * 在字符串中取key value 
+ * szSeparator 分隔符
+ */
+int32 GetKeyValueInLine(char* szLine,const char* szSeparator,AISTD string& key, AISTD string& value);
+
+/**
+ ** 设置进程初始化失败信息
+ */
+void SetInitErrorInfo(aistring strErrorInfo);
+/**
+ * 获取进程初始化失败信息
+ */
+aistring GetInitErrorInfo();
+
+} // namespace MDbe
+
+
+#endif /* __DBE2_UTIL_H___ */

@@ -1,0 +1,36 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_proc_trans_mgr.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#include "srm_proc_trans_mgr.h"
+#include "srm_proc_trans_mgr_impl.h"
+
+namespace MDbe
+{
+
+ISrmProcTransMgr & ISrmProcTransMgr::GetInstance()
+{
+	static CSrmProcTransMgrImpl cMgr;
+	return cMgr;
+}
+
+int32 ISrmProcTransMgr::Create( SRdcCreateTrans &rcCreateTrans, int32 iExeType /*= 0*/ )
+{
+    return 0;
+}
+
+} // namespace MDbe

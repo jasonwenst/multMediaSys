@@ -1,0 +1,139 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：msg_dispatch_mgr_impl.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-14）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "msg_dispatch_mgr_impl.h"
+#include "dbe2_util.h"
+#include "dbe2_auto_ptr.h"
+#include "dbe2_lock.h"
+#include "msg_dispatch_error_code.h"
+
+namespace MDbe
+{
+#ifndef AIXV3
+extern AL_THREAD_LOCAL const char * g_tlsProcTypeLog;
+#endif
+
+class CAutoClearTlsValue
+{
+public:
+	~CAutoClearTlsValue()
+	{
+#ifndef AIXV3
+		g_tlsProcTypeLog = NULL;
+#endif
+	}
+};
+
+void CMsgDispatchMgr::Init(CMgrInitHelper & cMgrInitHelper)
+{
+	if(m_pAllMgrFunc == NULL)
+	{
+		THROW_CAIEXCEPTION(E_MSG_DISPATCH_NOT_INIT, "msg dispatch mgr init fail!");
+	}
+	((AllMgrFunc)(m_pAllMgrFunc))(true, cMgrInitHelper);
+}
+
+void CMsgDispatchMgr::Destroy()
+{
+	CAutoLock cAutoLock(m_cLock);
+	//判读是否注册成功
+	if(m_pDllHandle != NULL)
+		return;
+	CMgrInitHelper cMgrInitHelper(NULL);
+	((AllMgrFunc)(m_pAllMgrFunc))(false, cMgrInitHelper);
+    if(m_pDllHandle)
+    {
+        CloseLib(m_pDllHandle);
+    }
+    m_pDllHandle = NULL;
+    m_pAllMgrFunc = NULL;
+}
+
+CMsgDispatchMgr::CMsgDispatchMgr()
+    : m_pGetMsgProcessFunc(NULL), m_pDllHandle(NULL), m_pAllMgrFunc(NULL)
+{
+}
+
+CMsgDispatchMgr::~CMsgDispatchMgr()
+{
+
+}
+
+void CMsgDispatchMgr::BindLib(aistring& strLibName, CMgrInitHelper & cMgrInitHelpeer)
+{
+	CAutoLock cAutoLock(m_cLock);
+	//判读是否注册成功
+	if(m_pDllHandle != NULL)
+		return;
+    CBSErrorMsg cErrorMsg;
+    if(!OpenLib(strLibName, m_pDllHandle, cErrorMsg))
+    {
+        THROW_CAIEXCEPTION(E_MSG_DISPATCH_BIND_LIB_FAIL, cErrorMsg.get_errorMsg());
+    }
+    if(!ResolveFunctionFromLib(m_pDllHandle, DBE2_MSG_PROCESS_FUNCTION_NAME, m_pGetMsgProcessFunc, cErrorMsg))
+    {
+        THROW_CAIEXCEPTION(E_MSG_DISPATCH_BIND_LIB_GET_FUNC_FAIL, cErrorMsg.get_errorMsg());
+    }
+    if(!ResolveFunctionFromLib(m_pDllHandle, DBE2_ALL_MGR_FUNCTION_NAME, m_pAllMgrFunc, cErrorMsg))
+    {
+        THROW_CAIEXCEPTION(E_MSG_DISPATCH_BIND_LIB_ALL_MGR_FUNC_FAIL, cErrorMsg.get_errorMsg());
+    }
+    Init(cMgrInitHelpeer);
+}
+
+void CMsgDispatchMgr::Dispatch(CMsgHelper & cMsgHelper, CSendSource & cSendSource,
+		CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+	char szLogTemp[1000];
+	IBaseMgr::SetTlsVal(&cMsgHelper, &cSendSource, &cSendTarget);
+
+    if(m_pGetMsgProcessFunc == NULL)
+    {
+        THROW_CAIEXCEPTION(E_MSG_DISPATCH_NOT_INIT, "msg dispatch mgr init fail!");
+    }
+    IMsgProcess * pMsgProcess = ((GetMsgProcessByMsgTypeFunc)(m_pGetMsgProcessFunc))(iMsgType);
+    if(pMsgProcess == NULL)
+    {
+        DBE2_LOG(WARN_LOGGER, "get msg process by msg type fail![msg_type:%d, source:(flow_id=%d,srv_id=%d,proc_id=%d,vm_id=%d,srv_type:%d), "
+        		"target:(flow_id=%d,srv_id=%d,proc_id=%d,vm_id=%d,srv_type:%d)]",
+        		iMsgType, cSendSource.m_iFlowId, cSendSource.m_iSrvId, cSendSource.m_iProcId, cSendSource.m_iVmId, cSendSource.m_iSrvType,
+        		cSendTarget.m_iFlowId, cSendTarget.m_iSrvId, cSendTarget.m_iProcId, cSendTarget.m_iVmId, cSendTarget.m_iSrvType);
+        return;
+    }
+    DBE2_LOG(INFO_LOGGER, ">>>>>>>>>>>>>>>>>>dispatch msg start![msg_type:%d, source:(flow_id=%d,srv_id=%d,proc_id=%d,vm_id=%d,srv_type:%d), "
+    		"target:(flow_id=%d,srv_id=%d,proc_id=%d,vm_id=%d,srv_type:%d)]>>>>>>>>>>>>>>>>>>>>>>>",
+    		iMsgType, cSendSource.m_iFlowId, cSendSource.m_iSrvId, cSendSource.m_iProcId, cSendSource.m_iVmId, cSendSource.m_iSrvType,
+    		cSendTarget.m_iFlowId, cSendTarget.m_iSrvId, cSendTarget.m_iProcId, cSendTarget.m_iVmId, cSendTarget.m_iSrvType);
+#ifndef AIXV3
+	g_tlsProcTypeLog = szLogTemp;
+#endif
+	CAutoClearTlsValue cAutoClearTlsValue;
+    sprintf(szLogTemp, "[proc_type:%d]", iMsgType);
+    int64 llStartTime = GetMilliSecTime();
+    //指针析构时自动释放
+    CAutoPtr<IMsgProcess> cAutoPtr(pMsgProcess);
+    cAutoPtr->Process(cMsgHelper, cSendSource, cSendTarget, iMsgType, cInObbStream);
+    int64 llEndTime = GetMilliSecTime();
+    DBE2_LOG(INFO_LOGGER, "<<<<<<<<<<<<<<<<<<<dispatch msg end![msg_type:%d, cost_time:%lld]<<<<<<<<<<<<<<<<<<<<<<<<", iMsgType, llEndTime-llStartTime);
+}
+
+
+
+} // namespace MDbe
+
+

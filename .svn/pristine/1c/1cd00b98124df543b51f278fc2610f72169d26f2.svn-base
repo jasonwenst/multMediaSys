@@ -1,0 +1,155 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_msg_process_dbe.h）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "msg_dispatch_mgr.h"
+
+#ifndef __SRM_MSG_PROCESS_DBE_H__
+#define __SRM_MSG_PROCESS_DBE_H__
+
+namespace MDbe
+{
+
+/**
+ * 3006(MSG_VM_PROC_STATUS)
+ * 发送虚拟机进程状态
+ */
+class CMsgProcess3006 : public IMsgProcess
+{
+public:
+	CMsgProcess3006(){}
+
+	virtual ~CMsgProcess3006(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+/**
+ * 3008(MSG_NRM_EXE_PROC_RSP)
+ * NRM回应程起停操作
+ */
+class CMsgProcess3008 : public IMsgProcess
+{
+public:
+	CMsgProcess3008(){}
+
+	virtual ~CMsgProcess3008(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * 3010(MSG_VM_PROC_NEED_MIGRATE)
+ * NRM向SRM发送虚拟机上进程需要迁移
+ */
+class CMsgProcess3010 : public IMsgProcess
+{
+public:
+	CMsgProcess3010(){}
+
+	virtual ~CMsgProcess3010(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * 3025(MSG_DBE_TO_SRM_EXIT_REQ)
+ * 进程请求退出
+ */
+class CMsgProcess3025 : public IMsgProcess
+{
+public:
+	CMsgProcess3025(){}
+
+	virtual ~CMsgProcess3025(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * 3501
+ * 进程积压信息
+ */
+class CMsgProcess3501 : public IMsgProcess
+{
+public:
+	CMsgProcess3501(){}
+
+	virtual ~CMsgProcess3501(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * 3502
+ * 进程定时上报处理速度
+ */
+class CMsgProcess3502 : public IMsgProcess
+{
+public:
+	CMsgProcess3502(){}
+
+	virtual ~CMsgProcess3502(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * 4122(MSG_SOFTWARE_UPGRADE_PROCESS)
+ * NRM返回升级进度
+ */
+class CMsgProcess4122 : public IMsgProcess
+{
+public:
+	CMsgProcess4122(){}
+
+	virtual ~CMsgProcess4122(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+* 5017
+* 告警
+*/
+class CMsgProcess5017 : public IMsgProcess
+{
+public:
+	CMsgProcess5017(){}
+
+	virtual ~CMsgProcess5017(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+
+/**
+ * 6102(MSG_REQ_VMID)
+ * NRM注册并且上报静态信息
+ */
+class CMsgProcess6102 : public IMsgProcess
+{
+public:
+	CMsgProcess6102(){}
+
+	virtual ~CMsgProcess6102(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+} // namespace MDbe
+
+#endif /* __SRM_MSG_PROCESS_DBE_H__ */

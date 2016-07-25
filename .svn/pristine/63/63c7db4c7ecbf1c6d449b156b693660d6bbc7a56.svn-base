@@ -1,0 +1,528 @@
+/* $Id: srm_app_mgr_impl.cpp 528346 2014-11-20 08:57:02Z kongll $  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_app_mgr_impl.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "srm_error_code.h"
+#include "srm_app_mgr_impl.h"
+#include "srm_rdc_mgr_impl.h"
+#include "srm_proc_trans_mgr.h"
+#include "srm_deploy_mgr.h"
+#include "srm_vm_mgr.h"
+#include "dbe2_util.h"
+#include "dbe2_common_struct.h"
+#include "dbe2_base_mgr.h"
+#include "srm_proc_mgr.h"
+#include "srm_other_mgr.h"
+#include "msg_dispatch_mgr.h"
+
+namespace MDbe
+{
+// APP操作的锁
+CLock g_cAppLock[APP_LOCK_SIZE];
+
+CAppAutoLock::CAppAutoLock(int32 iAppId)
+	:m_cLock(g_cAppLock[abs(iAppId) % APP_LOCK_SIZE])
+{
+	m_cLock.Lock();
+}
+
+CAppAutoLock::~CAppAutoLock()
+{
+	m_cLock.UnLock();	
+}
+
+CSrmAppMgrImpl::CSrmAppMgrImpl()
+{
+}
+
+int32 CSrmAppMgrImpl::StartApp(int32 iAppId, int32 iStartMsgType, aistring szStartParam,
+    int32 iStopMsgType, aistring szStopParam, int32 iTransType,
+    SBaseProcOperateList *pcProcOperateList)
+{
+    int32 iReturn = 0;
+    CAppAutoLock cAutoLock(iAppId);
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    ISrmDeployMgr &rcDeployMgr = ISrmDeployMgr::GetInstance();
+    ISrmProcTransMgr &rcProcTransMgr = ISrmProcTransMgr::GetInstance();
+
+    CRdcApp cApp;
+    SRdcCreateTrans cCreateTrans;
+    if(!rcRdcMgr.QueryApp(iAppId, cApp))
+    {
+        // 获取流程信息失败，抛出异常
+        THROW_CAIEXCEPTION(DBE2_SRM_START_APP_ILLEGAL,"app start failed! because can not get app info with appid(?) ")
+            << iAppId;
+    }
+
+    int32 &iAppState = cApp.appState();
+    if(APP_STATING == iAppState || APP_START_SUCCESS == iAppState ||
+        APP_STOPPING == iAppState || APP_FORCE_STOPPING == iAppState)
+    {
+        // 流程状态为不可启动状态，抛出异常
+        THROW_CAIEXCEPTION(DBE2_SRM_NOT_EXE_APP,"app start failed! app(?) state(?) is not allow start")
+            << iAppId << iAppState;
+    }
+
+    // 部署流程
+    try
+    {
+        rcDeployMgr.DeployApp(iAppId, cCreateTrans.procOperateList());
+        LogSdl(cCreateTrans);
+    }
+    catch(CAIException & e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+        THROW_CAIEXCEPTION(DBE2_SRM_START_APP_ILLEGAL,"app start failed!app deploy failed.detailed information: (?)")
+            << e.get_message();
+    }
+
+    // 没有进程执行启动操作
+    if (0 == cCreateTrans.procOperateList().size())
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_START_APP_ILLEGAL,"app start failed!start app but there is no proc to start,deploy retun empty proc operate list");
+    }
+    SetProcOperate(pcProcOperateList, cCreateTrans.procOperateList());
+
+    // 配置事务信息
+    CRdcProcTrans &rProcTrans = cCreateTrans.procTrans();
+    rProcTrans.set_appId(cApp.get_appId());
+    rProcTrans.set_callbackMsgType(iStartMsgType);
+    rProcTrans.set_callbackParam(szStartParam);
+    rProcTrans.set_foceExeFlag(COMMON_NO);
+    rProcTrans.set_transType(iTransType);
+
+    DBE2_LOG(TRACE_LOGGER, "start app_id(%d):update app info and create transaction", cApp.get_appId());
+    CRdcApp cAppUpd;
+    cAppUpd.set_appId(cApp.get_appId());
+    cAppUpd.set_appStartTime(GetCurrentTime());
+    cAppUpd.set_appState(START_APP);
+    cAppUpd.set_startRollbackMsgType(iStartMsgType);
+    cAppUpd.set_startRollbackParam(szStartParam);
+    cAppUpd.set_stopRollbackMsgType(iStopMsgType);
+    cAppUpd.set_stopRollbackParam(szStopParam);
+    // 更新APP状态
+    rcRdcMgr.UpdateAppState(cAppUpd);
+
+    try
+    {
+        // 创建事务，提交流程启动操作
+        iReturn = rcProcTransMgr.Create(cCreateTrans, TRANS_EXE_PITY);
+    }
+    catch(CAIException & e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+        CRdcApp cFailApp;
+        cFailApp.set_appId(iAppId);
+        cFailApp.set_appState(APP_START_FAIL);
+        rcRdcMgr.UpdateAppState(cFailApp);
+        THROW_CAIEXCEPTION(DBE2_SRM_START_APP_ILLEGAL,"app start failed! proc transaction commit failed. cause ?")
+            << e.get_message().c_str();
+    }
+    return iReturn;
+}
+
+int32 CSrmAppMgrImpl::StopApp(int32 iAppId, int32 iTransType, SBaseProcOperateList *pcProcOperateList)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	ISrmProcTransMgr &rcProcTransMgr = ISrmProcTransMgr::GetInstance();
+    int32 iReturn = 0;
+	SRdcCreateTrans cCreateTrans;
+	CRdcApp cApp;
+    {
+        // 防止重复停止时候异常
+        CAppAutoLock cStopLock(iAppId);
+        if (!rcRdcMgr.QueryApp(iAppId, cApp))
+	    {
+		    // 抛出异常s
+		    THROW_CAIEXCEPTION(DBE2_SRM_STOP_APP_ILLEGAL,"app stop failed! because can not get app info with appId(?) ")
+				    << iAppId;
+	    }
+
+	    int32 iAppState = cApp.appState();
+	    if(APP_STOPPING == iAppState || APP_FORCE_STOPPING == iAppState )
+	    {
+		    // 抛出异常
+		    THROW_CAIEXCEPTION(DBE2_SRM_NOT_EXE_APP,"app stop failed! app(?) state(?) is not allow stop")
+				    << iAppId << iAppState;
+	    }
+
+        CRdcApp cAppUpd;
+        cAppUpd.set_appId(cApp.get_appId());
+        cAppUpd.set_appState(APP_STOPPING);
+        // 更新流程状态
+        rcRdcMgr.UpdateAppState(cAppUpd);
+    }
+
+    // 获得进程停止操作列表
+    GetStopAppOperate(cApp, cCreateTrans.procOperateList(), STOP_APP);
+
+    DBE2_LOG(DEBUG_LOGGER, "stop app info is:");
+    LogSdl(cCreateTrans);
+
+	if (0 == cCreateTrans.procOperateList().size())
+	{
+        CRdcApp cAppStop;
+        cAppStop.set_appId(cApp.get_appId());
+        cAppStop.set_appState(APP_NOT_START);
+        rcRdcMgr.UpdateAppState(cAppStop);
+		return iReturn;
+	}
+    SetProcOperate(pcProcOperateList, cCreateTrans.procOperateList());
+
+	// 配置事务信息
+	CRdcProcTrans &rProcTrans = cCreateTrans.procTrans();
+	rProcTrans.set_appId(cApp.get_appId());
+	rProcTrans.set_callbackMsgType(cApp.get_stopRollbackMsgType());
+	rProcTrans.set_callbackParam(cApp.get_stopRollbackParam());
+	rProcTrans.set_foceExeFlag(COMMON_YES);
+    rProcTrans.set_transType(iTransType);
+
+    DBE2_LOG(TRACE_LOGGER, "stop app_id(%d):update app info and create transaction", cApp.get_appId());
+
+	try
+	{
+		iReturn = rcProcTransMgr.Create(cCreateTrans ,TRANS_EXE_FORCE_ONLY);
+	}
+	catch(CAIException & e)
+	{
+		DBE2_LOG_EXCEPTION(e);
+        CRdcApp cFailApp;
+        cFailApp.set_appId(iAppId);
+        cFailApp.set_appState(APP_STOP_FAIL);
+        rcRdcMgr.UpdateAppState(cFailApp);
+		THROW_CAIEXCEPTION(DBE2_SRM_STOP_APP_ILLEGAL,"app stop failed! proc transaction commit failed. because ?")
+				<< e.get_message().c_str();
+	}
+	return iReturn;
+}
+
+int32 CSrmAppMgrImpl::ForceStopApp(int32 iAppId, int32 iTransType, SBaseProcOperateList *pcProcOperateList)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    ISrmProcTransMgr &rcProcTransMgr = ISrmProcTransMgr::GetInstance();
+    SRdcCreateTrans cCreateTrans;
+    CRdcApp cApp;
+    int32 iTransId = 0;
+    if (!rcRdcMgr.QueryApp(iAppId, cApp))
+    {
+        // 抛出异常
+        THROW_CAIEXCEPTION(DBE2_SRM_STOP_APP_ILLEGAL,"app force stop failed! because can not get app info with appId(?) ")
+            << iAppId;
+    }
+
+    // 获得进程停止操作列表
+    GetStopAppOperate(cApp, cCreateTrans.procOperateList(), FORCE_STOP_APP);
+    if (0 == cCreateTrans.procOperateList().size())
+    {
+        CRdcApp cAppStop;
+        cAppStop.set_appId(cApp.get_appId());
+        cAppStop.set_appState(APP_NOT_START);
+        rcRdcMgr.UpdateAppState(cAppStop);
+        rcProcTransMgr.StopTransByApp(cApp.get_appId(), "");
+        return 0;
+    }
+    SetProcOperate(pcProcOperateList, cCreateTrans.procOperateList());
+
+    // 配置事务信息
+    CRdcProcTrans &rProcTrans = cCreateTrans.procTrans();
+    rProcTrans.set_appId(cApp.get_appId());
+    rProcTrans.set_callbackMsgType(cApp.get_stopRollbackMsgType());
+    rProcTrans.set_callbackParam(cApp.get_stopRollbackParam());
+    rProcTrans.set_foceExeFlag(COMMON_YES);
+    rProcTrans.set_transType(iTransType);
+
+    DBE2_LOG(TRACE_LOGGER, 
+        "force stop app_id(%d):update app info and create transaction", cApp.get_appId());
+    CRdcApp cAppUpd;
+    cAppUpd.set_appId(cApp.get_appId());
+    cAppUpd.set_appState(APP_FORCE_STOPPING);
+    // 更新流程状态
+    rcRdcMgr.UpdateAppState(cAppUpd);
+
+    try
+    {
+        iTransId = rcProcTransMgr.Create(cCreateTrans, TRANS_EXE_FORCE_ONLY);
+    }
+    catch(CAIException & e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+        CRdcApp cFailApp;
+        cFailApp.set_appId(iAppId);
+        cFailApp.set_appState(APP_STOP_FAIL);
+        rcRdcMgr.UpdateAppState(cFailApp);
+        THROW_CAIEXCEPTION(DBE2_SRM_STOP_APP_ILLEGAL,"app force stop failed! proc transaction commit failed. cause ?")
+            << e.get_message().c_str();
+    }
+    return iTransId;
+}
+
+int32 CSrmAppMgrImpl::RepairApp(int32 iAppId, int32 iTransType, aistring szRepairParam, SBaseProcOperateList *pcProcOperateList)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    ISrmDeployMgr &rcDeployMgr = ISrmDeployMgr::GetInstance();
+    ISrmProcTransMgr &rcProcTransMgr = ISrmProcTransMgr::GetInstance();
+    int32 iReturn = 0;
+    CRdcApp cApp;
+    if (!rcRdcMgr.QueryApp(iAppId, cApp))
+    {
+        // 获取流程信息失败，抛出异常
+        THROW_CAIEXCEPTION(DBE2_SRM_START_APP_ILLEGAL,"app repair failed,can not get app info with appId(?) ")
+            << iAppId;
+    }
+
+	//修复状态为启动成功、启动失败
+    if(APP_START_SUCCESS != cApp.get_appState() && APP_START_FAIL !=cApp.get_appState())
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_NOT_EXE_APP,"app repair failed,app(?) state(?) is not allow repair")
+            << iAppId << cApp.get_appState();
+    }
+
+    // 对应用下所有进程进行筛选
+    CRdcProcList cAppAllProcList;
+    CRdcProcList::iterator itProc;
+    rcRdcMgr.QueryProcByApp(iAppId, cAppAllProcList);
+
+	if (cAppAllProcList.size()==0)
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_NOT_EXE_APP,"there is no proc need recover.");
+	}
+
+    ISrmVmMgr &rcVmMgr = ISrmVmMgr::GetInstance();
+    SRdcCreateTrans cRepairTrans;
+    CRdcProcList cReDeployProcList;
+    for (itProc = cAppAllProcList.begin(); itProc != cAppAllProcList.end(); ++itProc)
+    {
+        if (PROC_RUN_EXCETION == itProc->get_procState()||PROC_START_FAIL == itProc->get_procState())
+        {
+            LogSdl(*itProc);
+            if(rcVmMgr.CheckVmAvailable(itProc->get_vmId()))
+            {
+                CRdcProcTransOperate cProcOper;
+                cProcOper.set_vmId(itProc->get_vmId());
+                cProcOper.set_appId(itProc->get_appId());
+                cProcOper.set_procId(itProc->get_procId());
+                cProcOper.set_operateType(PROC_START);
+                cProcOper.set_needRollback(COMMON_NO);
+                cProcOper.set_operateLevel(1);
+                cProcOper.set_operateTimeoutTime(cApp.timeOutSecond());
+                cRepairTrans.procOperateList().push_back(cProcOper);
+            }
+            else
+            {
+                cReDeployProcList.push_back(*itProc);
+            }
+        }
+    }
+
+    // 重新部署
+    if (0 < cReDeployProcList.size())
+    {
+		rcDeployMgr.DeployMigrateProc(iAppId, cReDeployProcList,cRepairTrans.procOperateList());
+    }
+    // 流程无需修复，直接回复修复成功
+    if(0 == cRepairTrans.procOperateList().size())
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_NOT_EXE_APP,"there is no proc need recover.");
+    }
+    SetProcOperate(pcProcOperateList, cRepairTrans.procOperateList());
+    // 配置事务信息
+    CRdcProcTrans &rProcTrans = cRepairTrans.procTrans();
+    rProcTrans.set_appId(cApp.get_appId());
+    rProcTrans.set_foceExeFlag(COMMON_NO);
+    rProcTrans.set_transType(iTransType);
+    if (TRANS_JOB == iTransType)
+    {
+        rProcTrans.set_callbackMsgType(MSG_REP_JOB_REPAIR_APP);
+        rProcTrans.set_callbackParam(szRepairParam);
+    }
+    else
+    {
+        rProcTrans.set_callbackMsgType(MSG_REP_DBM_REPAIR_APP);
+        rProcTrans.set_callbackParam(szRepairParam);
+
+    }
+
+    try
+    {
+        // 创建事务，提交流程修复操作
+        iReturn = rcProcTransMgr.Create(cRepairTrans, TRANS_EXE_PITY);
+    }
+    catch(CAIException & e)
+    {
+        DBE2_LOG_EXCEPTION(e);
+        THROW_CAIEXCEPTION(DBE2_SRM_START_APP_ILLEGAL,"app start failed! proc transaction commit failed. cause ?")
+            << e.get_message().c_str();
+    }
+    return iReturn;
+}
+
+void CSrmAppMgrImpl::InsertAppOperate(SSrmAppExe &rcExeApp, int32 iTransId, int32 iVmId)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcAppOperate cAppOperate;
+    cAppOperate.set_appId(rcExeApp.get_appId());
+    cAppOperate.set_transId(iTransId);
+    cAppOperate.set_operateType(rcExeApp.get_exeType());
+    cAppOperate.set_msgType(rcExeApp.msgHead().get_command());
+    cAppOperate.set_sequence(rcExeApp.msgHead().get_sequence());
+    cAppOperate.set_vmId(iVmId);
+    cAppOperate.set_msgTime(GetCurrentTime());
+    rcRdcMgr.InsertAppOperate(cAppOperate);
+}
+
+void CSrmAppMgrImpl::InsertAppOperateHis(SSrmAppExe &rcExeApp, int32 iTransId, int32 iVmId)
+{
+    ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcAppOperateHis cAppOperateHis;
+    cAppOperateHis.set_appId(rcExeApp.get_appId());
+    cAppOperateHis.set_transId(iTransId);
+    cAppOperateHis.set_msgType(rcExeApp.msgHead().get_command());
+    cAppOperateHis.set_sequence(rcExeApp.msgHead().get_sequence());
+    cAppOperateHis.set_msgType(rcExeApp.get_exeType());
+    cAppOperateHis.set_vmId(iVmId);
+    cAppOperateHis.set_msgTime(GetCurrentTime());
+    rcRdcMgr.InsertAppOperateHis(cAppOperateHis);
+}
+
+bool CSrmAppMgrImpl::GetAppOperateByTrans(int32 iAppId, int32 iTransId, CRdcAppOperate &rcAppOperate)
+{
+    ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+    return rRdcMgr.QueryAppOperate(iAppId, iTransId, rcAppOperate);
+}
+
+bool CSrmAppMgrImpl::GetAppOperateByProcOperate(SBaseExeProc &rcExeProc, int32 iVmId, CRdcAppOperate &rcAppOperate)
+{
+    ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+    return rRdcMgr.QueryAppOperateByProc(rcExeProc, iVmId, rcAppOperate);
+}
+
+void CSrmAppMgrImpl::FinishDbmOperate(int32 iAppId, int32 iExeType, int32 iExeResult, int32 iTransId)
+{
+    CRdcApp rcApp;
+    ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+    bool bNeedUp = true;
+    if (START_APP == iExeType)
+    {
+        if (TRANS_SUCCESS == iExeResult) rcApp.set_appState(APP_START_SUCCESS);
+        else if(START_APP == iExeType && TRANS_FAIL == iExeResult) rcApp.set_appState(APP_START_FAIL);
+    }
+    else if(STOP_APP == iExeType || FORCE_STOP_APP == iExeType)
+    {
+		if (TRANS_SUCCESS == iExeResult)
+		{
+			
+			rcApp.set_appState(APP_STOP_SUCCESS);
+			
+			if (FORCE_STOP_APP == iExeType)
+			{
+				try
+				{
+					CRdcJobRunStepApp cRdcJobRunStepApp;
+					if (rRdcMgr.QueryJobAppInfo(iAppId, cRdcJobRunStepApp))
+					{
+						if (APP_RUN_EXCEPTION_ == cRdcJobRunStepApp.get_appStatus() || APP_START_FAIL_ == cRdcJobRunStepApp.get_appStatus())
+						{
+							cRdcJobRunStepApp.set_appStatus(APP_STOP_);
+							rRdcMgr.UpdateJobRunAppState(cRdcJobRunStepApp);
+							DBE2_LOG(TRACE_LOGGER, "force stop ,updated CRdcJobRunStepApp app_state : APP_STOP_");
+						}
+					}
+				}
+				catch (CAIException & e)
+				{
+					DBE2_LOG_EXCEPTION(e);
+				}
+			}
+		}		
+		else if (STOP_APP == iExeType && TRANS_FAIL == iExeResult)
+		{
+			rcApp.set_appState(APP_STOP_FAIL);
+		}
+    }
+    rcApp.set_appId(iAppId);
+    // 更新流程状态
+    rRdcMgr.UpdateAppState(rcApp);
+
+    if (0 != iTransId)
+    {
+        // 删除流程操作信息
+        rRdcMgr.DeleteAppOperate(iAppId, iTransId);
+    }
+}
+
+bool CSrmAppMgrImpl::CheckAppState(int32 iAppId, int32 iState)
+{
+    ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcApp cApp;
+    bool bGet = rRdcMgr.QueryApp(iAppId, cApp);
+    if (!bGet) return true;
+    else return iState == cApp.appState();
+}
+
+bool CSrmAppMgrImpl::UpdateAppCbParam(int32 iAppId, int32 iStopMsgType, aistring szStopParam)
+{
+    ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+    CRdcApp cUpInfo;
+    cUpInfo.set_appId(iAppId);
+    cUpInfo.set_stopRollbackMsgType(iStopMsgType);
+    cUpInfo.set_stopRollbackParam(szStopParam);
+    return rRdcMgr.UpdateAppState(cUpInfo);
+}
+
+void CSrmAppMgrImpl::SetProcOperate(SBaseProcOperateList *pOperDestList,
+    CRdcProcTransOperateList &rlstOperateSource)
+{
+    if (NULL == pOperDestList) return;
+    CRdcProcTransOperateList::iterator itProcOperate;
+    for (itProcOperate = rlstOperateSource.begin();
+        itProcOperate != rlstOperateSource.end(); ++itProcOperate)
+    {
+        SBaseProcOperate cProcOperate;
+        cProcOperate.procKey().set_appId(itProcOperate->get_appId());
+        cProcOperate.procKey().set_procId(itProcOperate->get_procId());
+        cProcOperate.set_operateType(itProcOperate->get_operateType());
+        pOperDestList->push_back(cProcOperate);
+    }
+}
+
+bool CSrmAppMgrImpl::GetStopAppOperate(CRdcApp &rcApp,
+    CRdcProcTransOperateList &rlstProcOperate, int32 iStopType)
+{
+    CRdcProcList lstProc;
+    CRdcProcList::iterator itProc;
+    ISrmRdcMgr &rRdcMgr = ISrmRdcMgr::GetInstance();
+    rRdcMgr.QueryProcByApp(rcApp.get_appId(), lstProc);
+    for (itProc = lstProc.begin(); itProc != lstProc.end(); ++itProc)
+    {
+        CRdcProcTransOperate cProcOpertate;
+        cProcOpertate.set_appId(rcApp.get_appId());
+        cProcOpertate.set_procId(itProc->get_procId());
+        cProcOpertate.set_vmId(itProc->get_vmId());
+        if (STOP_APP == iStopType) cProcOpertate.set_operateType(PROC_STOP);
+        else cProcOpertate.set_operateType(PROC_FORCE_STOP);
+        cProcOpertate.set_operateSecLimit(rcApp.timeOutSecond());
+        cProcOpertate.set_needRollback(COMMON_NO);
+        cProcOpertate.set_operateLevel(1);
+        rlstProcOperate.push_back(cProcOpertate);
+    }
+    return true;
+}
+
+}
+ // namespace MDbe

@@ -1,0 +1,8 @@
+module MDbe
+{
+    // 内部消息结构
+    struct SInsideMessage
+    {
+        int32 intra_msg_type; // 内部消息类型
+    }
+}

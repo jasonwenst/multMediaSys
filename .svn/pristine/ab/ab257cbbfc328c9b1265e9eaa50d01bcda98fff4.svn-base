@@ -1,0 +1,21 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_proc_trans_mgr_cpp)
+{
+	//Fuction: ISrmProcTransMgr & ISrmProcTransMgr :: GetInstance ( )
+	TEST_FIXTURE(TestFixture,TestISrmProcTransMgr_GetInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 ISrmProcTransMgr :: Create ( SRdcCreateTrans & rcCreateTrans , int32 iExeType )
+	TEST_FIXTURE(TestFixture,TestISrmProcTransMgr_Create)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

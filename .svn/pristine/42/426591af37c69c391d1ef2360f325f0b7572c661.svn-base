@@ -1,0 +1,231 @@
+#include <unittest_cp_dbe2_base_main.h>
+#include "dbe2_util.h"
+
+SUITE(SUITE_dbe2_util_cpp)
+{
+	//Fuction: CMsgIdCounter ( int32 iStartNumber )
+	TEST_FIXTURE(TestFixture,TestCMsgIdCounter_CMsgIdCounter)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: GetMsgId ( void )
+	TEST_FIXTURE(TestFixture,TestCMsgIdCounter_GetMsgId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CheckReachTime ( SBaseVirtualTime & rcTime , int32 iGapTime )
+	TEST_FIXTURE(TestFixture,TestCheckReachTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CloseLib ( void * pHandle )
+	TEST_FIXTURE(TestFixture,TestCloseLib)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 ExecShell ( aistring strShellCmd , bool isHaveOut , aistring & strOut )
+	TEST_FIXTURE(TestFixture,TestExecShell)
+	{
+
+		aistring strOut;
+		MDbe::ExecShell("cat /etc/passwd", false, strOut);
+		printf("%s", strOut.c_str());
+
+        MDbe::ExecShell("cat /etc/hosts &", false, strOut);
+        printf("%s", strOut.c_str());
+
+        MDbe::ExecShell("echo \"ok\"", true, strOut);
+        bool bSend = (strOut != "ok") ? true:false;
+        printf("bSend:%s\n", bSend?"true":"false");
+        CHECK_EQUAL(false, bSend);
+
+        aistring strCmd = "odframe -i aaa.xml -m";
+        aistring strKeyWord = strCmd.substr(strCmd.find("odframe -i ")+strlen("odframe -i "));
+        printf("key_word:%s\n", strKeyWord.c_str());
+
+
+        //strCmd = "start_java.sh abcd.xml";
+        strCmd = "start_java.sh 1-2-3";
+        strKeyWord = strCmd;
+        int32 iXmlPos = strCmd.find(".xml");
+        if(strCmd.find(".xml") != aistring::npos)
+        {
+            strKeyWord = strCmd.substr(0, iXmlPos + strlen(".xml"));
+            strKeyWord = strKeyWord.substr(strKeyWord.rfind(" ") + 1);
+        }
+        else
+        {
+            strKeyWord = strCmd.substr(strCmd.find(" ")+1);
+        }
+        printf("key_word2:%s\n", strKeyWord.c_str());
+
+
+	}
+	//Fuction: aistring FormatString ( const char * format , . . . )
+	TEST_FIXTURE(TestFixture,TestFormatString)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: aistring GetCaClientIp ( )
+	TEST_FIXTURE(TestFixture,TestGetCaClientIp)
+	{
+		/*codes for test start here*/
+
+	    aistring strIp = MDbe::GetHostIp();
+	    printf("str ip:%s\n", strIp.c_str());
+		/*codes for test stop here*/
+	}
+	//Fuction: CBSDateTime GetCurrentTime ( void )
+	TEST_FIXTURE(TestFixture,TestGetCurrentTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: uint64 GetIpAddr ( const char * szIpAddr )
+	TEST_FIXTURE(TestFixture,TestGetIpAddr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int64 GetMicroSecTime ( )
+	TEST_FIXTURE(TestFixture,TestGetMicroSecTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int64 GetMilliSecTime ( )
+	TEST_FIXTURE(TestFixture,TestGetMilliSecTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: SBaseHead GetMsgHead ( int32 iCommandId , int64 iSequence )
+	TEST_FIXTURE(TestFixture,TestGetMsgHead)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: aistring GetTempFileName ( )
+	TEST_FIXTURE(TestFixture,TestGetTempFileName)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool OpenLib ( aistring strLibName , void * & pHandle , CBSErrorMsg & cErrorMsg )
+	TEST_FIXTURE(TestFixture,TestOpenLib)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool ResolveFunctionFromLib ( void * pHandle , aistring strFunctionName , void * & pFunc , CBSErrorMsg & cErrorMsg )
+	TEST_FIXTURE(TestFixture,TestResolveFunctionFromLib)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: obb_stream Sdl2Obbstream ( CSdlBasicListObject & cSdlObject )
+	TEST_FIXTURE(TestFixture,TestSdl2Obbstream)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void SetCaClientIp ( aistring strIp )
+	TEST_FIXTURE(TestFixture,TestSetCaClientIp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void LogObbstream ( obb_stream & cObbStream , const char * pLogLevel )
+	TEST_FIXTURE(TestFixture,TestLogObbstream)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: aistring ReplaceString ( aistring strSrc , aistring strOld , aistring strNew )
+	TEST_FIXTURE(TestFixture,TestReplaceString)
+	{
+	    aistring strRet = MDbe::ReplaceString("aaa bbb ccc", "bbb", "bbb ddd");
+	    printf("strRet:%s\n", strRet.c_str());
+	    CHECK_EQUAL("aaa bbb ddd ccc", strRet.c_str());
+	    strRet = MDbe::ReplaceString("aaa bbb ccc bbb bb bbb", "bbb", "ddd");
+        printf("strRet:%s\n", strRet.c_str());
+        CHECK_EQUAL("aaa ddd ccc ddd bb ddd", strRet.c_str());
+	}
+	//Fuction: void GetVirtualTime ( SBaseVirtualTime & rcTime )
+	TEST_FIXTURE(TestFixture,TestGetVirtualTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: aistring ReplaceStringExe ( aistring strSrc , aistring strKey , aistring strFlag , aistring strValue )
+	TEST_FIXTURE(TestFixture,TestReplaceStringExe)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int64 GetVirtualTimeSec ( )
+	TEST_FIXTURE(TestFixture,TestGetVirtualTimeSec)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void MyTrim ( aistring & strInput )
+	TEST_FIXTURE(TestFixture,TestMyTrim)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool DetectHost ( CHost & rcHost )
+	TEST_FIXTURE(TestFixture,TestDetectHost)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

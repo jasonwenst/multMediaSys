@@ -1,0 +1,21 @@
+DB=0
+DEBUG=1
+OB_TIER=
+PRODUCT=
+
+PRODDEST=epa_info
+
+include $(OB_REL)/etc/Cmake
+
+PRODLIBPATH=$(OB_SRC)/lib \
+			$(OB_REL)/lib
+
+PRODLIBS=epa_info$(BUILDTYPE) \
+
+CEPA_INFO_OBJ=epa_main.o
+
+$(PRODDEST):$(CEPA_INFO_OBJ)
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+install: $(PRODDEST)
+	cp -rf $^ $(OB_REL)/bin

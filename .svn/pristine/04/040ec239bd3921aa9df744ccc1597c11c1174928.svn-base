@@ -1,0 +1,24 @@
+#ifndef __NR_LOCK_H__
+#define __NR_LOCK_H__
+#include "cpf_common_struct.h"
+#include "cpf_lock.h"
+
+namespace cpf
+{
+const static int32 LOCK_SIZE = 20;
+extern CLock g_cNrLock[LOCK_SIZE];
+
+class CNrAutoLock
+{
+public:
+	CNrAutoLock(CProcKey &rPk);
+	~CNrAutoLock();
+
+private:
+
+	CLock & m_cLock;
+};
+
+}
+
+#endif /* __NR_LOCK_H__ */

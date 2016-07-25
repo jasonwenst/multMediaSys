@@ -1,0 +1,151 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_redis_client.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-3-6）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "cache_client.h"
+#include "util.h"
+
+
+namespace cpf
+{
+
+CCacheClient::CCacheClient(bool isAutoReconnect):
+    m_pContext(NULL), m_isAutoReconnect(isAutoReconnect)
+{
+
+}
+
+CCacheClient::~CCacheClient()
+{
+    Disconnect();
+}
+
+bool CCacheClient::Setnx(const char * pKey, const char * pValue)
+{
+    CCacheReply cReply = Command("SETNX %s %s", pKey, pValue);
+    return cReply->integer == 1;
+}
+
+CCacheReply CCacheClient::Command(const char * format, ...)
+{
+    va_list ap;
+    void * reply = NULL;
+send:
+    va_start(ap, format);
+    reply = redisvCommand(m_pContext, format, ap);
+    va_end(ap);
+    if(reply == NULL && m_isAutoReconnect)
+    {
+        //需要自动重联的
+        ReConnect(true);
+        goto send;
+    }
+
+    return CCacheReply((redisReply *)reply);
+}
+
+void CCacheClient::Connect(aistring strConnInfo, int32 iTimeoutMs)
+{
+    m_strConnInfo = strConnInfo;
+    m_iTimeoutMs = iTimeoutMs;
+
+    //解析链接串
+    CStringList lstString;
+    BaseDivideStrEx(strConnInfo, ":", &lstString, '"');
+    if(lstString.size() < 2)
+    {
+        CPF_THROW(EC_REDISCLT_PARSE_CONNECT_URL_FAIL, "parse redis url fail!example:\ttcp:ip:port![conn_info:?]")
+                << strConnInfo;
+    }
+    if(strcasecmp(lstString[0].c_str(), "tcp") == 0)
+    {
+        //default redis port
+        int32 iPort = 6379;
+        if(lstString.size() > 2)
+        {
+            iPort = atoi(lstString[2].c_str());
+        }
+        ConnectByTcp(lstString[1], iPort, m_iTimeoutMs);
+    }
+    else
+    {
+        CPF_THROW(EC_REDISCLT_CONNECT_TYPE_NOT_SUPPORT, "redis client not support connect type![type:?]")
+                << lstString[0];
+    }
+}
+
+void CCacheClient::ReConnect(bool isAlway, int32 iSleepMs)
+{
+    do
+    {
+        try
+        {
+            Connect(m_strConnInfo, m_iTimeoutMs);
+            break;
+        }
+        catch(CException & e)
+        {
+            DBE2_LOG(FATAL_LEVEL, "reconnect to redis fail!%s", e.get_message().c_str());
+            if(!isAlway)
+            {
+                throw e;
+            }
+            //TODO:转时通过sleep实现
+            sleep(iSleepMs / 1000);
+        }
+    }
+    while(isAlway);
+
+}
+
+void CCacheClient::Disconnect()
+{
+    {
+        if(m_pContext)
+        {
+            redisFree(m_pContext);
+            m_pContext = NULL;
+        }
+    }
+}
+
+void CCacheClient::ConnectByTcp(aistring strIp, int32 iPort, int32 iTimeoutMs)
+{
+
+    Disconnect();
+
+    if(iTimeoutMs > 0)
+    {
+        struct timeval cTimeout;
+        cTimeout.tv_sec = iTimeoutMs / 1000;
+        cTimeout.tv_usec = iTimeoutMs % 1000 * 1000;
+        m_pContext = redisConnectWithTimeout(strIp.c_str(), iPort, cTimeout);
+    }
+    else
+    {
+        m_pContext = redisConnect(strIp.c_str(), iPort);
+    }
+    if (m_pContext->err)
+    {
+        CPF_THROW(EC_REDISCLT_CONNECT_FAIL, "Could not connect to Redis at ?:?: ?")
+                << strIp << iPort << m_pContext->errstr;
+    }
+}
+
+} // namespace dbe2
+

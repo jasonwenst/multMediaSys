@@ -1,0 +1,353 @@
+//huwei 增加buffer类，用来方便内存的处理
+#ifndef _HW_BUFFER_H_
+#define _HW_BUFFER_H_
+#include <assert.h>
+#include <iostream>
+#define _DEFAULT_HW_BUFFER_LEN_ 128
+#define _ADD_MAX_MEM_SIZE_ (1024*16)
+#include <memory>
+#include <string.h>
+class CHwBuffer
+{
+public:
+	CHwBuffer() :
+		m_pData(NULL),
+		m_iSize(0),
+		m_iMaxSize(0),
+		m_iCutPos(0)
+	{
+		
+
+	}
+	~CHwBuffer()
+	{
+		clear();
+	}
+
+	CHwBuffer(size_t sz):
+		m_iSize(0),
+		m_iCutPos(0)
+	{
+		m_iMaxSize = sz;
+		m_pData = (char*)malloc(m_iMaxSize);
+	}
+	int getCutSize()
+	{
+		return m_iCutPos;
+	}
+
+	int cutMore(size_t  sz )
+	{
+#ifdef _DEBUG
+		if (m_iCutPos + sz > m_iSize)
+		{
+			std::cout << "m_iCutPos " << m_iCutPos << "sz  " << sz << "m_iSize  " << m_iSize << "\n";
+		}
+#endif
+		assert(m_iCutPos + sz <= m_iSize);
+		m_iCutPos += sz;
+		return  m_iSize - m_iCutPos;
+	}
+
+
+	 char* cutData()
+	{
+#ifdef _DEBUG
+		 if (m_iCutPos > m_iSize)
+		 {
+			 std::cout << "m_iCutPos " << m_iCutPos <<  "m_iSize  " << m_iSize << "\n";
+		 }
+#endif
+		 if (m_pData == NULL)
+		 {
+			 rellocMore(20);
+			 set("", 0);
+		 }
+			 
+		assert(m_pData != NULL && m_iCutPos <= m_iSize);
+		return m_pData + m_iCutPos;
+	}
+
+	CHwBuffer(const CHwBuffer& other) :
+		m_pData(NULL)
+	{
+		
+		clear();
+		set((other.data()), other.size());
+	}
+
+	CHwBuffer(const char* data):
+		m_pData(NULL)
+	{
+		clear();
+		set(data, strlen(data));
+	}
+
+	bool isEmty() const 
+	{
+		return m_iSize == 0;
+	}
+
+	inline size_t size() const 
+	{
+		return m_iSize;
+	}
+
+	CHwBuffer operator +(const char* data)
+	{
+		CHwBuffer tmp(*this);
+		append(data, strlen(data));
+		return tmp;
+	}
+
+	CHwBuffer& operator=(const CHwBuffer& other)
+	{
+		reset();
+		append(other.data(), other.size());
+		return (*this);
+	}
+
+	CHwBuffer& swap(CHwBuffer& other)
+	{
+		char* ptmpData = m_pData;
+		size_t itmpmax = m_iMaxSize;
+		size_t itmpsize = m_iSize;
+
+		m_pData = other.m_pData;
+		m_iSize = other.m_iSize;
+		m_iMaxSize = other.m_iMaxSize;
+
+
+		other.m_iSize = itmpsize;
+		other.m_pData = ptmpData;
+		other.m_iMaxSize = itmpmax;
+		return (*this);
+
+	}
+	char& operator[](size_t i)
+	{
+		//std::cout << m_iMaxSize << " " << m_iSize << " " << i << "\n";
+		assert(m_pData != NULL&& i <=m_iSize);
+		return m_pData[i];
+
+	}
+
+	CHwBuffer& operator +=(const char* data)
+	{
+		append(data, strlen(data));
+		return (*this);
+	}
+
+	CHwBuffer& operator =(const char* data)
+	{
+		set(data, strlen(data));
+		return (*this);
+	}
+
+
+	size_t avaluebleSize()
+	{
+		return m_iSize - m_iCutPos;
+	}
+
+
+
+
+	 operator const char*() const 
+	{
+		return data();
+	}
+
+		
+	 size_t maxSize() const 
+	 {
+		 return m_iMaxSize;
+	 }
+
+	 char* data(size_t i = 0)  const 
+	{
+		
+		assert(m_pData!=NULL &&i <= m_iSize);
+		return m_pData+i;
+	}
+	 //前挪n位
+	 void forward(size_t sz = 0)
+	 {
+		 if (sz == 0)
+		 {
+			 sz = m_iCutPos;
+		 }
+		 if (sz == 0)
+		 {
+			 return;
+		 }
+		 assert(sz <= m_iSize);
+		 char* pBegin = m_pData + sz;
+		 char* pEnd = m_pData + m_iSize;
+		 char* pDest = m_pData;
+		 while (pBegin != pEnd)
+		 {
+			*pDest ++ = *pBegin++;
+		 }
+		 m_iSize-= sz;
+		 if (m_iSize < m_iMaxSize)
+		 {
+			 m_pData[m_iSize] = '\0';
+		 }
+		 m_iCutPos -= sz;
+		
+	 }
+
+
+
+
+	void append(const char* data, size_t sz)
+	{
+		assert(data != NULL);
+		if (m_iSize + sz <m_iMaxSize)
+		{
+			memcpy(m_pData + m_iSize, data, sz);
+			m_iSize += sz;
+			m_pData[m_iSize] = '\0';
+			
+		}
+		else
+		{
+			rellocMore(m_iSize + sz);
+			append(data, sz);
+		}
+	}
+
+	void set(const char* data, size_t sz)
+	{
+		if (data == NULL)
+		{
+			clear();
+			return;
+		}
+		m_iSize = 0;
+		m_iCutPos = 0;
+		append(data, sz);
+	}
+	
+
+
+	void reset()
+	{
+		m_iSize = 0;
+		m_iCutPos = 0;
+		if (m_pData != NULL)
+		{
+			*m_pData = 0;
+		}
+	}
+
+
+	void clear()
+	{
+		m_iSize = 0;
+		m_iMaxSize = 0;
+		m_iCutPos = 0;
+		if (m_pData)
+		{
+			free(m_pData);
+			m_pData = NULL;
+		}
+		
+	}
+
+	int find(const char* subStr,size_t begin = 0)
+	{
+		assert(m_pData!=NULL&&begin <= m_iSize&&subStr!=NULL);
+		char* pStart = m_pData + begin;
+		const char* pFind = strstr(pStart, subStr);
+		if (pFind != NULL)
+		{
+			return pFind - m_pData;
+		}
+		return -1;
+
+	}
+
+	char* end()
+	{
+		assert(m_pData != NULL && m_iSize < m_iMaxSize);
+		return m_pData + m_iSize;
+	}
+
+	//预先分配空间,size 不增加
+	void preExtend(size_t sz)
+	{
+		rellocMore(m_iSize + sz);
+	}
+	//增加sz
+	void finishExtend(size_t sz)
+	{
+#ifdef _DEBUG
+		if (m_iSize + sz >= m_iMaxSize)
+		{
+			std::cout << "m_iSize " <<m_iSize << "sz  " << sz << "m_iMaxSize  " << m_iMaxSize << "\n";
+		}
+#endif
+		assert(m_iSize + sz < m_iMaxSize);
+		m_iSize += sz;
+		m_pData[m_iSize] = 0;
+	}
+
+private:
+	char* m_pData;
+	size_t m_iSize;
+	size_t m_iMaxSize;
+	size_t m_iCutPos;
+
+	void rellocMore(size_t sz = 0)
+	{
+		if (sz < m_iMaxSize)
+			return;
+		
+		//空间不够则乘以2再尝试
+		while(m_iMaxSize < sz+1)//空出一位用来填充'\0'
+		{
+			if (m_iMaxSize == 0)
+			{
+				m_iMaxSize = _DEFAULT_HW_BUFFER_LEN_;
+			}
+			else if (m_iMaxSize < _ADD_MAX_MEM_SIZE_)
+			{
+				m_iMaxSize *= 2;
+			}
+			else
+			{
+				m_iMaxSize = m_iMaxSize + _ADD_MAX_MEM_SIZE_;
+			}
+		};
+		char* pOld = m_pData;
+		m_pData = (char*)malloc(m_iMaxSize);
+		 assert(m_pData != NULL);
+		 if (pOld != NULL)
+		 {
+			 memcpy(m_pData, pOld, m_iSize);
+			 free(pOld);
+		 }
+	
+	}
+
+};
+
+
+
+
+
+
+
+
+
+
+//
+
+
+
+
+
+
+#endif

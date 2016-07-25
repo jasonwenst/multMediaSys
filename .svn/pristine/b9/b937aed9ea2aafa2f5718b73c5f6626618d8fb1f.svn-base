@@ -1,0 +1,13 @@
+
+#ifndef _ODFRAME_DBE_PCC_CONST_H_
+#define _ODFRAME_DBE_PCC_CONST_H_
+
+#include <compile.h>
+
+//process communicate component
+#define NAMESPACE_DBE_PCC_BEGIN namespace pcc  {
+#define NAMESPACE_DBE_PCC_END }
+#define NAMESPACE_DBE_PCC pcc::
+
+#endif //_FRAME_SOCKET_CONTROL_CONST_H_
+

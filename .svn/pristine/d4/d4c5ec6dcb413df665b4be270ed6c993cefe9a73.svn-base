@@ -1,0 +1,329 @@
+#include "nr_common_tool.h"
+#include "dbe2_log.h"
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include "nr_lock.h"
+#include "dbe2_util.h"
+
+namespace MDbe
+{
+
+int32 TestDir(const char *cszPath)
+{
+	struct stat statBuf;
+	if ((stat(cszPath, &statBuf) == 0) && S_ISDIR(statBuf.st_mode))
+	{
+		return 0;
+	}
+	return -1;
+}
+
+int32 MakeDirExist(const char *szDirPath)
+{
+	if(NULL == szDirPath) return -1;
+	// 目录已经存在
+	if (0 == TestDir(szDirPath)) return 0;
+	struct stat statBuf;
+	char *pt;
+	char szPath[MAX_PATH_LEN] ={0};
+	strncpy(szPath, szDirPath,sizeof(szPath));
+	pt = szPath + 1;
+	while(pt && NULL == (pt = strchr(pt, '/')))
+	{
+		*pt = '\0';
+		if(0 == stat(szPath, &statBuf ))
+		{
+			*pt = '/';
+			pt++;
+			continue;
+		}
+		do 
+		{
+			*pt = '\0';
+			if(mkdir(szPath, FILE_PERMISSION))
+			{
+				DBE2_LOG(WARN_LOGGER, "mkdir path %s fail,errno %d, err_msg:%s", szPath, errno, strerror(errno));
+				return -1;
+			}
+			*pt = '/';
+			pt++;
+		} while (pt && NULL == (pt = strchr(pt, '/')));
+		break;
+	}
+	if(mkdir(szPath, FILE_PERMISSION))
+	{
+		DBE2_LOG(WARN_LOGGER, "mkdir path %s fail,errno %d, err_msg:%s", szPath, errno, strerror(errno));
+		return -1;
+	}
+	return 0;
+}
+
+aistring GetDirByProcKey(CProcKey& rProcKey, int32 iType)
+{
+	char szDir[MAX_PATH_LEN] = {0};
+	if (NR_PATH == iType)
+	{
+		snprintf(szDir, sizeof(szDir), "%s%d_%d_%d/",
+			g_cDbeNrConfig.m_szNrRootDir,
+			rProcKey.m_objSKey.m_iFlowId,
+			rProcKey.m_objSKey.m_iSrvId,
+			rProcKey.m_iProcId);
+		DBE2_LOG(DEBUG_LOGGER, "nr path %s", szDir);
+	}
+	else if (NR_BAK_PATH == iType)
+	{
+		snprintf(szDir, sizeof(szDir), "%s%d_%d_%d/",
+			g_cDbeNrConfig.m_szNrRootBakDir,
+			rProcKey.m_objSKey.m_iFlowId,
+			rProcKey.m_objSKey.m_iSrvId,
+			rProcKey.m_iProcId);
+		DBE2_LOG(DEBUG_LOGGER, "nr bak path %s", szDir);
+	}
+	else
+	{
+		DBE2_LOG(DEBUG_LOGGER, "unknow Type %d", iType);
+	}
+	aistring strDst;
+	strDst = szDir;
+	return strDst;
+}
+
+aistring GetNrFileByPk(CProcKey& rProcKey, const char *szFileName)
+{
+	char szDir[MAX_PATH_LEN] = {0};
+	snprintf(szDir, sizeof(szDir), "%s%d_%d_%d/%s",
+		g_cDbeNrConfig.m_szNrRootDir,
+		rProcKey.m_objSKey.m_iFlowId,
+		rProcKey.m_objSKey.m_iSrvId,
+		rProcKey.m_iProcId,
+		szFileName);
+	aistring strDst;
+	strDst = szDir;
+	return strDst;
+}
+
+int32 WriteFileNoLock(MDbe::CProcKey &rPk, const char *szFileName, const char *szFileContent)
+{
+	if (NULL == szFileName || NULL == szFileContent) return -1;
+	//创建文件
+	FILE *fd = fopen(szFileName, "w");
+	if(!fd)
+	{
+		DBE2_LOG(WARN_LOGGER, "create file %s fail  errno %d strerr %s",
+			szFileName, errno, strerror(errno));
+		return -1;
+	}
+	// 写入文件内容
+	int32 iRet = fwrite(szFileContent, strlen(szFileContent), 1, fd);
+	if(1 != iRet)
+	{
+		DBE2_LOG(WARN_LOGGER, "write file %s fail  errno %d strerr %s",
+			szFileContent, errno, strerror(errno));
+		fclose(fd);
+		return -1;
+	}
+	fclose(fd);
+	return 0;
+}
+
+int32 WriteToFile(MDbe::CProcKey &rPk, const char *szFileName, const char *szFileContent)
+{
+	CNrAutoLock cProcLock(rPk);
+	return WriteFileNoLock(rPk, szFileName, szFileContent);
+}
+
+int32 RemoveDirectory(const char *szDirPath)
+{
+	struct stat statbuf;
+	int32 iRet = 0;
+	// 获取目录.
+	DIR* dirp = opendir(szDirPath);
+	if(NULL == dirp)
+	{
+		if (0 == stat(szDirPath, &statbuf))
+		{
+			DBE2_LOG(ERROR_LOGGER, "open directory %s failed", szDirPath);
+			iRet = -1;
+		}
+		return iRet;
+	}
+	void *pDirBuf = malloc(sizeof(struct dirent) + 256);
+	if(NULL == pDirBuf)
+	{
+		DBE2_LOG(ERROR_LOGGER, "malloc failed. malloc size %d errno %d strerr %s",
+			sizeof(struct dirent) + 256, errno , strerror(errno));
+		closedir(dirp);
+		return iRet;
+	}
+	struct dirent *pEntry = (struct dirent *)pDirBuf;
+	aistring strFileName;
+	char szCurDir[MAX_PATH_LEN] = {0};
+	struct dirent *Result = NULL;
+	rewinddir(dirp);
+	for (readdir_r(dirp, pEntry, &Result); Result != NULL; readdir_r(dirp, pEntry, &Result))
+	{
+		strFileName = szDirPath ;
+		strFileName += Result->d_name;
+		// 获取文件状态
+		if (0 != stat(strFileName.c_str(), &statbuf))
+		{
+			iRet = -1;
+		}
+		else
+		{
+			snprintf(szCurDir, sizeof(szCurDir),"%s%s", szDirPath, Result->d_name);
+			if(S_ISDIR(statbuf.st_mode) &&
+				0 != strcmp(".", Result->d_name) &&
+				0 != strcmp("..", Result->d_name))
+			{
+				iRet = RemoveDirectory(szCurDir); //递归删除目录
+			}
+			else if (S_ISREG(statbuf.st_mode))
+			{
+				iRet = remove(szCurDir);
+			}
+		}
+		strFileName.clear();
+		if (0 != iRet) 
+		{
+			DBE2_LOG(ERROR_LOGGER, "delete file %s failed", szCurDir);
+			break;
+		}
+	}
+	closedir(dirp);
+	free(pDirBuf);
+	// 删除目录
+	if (0 == iRet)
+	{
+		iRet = remove(szDirPath);
+	}
+	return iRet;
+}
+
+int32 GetKeyValue(char* szLine,
+	AISTD string& key, AISTD string& value)
+{
+	if(NULL == szLine)
+	{
+		key = "";
+		value = "";
+		return -1;
+	}
+
+	AISTD string line = szLine;
+
+	int32 iPos = line.find(":=");
+	if(AISTD string::npos == iPos)
+	{
+		key = "";
+		value = line;
+		return -1;
+	}
+	key = line.substr(0, iPos);
+	value = line.substr(iPos + 2);
+	MyTrim(value);
+	return 0;
+}
+
+
+int32 ReadNrRecord(MDbe::CProcKey &rPk, aistring &rstrFile, MapNrRecord &rMapNrRecord, aistring &rstrKey)
+{
+	CNrAutoLock cProcLock(rPk);
+	FILE* fd = fopen(rstrFile.c_str(), "r");
+	if(!fd)
+	{
+		DBE2_LOG(WARN_LOGGER, "The file %s does not exist, errno %d strerr %s",
+			rstrFile.c_str(), errno, strerror(errno));
+		return -1;
+	}
+	char szBuf[1024] = {0};
+	aistring strKey;
+	aistring strValue;
+	while(fgets(szBuf, sizeof(szBuf), fd) != NULL)
+	{
+		if (0 != GetKeyValue(szBuf, strKey, strValue)) continue;
+		if (rstrKey.empty())
+		{
+			rMapNrRecord[strKey] = strValue;
+			continue;
+		}
+		else if (0 == strcmp(rstrKey.c_str(), strKey.c_str()))
+		{
+			rMapNrRecord[strKey] = strValue;
+			break;
+		}
+	}
+	fclose(fd);
+	return 0;
+}
+
+int32 GetNrList(const char *nrPath, CProcKeyVec& rNrPocKeyList)
+{
+	// 获取目录.
+	AISTD string strDst;
+	//int32 iRet = ConvertEnvPath(lib_Path, strDst);
+	strDst = nrPath;
+	DIR* dirp = opendir(strDst.c_str());
+	if(NULL == dirp)
+	{
+		//TODO log
+		return -1;
+	}
+
+	void *pDirBuf = malloc(sizeof(struct dirent) + 256);
+	if(NULL == pDirBuf)
+	{
+		//TODO log
+		// 释放资源.
+		closedir(dirp);
+		return -1;
+	}
+	struct dirent *pEntry = (struct dirent *)pDirBuf;
+	struct stat statbuf;
+	AISTD string FileName;
+	rewinddir(dirp);
+	struct dirent *Result = NULL;
+
+	for (readdir_r(dirp, pEntry, &Result); Result != NULL; readdir_r(dirp, pEntry, &Result))
+	{
+		FileName = strDst;
+		FileName += Result->d_name;
+		if (stat(FileName.data(), &statbuf) < 0){continue;}
+
+		if(S_ISDIR(statbuf.st_mode) 
+			&& strcmp(Result->d_name, ".") != 0
+			&& 0 != strcmp("..", Result->d_name))//跳过特殊目录
+		{
+			char *saveptr;
+			MDbe:: CProcKey rProcKey;
+			char *szFlow = strtok_r(Result->d_name, "_", &saveptr);
+			if(NULL == szFlow)
+			{
+				continue;
+			}
+			rProcKey.m_objSKey.m_iFlowId = atoi(szFlow);
+			char *szSrv = strtok_r(NULL, "_", &saveptr);
+			if(NULL == szSrv)
+			{
+				continue;
+			}
+			rProcKey.m_objSKey.m_iSrvId = atoi(szSrv);
+			if(NULL == saveptr)
+			{
+				continue;
+			}
+			rProcKey.m_iProcId = atoi(saveptr);
+			//TODO log
+			rNrPocKeyList.push_back(rProcKey);
+		}
+		FileName.clear();
+	}
+
+	// 释放资源.
+	closedir(dirp);
+	free(pDirBuf);
+	return 0;
+}
+
+}

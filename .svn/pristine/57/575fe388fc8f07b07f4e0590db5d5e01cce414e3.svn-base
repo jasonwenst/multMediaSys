@@ -1,0 +1,294 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_msg_process_inner.h）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+
+#include "msg_dispatch_mgr.h"
+
+#ifndef __SRM_MSG_PROCESS_INNER_H__
+#define __SRM_MSG_PROCESS_INNER_H__
+
+namespace MDbe
+{
+/**
+ * -11(内部消息)
+ * 虚拟机断开连接
+ */
+class CMsgProcessI11 : public IMsgProcess
+{
+public:
+	CMsgProcessI11(){}
+
+	virtual ~CMsgProcessI11(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * 150（注册消息）
+ * DBM,NRM注册
+ */
+class CMsgProcess150 : public IMsgProcess
+{
+public:
+	CMsgProcess150(){}
+
+	virtual ~CMsgProcess150(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -601(内部消息)
+ * DBM启停流程回调
+ */
+class CMsgProcessI601 : public IMsgProcess
+{
+public:
+	CMsgProcessI601(){}
+
+	virtual ~CMsgProcessI601(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -603(内部消息)
+ * 流程启动回调JOB
+ */
+class CMsgProcessI603 : public IMsgProcess
+{
+public:
+	CMsgProcessI603(){}
+
+	virtual ~CMsgProcessI603(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -604(内部消息)
+ * 流程停止回调JOB
+ */
+class CMsgProcessI604 : public IMsgProcess
+{
+public:
+	CMsgProcessI604(){}
+
+	virtual ~CMsgProcessI604(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -605(内部消息)
+ * vm依赖服务启动回调 VM 状态更新
+ */
+class CMsgProcessI605 : public IMsgProcess
+{
+public:
+	CMsgProcessI605(){}
+
+	virtual ~CMsgProcessI605(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -606(内部消息)
+ * 进程迁移事务回调 
+ * 迁移失败 告警
+ */
+class CMsgProcessI606 : public IMsgProcess
+{
+public:
+	CMsgProcessI606(){}
+
+	virtual ~CMsgProcessI606(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -607(内部消息)
+ * 修复回调 
+ */
+class CMsgProcessI607 : public IMsgProcess
+{
+public:
+	CMsgProcessI607(){}
+
+	virtual ~CMsgProcessI607(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -609(内部消息)
+ * 流程修复回调JOB
+ */
+class CMsgProcessI609 : public IMsgProcess
+{
+public:
+	CMsgProcessI609(){}
+
+	virtual ~CMsgProcessI609(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -610(内部消息)
+ * 服务异常回调JOB
+ */
+class CMsgProcessI610 : public IMsgProcess
+{
+public:
+	CMsgProcessI610(){}
+
+	virtual ~CMsgProcessI610(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -611(内部消息)
+ * DBM进程操作回调
+ */
+class CMsgProcessI611 : public IMsgProcess
+{
+public:
+    CMsgProcessI611(){}
+
+    virtual ~CMsgProcessI611(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -612(内部消息)
+ * DBM进程增加回调
+ */
+class CMsgProcessI612 : public IMsgProcess
+{
+public:
+    CMsgProcessI612(){}
+
+    virtual ~CMsgProcessI612(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -613(内部消息)
+ * 进程同步回调
+ */
+class CMsgProcessI613 : public IMsgProcess
+{
+public:
+    CMsgProcessI613(){}
+
+    virtual ~CMsgProcessI613(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -901(内部消息)
+ * 检查事务操作是否超时
+ */
+class CMsgProcessI901 : public IMsgProcess
+{
+public:
+	CMsgProcessI901(){}
+
+	virtual ~CMsgProcessI901(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -903(内部消息)
+ * 定时写入数据库
+ */
+class CMsgProcessI903 : public IMsgProcess
+{
+public:
+	CMsgProcessI903(){}
+
+	virtual ~CMsgProcessI903(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -906(内部消息)
+ * SRM查询软件升级进度
+ */
+class CMsgProcessI906 : public IMsgProcess
+{
+public:
+	CMsgProcessI906(){}
+
+	virtual ~CMsgProcessI906(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+
+/**
+ * -911(内部消息)
+ * 检查并启动定时job
+ */
+class CMsgProcessI911 : public IMsgProcess
+{
+public:
+	CMsgProcessI911(){}
+
+	virtual ~CMsgProcessI911(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -912(内部消息)
+ * 定时清理记录
+ */
+class CMsgProcessI912 : public IMsgProcess
+{
+public:
+	CMsgProcessI912(){}
+
+	virtual ~CMsgProcessI912(){}
+
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+/**
+ * -999(内部消息)
+ * vm心跳检测
+ */
+class CMsgProcessI999: public IMsgProcess
+{
+public:
+	CMsgProcessI999(){}
+	virtual ~CMsgProcessI999(){}
+	virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+} // namespace MDbe
+
+#endif /* __SRM_MSG_PROCESS_INNER_H__ */

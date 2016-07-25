@@ -1,0 +1,97 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_proc_trans_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_PROC_TRANS_MGR_IMPL_H___
+#define __SRM_PROC_TRANS_MGR_IMPL_H___
+
+#include "srm_proc_trans_mgr.h"
+#include "dbe2_typedef.h"
+#include "msg_dispatch_mgr.h"
+#include "srm_def_sdl_c.h"
+#include "nrm_def_sdl_c.h"
+
+namespace MDbe
+{
+
+class CSrmProcTransMgrImpl : public ISrmProcTransMgr
+{
+public:
+	virtual int32 Create(SRdcCreateTrans &rcCreateTrans, int32 iExeType = TRANS_EXE_PITY);
+
+   	virtual void StopTrans(int32 iTransId, aistring rstrDes);
+
+	virtual void StopTransByApp(int32 iAppId, aistring rstrDes);
+
+	virtual bool QueryAppTransId(int32 iAppId, CRdcProcTransList &rlstProcTrans);
+
+	virtual void CompleteOpera(SBaseProcKey &rcProcKey, int32 iVmId, int32 iOperateType,
+			int32 iOperateResult ,aistring &rstrError);
+
+	virtual void OperateTimeOut();
+
+	virtual void AddTransErrorInfo(int32 iTransId, aistring &rstrError);
+
+	virtual aistring DetailProcErrInfo(SBaseProcKey &rcPk, int32 iVmId, aistring &strErrInfo);
+protected:
+	CSrmProcTransMgrImpl();
+	friend class ISrmProcTransMgr;
+
+	/**
+	 * 执行进程操作
+	 * 包含更新数据库中的进程操作状态，设置为执行中
+	 * @param rlstProcOperate 事务操作列表
+	 * @param modifyState 事务操作是否更新进程状态
+	 */
+    void ExeProcOperate(CRdcProcTransOperateList &rlstProcOperate,int32 modifyState = 1);
+
+	/**
+	 * 事务回调
+	 * @param iTransId 事务编号
+	 * @param bTransResult 事务执行结果
+	 * @return
+	 */
+	bool CallBack(int32 iTransId, int32 iTransResult = TRANS_FAIL);
+
+	/**
+	 * 事务回调
+	 * @param rcProcTrans 事务信息
+	 * @param bTransResult 事务执行结果
+	 * @return
+	 */
+	bool CallBack(CRdcProcTrans &rcProcTrans, int32 iTransResult = TRANS_FAIL);
+
+	/**
+	 * 设置事务操作更新key
+	 * @param rcInOperate in操作
+	 * @param rcOutOperate 需要设置的key
+	 */
+	void SetTranOperateKey(CRdcProcTransOperate &rcInOperate, CRdcProcTransOperate &rcOutOperate);
+
+	/**
+	 * 操作失败处理
+	 * @param iTransId 事务ID
+	 * @return 事务是否中断
+	 */
+	bool OperateFailed(CRdcProcTransOperate &rcProcOperate);
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_PROC_TRANS_MGR_IMPL_H___ */

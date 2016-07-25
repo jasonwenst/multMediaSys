@@ -1,0 +1,165 @@
+#ifndef _HW_OBJ_POOL_H_
+#define _HW_OBJ_POOL_H_
+
+#include <assert.h>
+#define MYMIN(a,b) ((a)<(b)?(a):(b))
+#include "hwmutex.h"
+typedef unsigned int uint32_t;
+//Class T 必需要有一个重置方法
+//void Reset(void);
+template<class T>
+class CObjPool
+{
+public:
+
+
+	CObjPool(uint32_t nLimitNum, uint32_t nInitNum)
+		: m_nLimitNum(nLimitNum)
+		, m_nFreeNum(MYMIN(nInitNum, nLimitNum))
+	{
+		assert(nInitNum <= nLimitNum);
+		m_nTotalNum = m_nFreeNum;
+		m_freeObjects = new ObjectHandle[m_nLimitNum];
+
+		for (uint32_t i = 0; i < m_nFreeNum; ++i)
+		{
+			m_freeObjects[i] = new T();
+		}
+	}
+
+	~CObjPool(void)
+	{
+		assert(m_nTotalNum == m_nFreeNum);
+		//std::unique_lock<std::mutex> lock(m_mutex);
+		for (uint32_t i = 0; i < m_nFreeNum; ++i)
+		{
+			delete (m_freeObjects[i]);
+		}
+
+		delete[]m_freeObjects;
+	}
+
+	//等待时间单位是毫秒，0为不等待
+	T* AllocObject(uint32_t nWaitTime = 0)
+	{
+		T *pObject = NULL;
+		CHwTmpLock lock(m_mutex);
+
+		while (pObject == NULL)
+		{
+			if (m_nFreeNum > 0)
+			{
+				pObject = m_freeObjects[m_nFreeNum - 1];
+				--m_nFreeNum;
+				break;
+			}
+
+			if (m_nTotalNum < m_nLimitNum)
+			{
+				pObject = new T();
+				++m_nTotalNum;
+				break;
+			}
+			break;
+
+
+		}
+
+
+		return pObject;
+	}
+
+	void ReleaseObject(T *pObject)
+	{
+		if (pObject == NULL)
+			return;
+		//	pObject->Reset();
+		CHwTmpLock lock(m_mutex);
+		m_freeObjects[m_nFreeNum] = pObject;
+		++m_nFreeNum;
+		//m_condi.notify_one();
+		assert(m_nFreeNum <= m_nTotalNum);
+	}
+
+
+private:
+	typedef T* ObjectHandle;
+	CHwMutex m_mutex;
+	uint32_t m_nLimitNum;
+	uint32_t m_nTotalNum;
+	uint32_t m_nFreeNum;
+	ObjectHandle *m_freeObjects;
+
+
+};
+
+
+template <class T>
+class wrapObj
+{
+public:
+	void Reset()
+	{
+
+	}
+public:
+	T data;
+};
+
+
+template <class T>
+class RootPool
+{
+public:
+
+	static T* get()
+	{
+		static CObjPool<T>* pIns = getInstance();
+		return pIns->AllocObject();
+	}
+	static void release(T* p)
+	{
+		static CObjPool<T>* pIns = getInstance();
+		pIns->ReleaseObject(p);
+	}
+	static CObjPool<T> * getInstance()
+	{
+		static CObjPool<T> pool(1000000, 100);
+		return &pool;
+	}
+
+private:
+	RootPool()
+	{
+
+	}
+};
+
+template<class T>
+T* poolGet(T* &p)
+{
+	p = RootPool<T>::get();
+	return p;
+}
+
+template<class T>
+void poolRelease(T* &p)
+{
+	RootPool<T>::release(p);
+	p = NULL;
+}
+
+
+template<class T>
+T* poolGet_()
+{
+	return RootPool<T>::get();
+}
+
+template<class T>
+void poolRelease_(T* p)
+{
+	RootPool<T>::release(p);
+}
+
+#endif //__YBBUFFERPOOL_H__

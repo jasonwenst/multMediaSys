@@ -1,0 +1,49 @@
+#!/bin/bash
+TARGET_BIN=../epa_info
+RESULT=result.bin.file
+TESTPATH=testcase
+SYS=`uname`
+
+export CPF_WORK_DIR=`pwd`
+export CPF_FLOW_ID=888
+export CPF_SRV_ID=888
+export CPF_PROC_ID=888
+
+INFOFILE=$CPF_FLOW_ID"_"$CPF_SRV_ID"_"$CPF_PROC_ID".info"
+
+if [ -f $INFOFILE ]; then
+	rm $INFOFILE 
+fi
+
+if [ -f $RESULT ];then
+	rm $RESULT
+fi
+
+if [ ! -f $TARGET_BIN ];then
+	cd ../
+	if [ $SYS = "AIX" ]; then
+		gmake -f Makefile_BIN_AIX clean
+		gmake -f Makefile_BIN_AIX	
+	else
+		gmake -f Makefile_BIN clean
+		gmake -f Makefile_BIN
+	fi
+	cd $TESTPATH
+fi
+
+echo ">>>>> begin test bin >>>>>"
+
+$TARGET_BIN -i "2"
+cat $INFOFILE >> $RESULT
+
+$TARGET_BIN -i "1"
+cat $INFOFILE >> $RESULT
+
+$TARGET_BIN -i "0" "error"
+cat $INFOFILE >> $RESULT
+
+$TARGET_BIN -s "100"
+cat $INFOFILE >> $RESULT
+
+$TARGET_BIN -s "10" "stop error"
+cat $INFOFILE >> $RESULT

@@ -1,0 +1,71 @@
+/**
+* 获取进程相关信息
+* \file      pid_info.h
+* 
+* Copyright (c) 2007 Asiainfo Technologies(China),Inc.
+* RCS: $Id
+*
+* History
+*  2007/07/30 Yangxiuwu first release
+*  2008/11/10 wanghz updated
+*/
+#ifndef pid_infoH
+#define pid_infoH
+
+#include "compile.h"
+#include <string>
+
+#ifdef AIXV5
+#include <sys/time.h>
+#endif
+
+
+#ifdef _Windows
+typedef DWORD pid_t;
+#endif
+
+struct SPidInfo
+{
+	size_t		m_iSize;		/* size of process image in Kbytes */
+	size_t		m_iRSize;		/* resident set size in Kbytes */
+	size_t		m_iThreadCount; /* number of lwps in the process */
+	int			m_iPctCpu;		/* % of recent cpu time used by all lwps */
+
+#if defined(AIXV5) //以下两个结构用于AIX平台精确计算CPU占用百分比
+	struct timeval64 m_sOldCpuTime;	/* 最后一次进程使用CPU时间,首次调用时需清零*/
+	struct timeval	 m_sLastTime;	/* 最后一次获取进程信息的时间,首次调用时需清零*/
+#endif
+#if defined(_Windows)  //以下两个结构用于Windows平台精确计算CPU占用百分比
+	int64 m_llOldCpuTime;
+	int64 m_llLastTime;
+#endif
+};
+
+/**
+* 将数字根据大小自动转成以K、M或G为单位的字符串
+* @param iSize - 以K为单位的数字
+* @return  含单位的字符串
+*/
+AISTD string format_size(size_t iSize);
+
+
+/**
+* 取进程ID功能
+* @param 无
+* @return 当前进程ID
+*/
+pid_t get_processId();
+
+
+/**
+* 获取进程信用上，包括CPU占用率、内存占用情况
+* @param  sPidInfo -- 进程信息结构引用
+*		  pid -- 进程ID
+* @return  0 -- 成功
+*		  <0 -- 失败
+*		   1 -- 进程不存在  (适用于HP平台)
+*/
+int get_pidInfo(pid_t pid, SPidInfo& sPidInfo);
+#endif
+
+

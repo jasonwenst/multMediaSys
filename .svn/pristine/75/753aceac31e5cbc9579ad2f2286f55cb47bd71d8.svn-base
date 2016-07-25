@@ -1,0 +1,66 @@
+#!/usr/bin/env perl
+use warnings;
+use strict;
+
+my $obrel_path = $ENV{CPF_HOME};
+die "getenv CPF_HOME failed\n" unless (defined $obrel_path);
+chdir "$obrel_path/ipc/nr" or die "change nr path failed.\n";
+
+my @srv_list = ();
+my $kill_cmd = "kill";
+for(@ARGV){
+    if("-9" eq $_){
+        $kill_cmd = "kill -9 ";
+        print "kill mode is forece kill.\n";
+    }else{
+        push @srv_list, $_;
+    }
+}
+
+if("kill" eq $kill_cmd){print "kill mode is nomal kill.\n";}
+print "kill proc info:\n";
+for my $srv_id(@srv_list)
+{
+	my @proc_list = glob "*_${srv_id}_*";
+	unless (@proc_list){
+        my @proc_infos = `ps -ef |grep _${srv_id} `;
+        for(@proc_infos){
+            if(/ (\d+) .*?(\d+)_${srv_id}_(\d+).xml/){
+                my $proc_info = `ps -ef | awk '{if ($1 ==\$2) print \$0}'`;
+                print $proc_info;
+                system "$kill_cmd $1"
+            }
+        }
+	}
+	for my $proc(@proc_list){
+        open NR_FILE, "$proc/status";
+        open NEW_FILE, ">$proc/status~";
+        my $set_flag=0;
+        while (<NR_FILE>){
+            if (s/iCount:=(\d+)/iCount:=4/){
+                $set_flag = 1;
+            }
+            print NEW_FILE $_;
+        }
+        unless ($set_flag){
+            close NEW_FILE;
+            open NEW_FILE, ">>$proc/status";
+            print NEW_FILE "iCount:=4\n";
+            unlink "$proc/status~";
+        }else{
+            unlink "$proc/status";
+            rename "$proc/status~", "$proc/status";
+        }
+        close NEW_FILE;
+        close NR_FILE;
+        open PID, "$proc/pid";
+        my $pid = 0;
+        while (<PID>){
+            if(/pid:=(\d+)/) {$pid = $1}
+        }
+        if (0 == $pid){next}
+        my $proc_info = `ps -ef | awk '{if ($pid ==\$2) print \$0}'`;
+        print $proc_info;
+        system "$kill_cmd $pid";
+	}
+}

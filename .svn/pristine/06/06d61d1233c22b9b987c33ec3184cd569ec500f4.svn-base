@@ -1,0 +1,31 @@
+#include "job_collimation.h"
+
+
+int32 CJobCollimationThread::init()
+{
+	int32 iRet = read_config(m_objConfig);
+	if(iRet != 0) 
+		return iRet;
+
+	return 0;
+}
+
+int32 CJobCollimationThread::destroy()
+{
+	return 0;
+}
+
+int32 CJobCollimationThread::run(bs_frame_file::CFrameFile *pFrameFile)
+{
+	return 999;
+}
+
+CJobCollimationThread::CJobCollimationThread() : m_lLastCheckTime(0)
+{ 
+	
+}
+
+CJobCollimationThread::~CJobCollimationThread()
+{ 
+	
+}

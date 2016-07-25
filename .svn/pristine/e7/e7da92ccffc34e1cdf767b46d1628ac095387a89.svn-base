@@ -1,0 +1,714 @@
+#include "QueForMutiProc.h"
+
+#include "pubtools.h"
+#include <assert.h>
+#ifdef _HWWIN_
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+#include "hwmutex.h"
+#include "HwObjPool2.h"
+
+using namespace  HW_PUB_TOOLS;
+const char* _HwRowFlag = "-\r\n-";
+const char* _HwFullFlag = "====full======-\r\n-";
+const char* _HwEndFlag = "====end======-\r\n-";
+const char* _HWFull_Real_ = "====full======";
+const char* _HWEnd_Real_ = "====end======";
+const PsHwBuffer  gHwNullBuf;
+CQueForMutiProcWrite::CQueForMutiProcWrite()
+:m_iIdxNow(-1)
+,m_iDataSize(0)
+,m_fd(NULL)
+{
+}
+
+
+
+CQueForMutiProcWrite::~CQueForMutiProcWrite()
+{
+	uninit();
+}
+
+int CQueForMutiProcWrite::push(const char* data, int len, bool bFindNotFull )
+{
+	CHwTmpLock  lock(m_lock);
+	if (m_fd != NULL && m_iDataSize + len > HW_MAX_SIZE_PER_FILE)
+	{
+		writeFileFull();
+		m_control.setOneToFull(m_iIdxNow);
+		fclose(m_fd);
+		m_fd = NULL;
+		//m_iIdxNow = -1;
+		m_iDataSize = 0;
+
+	}
+	//打开新文件
+	if (m_fd == NULL)
+	{
+		m_iIdxNow = m_control.getOneIdleFile(bFindNotFull);
+		if (m_iIdxNow < 0)
+			return -1;
+		m_sDataFile = m_control.getDataFileNameById(m_iIdxNow);
+		m_iDataSize =(int) getFileSize(m_sDataFile.c_str());
+		if (m_iDataSize == 0)
+		{
+			m_fd = fopen(m_sDataFile.c_str(), "wb+");
+		}
+		else
+		{
+			m_fd = fopen(m_sDataFile.c_str(), "rb+");
+		}
+		assert(m_fd != NULL);
+		fseek(m_fd, 0, SEEK_END);
+	}
+	int l = writeMax(m_fd, data, len);
+	assert(l == len);
+	writeRowEnd();
+	fflush(m_fd);
+	m_iDataSize += len + 4;
+	return 0;
+
+}
+
+int CQueForMutiProcWrite::push(const char* data, bool bFindNotFull)
+{
+	return push(data, strlen(data),bFindNotFull);
+}
+
+int CQueForMutiProcWrite::changeDataFile()
+{
+	return 0;
+}
+
+int CQueForMutiProcWrite::init(const char* rootPath)
+{
+	CHwTmpLock  lock(m_lock);
+	m_sRootDir = rootPath;
+	m_control.setControPath(rootPath);
+	return 0;
+}
+
+int CQueForMutiProcWrite::writeFileEnd()
+{
+	static int l = strlen(_HwEndFlag);
+	int written = writeMax(m_fd, _HwEndFlag, l);
+	assert(written == l);
+	//printf("proc exit \n");
+	return 0;
+}
+
+int CQueForMutiProcWrite::writeRowEnd()
+{
+	static int l = strlen(_HwRowFlag);
+	int written = writeMax(m_fd, _HwRowFlag, l);
+	assert(written == l);
+	return 0;
+}
+
+int CQueForMutiProcWrite::uninit()
+{
+	CHwTmpLock  lock(m_lock);
+	if (m_fd != NULL)
+	{
+		writeFileEnd();
+		m_control.setOneToNoFullWrited(m_iIdxNow);
+		fclose(m_fd);
+		m_fd = NULL;
+
+	}
+	return 0;
+}
+
+int CQueForMutiProcWrite::writeFileFull()
+{
+	static int l = strlen(_HwFullFlag);
+	int written = writeMax(m_fd, _HwFullFlag, l);
+	assert(written == l);
+	printf("change data because full\n");
+	return 0;
+}
+
+void CQueForMutiProcWrite::printControl()
+{
+	 m_control.outPut();
+}
+
+void CControFile::setControPath(const char* filepath)
+{
+	
+	m_sRootPath = filepath ;
+	m_sRootPath += "/";
+	HW_PUB_TOOLS::mkdir_fromFileName(m_sRootPath.c_str());
+	m_sConrolFileName = m_sRootPath + "que.control";
+	m_sLockFileConrolName = m_sConrolFileName + ".lock";
+	if (!isFileExist(m_sLockFileConrolName.c_str()))
+	{
+    	createFile(m_sLockFileConrolName.c_str());
+	}
+	m_lockFd = fopen(m_sLockFileConrolName.c_str(), "rb+");
+	assert(m_lockFd != NULL);
+	CMyAutoLock<CControFile> lock(this);
+	if (!isFileExist(m_sConrolFileName.c_str()))
+	{
+         //初始化一个默认的配置文件
+		setDefaultSettings();
+	}
+
+}
+
+void CControFile::lock()
+{
+	assert(m_lockFd !=NULL);
+#ifndef _HWWIN_
+	lockf(fileno(m_lockFd), F_LOCK, 0);//
+#endif
+}
+
+void CControFile::unlock()
+{
+	assert(m_lockFd !=NULL);
+#ifndef _HWWIN_
+	lockf(fileno(m_lockFd), F_ULOCK, 0);
+#endif
+}
+
+int CControFile::load()
+{
+	if (m_fd == NULL)
+	{
+		m_fd = fopen(m_sConrolFileName.c_str(), "rb+");
+		assert(m_fd != NULL);
+	}
+	fseek(m_fd, 0, SEEK_SET);
+	int iRead = readMax(m_fd, (char*)&m_control, sizeof(m_control));
+	assert(iRead == sizeof(m_control));
+	return 0;
+
+}
+
+int CControFile::save()
+{
+	if (m_fd == NULL)
+	{
+		m_fd = fopen(m_sConrolFileName.c_str(), "rb+");
+		assert(m_fd != NULL);
+	}
+	fseek(m_fd, 0, SEEK_SET);
+	int iWrite =writeMax(m_fd, (char*)&m_control, sizeof(m_control));
+	assert(iWrite == sizeof(m_control));
+	fflush(m_fd);
+	return 0;
+}
+
+CControFile::CControFile()
+:m_fd(NULL)
+, m_lockFd(NULL)
+{
+
+}
+
+CControFile::~CControFile()
+{
+	if (m_fd != NULL)
+	{
+		fclose(m_fd);
+		m_fd = NULL;
+	}
+	if (m_lockFd != NULL)
+	{
+		fclose(m_lockFd);
+		m_lockFd = NULL;
+	}
+
+}
+
+int CControFile::setDefaultSettings()
+{
+	memset(&m_control, 0, sizeof(m_control));
+	//
+//	m_control.iNowIdleTotal = HW_MAX_FileNum;
+	for (int i = 0; i < HW_MAX_FileNum; ++i)
+	{
+		m_control.data[i].setPid(0);
+		m_control.data[i].setState(eNoUse);
+	}
+	createFile(m_sConrolFileName.c_str());
+	save();
+	return 0;
+}
+
+int CControFile::getOneIdleFile(bool bFindNotFull)
+{
+	CMyAutoLock<CControFile> lock(this);
+	load();
+	int iRes = getIdleId(bFindNotFull);
+	if (iRes == -1)
+		return iRes;
+	save();
+	return iRes;
+
+
+}
+
+std::string CControFile::getDataFileNameById(int i)
+{
+	std::string res = m_sRootPath + "data.";
+	res += HW_PUB_TOOLS::number2String(i);
+	return res;
+}
+
+int CControFile::setOneToIdle(int id)
+{
+	CMyAutoLock<CControFile> lock(this);
+	assert(id >= 0 && id < HW_MAX_FileNum);
+	load();
+//	++m_control.iNowIdleTotal;
+	m_control.data[id].setPid(0);
+	m_control.data[id].setState(eNoUse);
+	save();
+	return 0;
+
+}
+
+int CControFile::setOneToFull(int id, int & nextIdleId)
+{
+	CMyAutoLock<CControFile> lock(this);
+	assert(id >= 0 && id < HW_MAX_FileNum);
+	load();
+//	++m_control.iNowIdleTotal;
+	m_control.data[id].setState(eUse_FullWrited);
+	save();
+	 nextIdleId = getIdleId();
+	if (nextIdleId != -1)
+	{
+		save();
+	}
+	printf("change file because fulled\n");
+	return 0;
+}
+
+int CControFile::setOneToFull(int id)
+{
+	CMyAutoLock<CControFile> lock(this);
+	assert(id >= 0 && id < HW_MAX_FileNum);
+	load();
+	//	++m_control.iNowIdleTotal;
+	m_control.data[id].setState(eUse_FullWrited);
+	save();
+	return 0;
+}
+
+int CControFile::setOneToNoFullWrited(int id)
+{
+	CMyAutoLock<CControFile> lock(this);
+	assert(id >= 0 && id < HW_MAX_FileNum);
+	load();
+	m_control.data[id].setState(eUse_NotFullWrited);
+	save();
+	return 0;
+}
+
+int CControFile::getIdleId(bool bFindNotFull)
+{
+	EDataFileState st;
+	int iFirstNotFullWrite = -1;
+	int iFirstNoUse = -1;
+	for (int i = 0; i < HW_MAX_FileNum; ++i)
+	{
+		st = m_control.data[i].getState();
+		if (st == eNoUse)
+		{
+			iFirstNoUse = i;
+			break;
+		}
+		else if (st == eUse_NotFullWrited)
+		{
+			if (iFirstNotFullWrite == -1)
+				iFirstNotFullWrite = i;
+		}
+	}
+	int iRes = -1;
+	if (iFirstNoUse != -1)
+	{
+		iRes = iFirstNoUse;
+	//	--m_control.iNowIdleTotal;
+	}
+	else if (iFirstNotFullWrite != -1)
+	{
+		iRes = iFirstNotFullWrite;
+	}
+
+	if (bFindNotFull &&iFirstNotFullWrite != -1)
+	{
+		iRes = iFirstNotFullWrite;
+	}
+	if (iRes == -1)
+	{
+		printf("space fulled for warning record");
+		return -1;
+	}
+
+	m_control.data[iRes].setState(eUse_Writting);
+	m_control.data[iRes].setPid(getProcessId());
+	return iRes;
+}
+
+void CControFile::outPut()
+{
+	load();
+	m_control.show();
+}
+
+CQueForMutiProcRead::CQueForMutiProcRead()
+:m_iReadIdx(-1)
+{
+	
+}
+
+CQueForMutiProcRead::~CQueForMutiProcRead()
+{
+	//关闭打开的读句柄
+	for (int i = 0; i < HW_MAX_FileNum; ++i)
+	{
+		if (m_FileTempState[i].fd != NULL)
+		{
+			fclose(m_FileTempState[i].fd);
+			m_FileTempState[i].fd = NULL;
+		}
+	}
+}
+
+int CQueForMutiProcRead::getNextReadFile()
+{
+	int times = 0;
+	while (times <=HW_MAX_FileNum )
+	{
+		++times;
+		++m_iReadIdx;//开始为-1，所以第一次会调用load
+		if (m_iReadIdx >HW_MAX_FileNum-1)
+		{
+			m_iReadIdx = 0;
+		}
+			
+
+		if (m_iReadIdx == 0)
+		{
+			m_control.load();
+		}
+		EDataFileState st = m_control.m_control.data[m_iReadIdx].getState();
+		if (st == eNoUse)
+		{
+			continue;
+		}
+		else
+		{
+#ifdef _DEBUG
+			printf("change read file to %d\n", m_iReadIdx);
+#endif
+			return m_iReadIdx;
+		}
+	}
+	//printf("nothing to read \n");
+	m_iReadIdx = -1;
+	return -1;
+
+	
+}
+
+PsHwBuffer CQueForMutiProcRead::getOneRow()
+{
+	
+	if (m_iReadIdx == -1)
+		m_iReadIdx = getNextReadFile();
+	if (m_iReadIdx == -1)//没有数据可读
+	{
+		return  gHwNullBuf;
+	}
+
+	
+	PsHwBuffer pRead = innerGetRow(m_iReadIdx);
+	if (pRead ==  gHwNullBuf)
+	{
+		int old = m_iReadIdx;
+		m_iReadIdx = getNextReadFile();
+		if (m_iReadIdx == -1 || m_iReadIdx == old)
+		{
+#ifdef _DEBUG
+			printf("nothing to read\n");
+#endif
+			return  gHwNullBuf;
+		}
+		
+		return innerGetRow(m_iReadIdx);//不能递归，容易队溢出
+	}
+	return pRead;
+
+	
+}
+//该文件确保已经被打开
+PsHwBuffer CQueForMutiProcRead::innerGetRow(int idx)
+{
+	if (m_FileTempState[idx].fd == NULL)
+	{
+		m_FileTempState[idx].fd = fopen(m_control.getDataFileNameById(m_iReadIdx).c_str(), "rb");
+		if (m_FileTempState[idx].fd == NULL)//有可能该文件正在创建过程中
+		{
+			mysleep(1);
+			m_FileTempState[idx].fd = fopen(m_control.getDataFileNameById(m_iReadIdx).c_str(), "rb");
+		}
+		if (m_FileTempState[idx].fd == NULL)
+		{
+			//文件不存在
+			setOneFileToIdle(idx);
+			return gHwNullBuf;
+		}
+		assert(m_FileTempState[idx].fd != NULL);//标记为可读，那么肯定该文件应该存在
+		int readPos = m_readState.getReadPos(idx);
+		fseek(m_FileTempState[idx].fd, readPos, SEEK_SET);
+		m_FileTempState[idx].sCache.reset();
+	}
+	time_t t = time(NULL);
+	SOneFileReadState& oneFileState = m_FileTempState[idx];
+	CHwBuffer & sCache = m_FileTempState[idx].sCache;
+	FILE*  fd = m_FileTempState[m_iReadIdx].fd;
+	assert(fd != NULL);
+	//bool bReadFileEnd = false;
+	int len = 0;
+	char* pos = strstr(sCache.cutData(), _HwRowFlag);
+	if (pos != 0)
+	{
+		len = pos - sCache.cutData();
+		//assert(len<20000 && len >0);
+	}
+	if (pos == NULL)
+	{
+		while (true)
+		{
+			
+			
+			sCache.preExtend(1024);
+			char* oldPos = sCache.end();
+			int oldLen = sCache.avaluebleSize();
+			int readn = readMax(fd, sCache.end(), 1024);//不够一行，继续读
+			if (readn > 0)
+			{
+				//bReadFileEnd = false;
+				sCache.finishExtend(readn);
+				int pre = oldLen < 4 ? oldLen : 3;
+				if ((pos = strstr(oldPos - pre, _HwRowFlag)) != NULL)
+				{
+					if (pos != 0)
+					{
+						len = pos - sCache.cutData();
+						//assert(len<2000 && len >0);
+					}
+					break;
+				}
+				else
+				{
+					continue;
+				}
+				oneFileState.iLastReadTime = t;
+
+			}
+			else
+			{
+			//	bReadFileEnd = true;
+				break;
+			}
+		}
+
+	}
+	else
+	{
+		//bReadFileEnd = false;
+	}
+	if (pos != NULL)
+	{
+		PsHwBuffer pbuf(poolGet_<CHwBuffer>(), poolRelease_<CHwBuffer>);
+		assert(len<2000 && len >0);
+		pbuf->set(sCache.cutData(), len);
+		
+		sCache.cutMore(pos - sCache.cutData() + 4);//删除被读取出的行
+		if (sCache.getCutSize() > 2048)
+		{
+			sCache.forward();
+		}
+		m_readState.addReadPos(idx, len + 4);
+		if (strcmp(pbuf->data(), _HWEnd_Real_)==0)//是尾行
+		{
+			oneFileState.eLastState = eFileEndRecord;
+			
+			return getOneRow();//跳过尾行记录
+		}
+
+
+		if (strcmp(pbuf->data(), _HWFull_Real_)==0)//是满行标识
+		{
+			setOneFileToIdle(idx);
+			return gHwNullBuf;
+		}
+		return pbuf;
+	}
+	if (oneFileState.eLastState != eFileEndRecord )
+	{
+		oneFileState.eLastState = eNullRecord;
+	}
+	
+	if (m_FileTempState[idx].iLastReadTime == 0)
+	{
+		m_FileTempState[idx].iLastReadTime = t;
+	}
+	//删除没有数据可读，并且超过一定时间的文件，检测该进程是否已退出，如果已退出，则删除该文件
+	else if (m_control.m_control.data[idx].getState()== eUse_FullWrited ||(oneFileState.eLastState == eFileEndRecord &&t - oneFileState.iLastReadTime > 10 * 1)|| t - m_FileTempState[idx].iLastReadTime > 60 * 1)//1分钟没有数据写入的话，检测进程是否存在，不存在则删除文件
+	{
+		m_control.load();
+		if (!HW_PUB_TOOLS::isProcessExist(m_control.m_control.data[idx].iPid))
+		{
+			printf("delete no write file \n");
+			setOneFileToIdle(idx);
+			return gHwNullBuf;
+		}
+		else//进程存在，测更新最后检测时间
+		{
+			m_FileTempState[idx].iLastReadTime = t;
+		}
+	}
+	//m_readState.addReadPos(idx, len + 4);
+	return gHwNullBuf;
+
+
+}
+
+void CQueForMutiProcRead::setOneFileToIdle(int idx)
+{
+	SOneFileReadState& oneFileState = m_FileTempState[idx];
+	if (oneFileState.fd != NULL)
+	{
+		fclose(oneFileState.fd);
+		oneFileState.fd = NULL;
+	}
+
+	oneFileState.iLastReadTime = 0;
+	oneFileState.eLastState = eNormalRecord;
+	m_readState.setReadPos(m_iReadIdx, 0);
+	HW_PUB_TOOLS::deleteFile(m_control.getDataFileNameById(m_iReadIdx).c_str());
+	m_control.setOneToIdle(m_iReadIdx);
+	
+}
+
+int CQueForMutiProcRead::setRootDir(const char* path)
+{
+	m_control.setControPath(path);
+	m_readState.setRootDir(path);
+	return 0;
+}
+
+
+
+int CReadState::setRootDir(const char* path)
+{
+	m_sRootPath = path;
+	m_sStatePath = m_sRootPath + "/readstate";
+	if (!isFileExist(m_sStatePath.c_str()))
+	{
+		createFile(m_sStatePath.c_str());
+		memset(&m_state, 0, sizeof(m_state));
+		save();
+	}
+	else
+	{ 
+		load();
+	}
+	return 0;
+}
+
+int CReadState::load()
+{
+	if (m_fd == NULL)
+	{
+		m_fd = fopen(m_sStatePath.c_str(), "rb+");
+		assert(m_fd != NULL);
+	}
+	fseek(m_fd, 0, SEEK_SET);
+	int readn = readMax(m_fd, (char*)&m_state, sizeof(m_state));
+	if (readn < (int)sizeof(m_state))
+	{
+		memset(&m_state, 0, sizeof(m_state));
+		save();
+	}
+	
+	m_bHasLoad = true;
+	return 0;
+}
+
+int CReadState::save()
+{
+	if (m_fd == NULL)
+	{
+		m_fd = fopen(m_sStatePath.c_str(), "rb+");
+		assert(m_fd != NULL);
+	}
+	fseek(m_fd, 0, SEEK_SET);
+	int writen = writeMax(m_fd, (char*)&m_state, sizeof(m_state));
+	assert(writen == sizeof(m_state));
+	return 0;
+}
+
+
+
+
+
+int CReadState::save(int i)
+{
+	if (m_fd == NULL)
+	{
+		m_fd = fopen(m_sStatePath.c_str(), "rb+");
+		assert(m_fd != NULL);
+	}
+	int startpos = (char*)&m_state.data[i] - (char*)&m_state;
+	fseek(m_fd, startpos, SEEK_SET);
+	int writen = writeMax(m_fd, (char*)&m_state.data[i], sizeof(int));
+	assert(writen == sizeof(int));
+	return 0;
+
+}
+
+int CReadState::getReadPos(int i)
+{
+	assert(i >= 0 && i < HW_MAX_FileNum);
+	if (!m_bHasLoad)
+	{
+		load();
+	}
+	return m_state.data[i];
+}
+
+int CReadState::setReadPos(int i, int pos)
+{
+	m_state.data[i] = pos;
+	return save(i);
+}
+
+
+
+CReadState::CReadState()
+:m_bHasLoad(false), m_fd(NULL)
+{
+
+}
+
+CReadState::~CReadState()
+{
+
+}
+
+int CReadState::addReadPos(int i, int pos)
+{
+	m_state.data[i] += pos;
+	return save(i);
+}
+
+

@@ -1,0 +1,37 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_tstb_mgr_impl_cpp)
+{
+	//Fuction: CSrmTsTbMgrImpl :: CSrmTsTbMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmTsTbMgrImpl_CSrmTsTbMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void MDbe :: CSrmTsTbMgrImpl :: RegistTbSupply ( MDbe :: SSrmTbSupply sTbSupply )
+	TEST_FIXTURE(TestFixture,TestMDbe_CSrmTsTbMgrImpl_RegistTbSupply)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void MDbe :: CSrmTsTbMgrImpl :: RspTsSubscribe ( MDbe :: SSrmTsSubscribe sTsSubscribe )
+	TEST_FIXTURE(TestFixture,TestMDbe_CSrmTsTbMgrImpl_RspTsSubscribe)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmTsTbMgrImpl :: GetSuitTbAddr ( CRdcTbAddr & rcTbAddr , SBaseSubscribeMsg & rcSubscribeMsg )
+	TEST_FIXTURE(TestFixture,TestCSrmTsTbMgrImpl_GetSuitTbAddr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

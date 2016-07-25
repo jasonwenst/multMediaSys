@@ -1,0 +1,73 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_deploy_mgr.h）
+/// brief	 
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_DEPLOY_MGR_H___
+#define __SRM_DEPLOY_MGR_H___
+
+#include "dbe2_base_mgr.h"
+#include "srm_def_sdl_c.h"
+#include "rdc_def_sdl_c.h"
+#include "rdc_table_def_sdl_c.h"
+
+namespace MDbe
+{
+
+/**
+ * 部署类管理接口
+ */
+class ISrmDeployMgr : public IBaseMgr
+{
+public:
+
+	/**
+	 * 获取管理类的实例
+	 * @return 返回实例
+	 */
+	static ISrmDeployMgr & GetInstance();
+	/**
+    *部署一个应用
+    *@param iAppId为需要部署的应用ID
+    *@param rcProcTransOperateList  出参事务列表
+    */
+    virtual void DeployApp(const int32& iAppId,CRdcProcTransOperateList& rcProcTransOperateList) =0;
+	/**
+    *部署增加的进程
+    *@param iAppId为需要部署的应用ID
+	*@param iProcNum为需要部署的进程数目
+    *@param rcProcTransOperateList  出参事务列表
+    */
+    virtual void DeployIncreaseProc(const int32& iAppId,int32 iProcNum,CRdcProcTransOperateList& rcProcTransOperateList) =0;
+	
+	/**
+    *部署迁移的进程
+    *@param iAppId为需要部署的应用ID
+	*@param rProcList为需要部署的进程列表
+    *@param rcProcTransOperateList  出参事务列表
+    */
+    virtual void DeployMigrateProc(int32 iAppId,CRdcProcList& rProcList,CRdcProcTransOperateList& rcProcTransOperateList) =0;
+
+
+
+
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_DEPLOY_MGR_H___ */

@@ -1,0 +1,73 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_auto_ptr.h）
+/// brief	 
+///				智能指针
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-16）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_AUTO_PTR_H___
+#define __DBE2_AUTO_PTR_H___
+
+#include "dbe2_base_def.h"
+
+
+namespace MDbe
+{
+
+/**
+ * 智能指针
+ * 不用自己去DELETE 指针对象
+ * 在析构时自动删除
+ */
+template<class _Tp>
+class CAutoPtr
+{
+public:
+	CAutoPtr(_Tp * pPtr):m_pPtr(pPtr)
+    {
+    }
+
+    ~CAutoPtr()
+    {
+    	delete m_pPtr;
+    }
+
+    _Tp & operator*() const
+    {
+        return *m_pPtr;
+    }
+
+    _Tp * operator->() const
+    {
+        return &(operator*());
+    }
+private:
+    //不支持拷贝构造
+    CAutoPtr(const CAutoPtr & rhs)
+    {
+
+    }
+
+    CAutoPtr & operator=(const CAutoPtr & rhs)
+    {
+        return *this;
+    }
+private:
+    _Tp * m_pPtr;
+};
+
+} // namespace MDbe
+
+
+#endif /* __DBE2_AUTO_PTR_H___ */

@@ -1,0 +1,43 @@
+#ifndef __NRM_WARN_MGR_H__
+#define __NRM_WARN_MGR_H__
+
+#include "dbe2_base_mgr.h"
+#include "dbm_def_sdl_c.h"
+#include "dbe_base_def_sdl_c.h"
+#include "msg_dispatch_mgr.h"
+#include <vector>
+
+namespace MDbe{
+
+/**
+ * Warninfo管理器
+ */
+class INrmWarnMgr : public IBaseMgr
+{
+public:
+    /**
+     * 获取管理类的实例
+     * @return 返回实例
+     */
+    static INrmWarnMgr & GetInstance();
+
+public:
+
+	/*
+	 * 获取告警信息
+	 */
+	virtual int	GetWarnInfo(std::vector<SDbmWarnInfo>& vecDbmWarnInfo) = 0;
+	
+	virtual int DealMsg(
+		const std::string& strMsg, 
+		std::vector<std::string>& vecStrMsg) = 0;
+	
+	virtual int ChangeWarnInfo(
+		const std::vector<std::string>& vecRecord,
+		SDbmWarnInfo& sDbmWarnInfo) = 0;
+};
+
+	
+}
+
+#endif

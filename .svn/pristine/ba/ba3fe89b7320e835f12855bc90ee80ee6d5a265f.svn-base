@@ -1,0 +1,131 @@
+#include "nrm_warn_mgr_impl.h"
+#include "dbe2_util.h"
+#include "nrm_define.h"
+#include <sstream>
+#include "IWarnGet.h"
+
+namespace MDbe{
+
+CNrmWarnMgrImpl::CNrmWarnMgrImpl()
+{
+	
+}
+
+CNrmWarnMgrImpl::~CNrmWarnMgrImpl()
+{
+
+}
+
+
+int CNrmWarnMgrImpl::DealMsg(
+		const std::string& strMsg, 
+		std::vector<std::string>& vecStrMsg
+			)
+{
+	if("" == strMsg)
+	{
+		return -1;
+	}
+
+	vecStrMsg.clear();
+	vecStrMsg.resize(WARNING_STR_LEN);
+
+	std::stringstream sstream(strMsg);	
+	char* delim = WARNING_SEPERATE;
+	std::string strTmp;
+	int count = 0;
+	while(getline(sstream, strTmp, *delim) 
+		&&(count <= WARNING_STR_LEN))
+	{
+		vecStrMsg[count] = strTmp;
+		count++;
+	}
+
+	return 0;
+}
+
+int CNrmWarnMgrImpl::ChangeWarnInfo(
+		const std::vector<std::string>& vecRecord,
+		SDbmWarnInfo& sDbmWarnInfo)
+{
+	sDbmWarnInfo.set_msgHead(GetMsgHead(5017));
+
+	sDbmWarnInfo.set_score(NULL_VALUE_ZJ_SCORE);
+	// warn id 与 moniId 同
+	sDbmWarnInfo.set_moniId(NULL_VALUE_ZJ_MONIID);                 
+	sDbmWarnInfo.set_warnId(std::atoi(vecRecord[WARN_CODE].c_str()));                 
+
+	SBaseProcKey rcProcKey;
+	rcProcKey.set_appId(std::atoi(vecRecord[WARN_APP_ID].c_str()));
+	rcProcKey.set_procId(std::atoi(vecRecord[WARN_PROC_ID].c_str()));
+	sDbmWarnInfo.set_procKey(rcProcKey);
+
+	sDbmWarnInfo.set_vmId(od_system::get_vmId());
+
+	sDbmWarnInfo.set_message(vecRecord[WARN_INFO]);
+	sDbmWarnInfo.set_description(vecRecord[WARN_REMARK]);
+
+	sDbmWarnInfo.set_warnTime(std::atoi(vecRecord[WARN_TIME].c_str()));
+
+	DBE2_LOG(DEBUG_LOGGER, 
+			">>>>>>>>> Warninfo app_id[%s], proc_id[%s], msg[%s], description[%s], warn_time[%s]",
+			vecRecord[WARN_APP_ID].c_str(),
+			vecRecord[WARN_PROC_ID].c_str(),
+			vecRecord[WARN_INFO].c_str(),
+			vecRecord[WARN_REMARK].c_str(),
+			vecRecord[WARN_TIME].c_str()
+			);
+
+	return 0;
+}
+
+int	CNrmWarnMgrImpl::GetWarnInfo(std::vector<SDbmWarnInfo>& vecDbmWarnInfo)
+{
+	vecDbmWarnInfo.clear();
+
+	bool isHaveWarnRecord;
+	char tmp[WARNING_DEF_STR_LEN+1] = {0};
+
+	IWarnGet::getInstance()->init();
+	std::vector<std::string> vecRecord;
+	SDbmWarnInfo sDbmWarnInfo;
+
+	int iRet = 0;
+	int len = 0;
+
+	while(true)
+	{
+		isHaveWarnRecord = IWarnGet::getInstance()->getOneWarnRecord(tmp, WARNING_DEF_STR_LEN, len);
+		if(isHaveWarnRecord)
+		{
+			iRet = DealMsg(tmp, vecRecord);
+			if(0 != iRet)
+			{
+				DBE2_LOG(ERROR_LOGGER, "deal warning msg error.");
+				return -1;
+			}
+
+			iRet = ChangeWarnInfo(vecRecord, sDbmWarnInfo);
+			if(0 != iRet)
+			{
+				DBE2_LOG(ERROR_LOGGER, "change warning msg error.");
+				return -1;
+			}
+
+			vecDbmWarnInfo.push_back(sDbmWarnInfo);
+
+		}
+		else
+		{
+			DBE2_LOG(DEBUG_LOGGER, "========== No warning record.============");
+			return 0;
+		}
+	}
+	
+}
+
+
+
+
+
+}

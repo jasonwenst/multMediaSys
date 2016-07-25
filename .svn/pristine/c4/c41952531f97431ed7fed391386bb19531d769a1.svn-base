@@ -1,0 +1,46 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_base_def.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_BASE_DEF_H___
+#define __DBE2_BASE_DEF_H___
+
+#include "compile.h"
+#include "base_class.h"
+#include "public/common/base/aistring.h"
+#include "public/common/base/aimap.h"
+#include "public/common/base/aivector.h"
+#include "public/common/base/ailist.h"
+#include "public/common/log/ailog_exception.h"
+#include "dbe2_log.h"
+
+#define DBE2_MOD(x,y)               ((x) & ((y)-1))
+
+//定义每一个模块异常代码开始数值
+#define DBE2_BASE_START_ERROR_CODE	50000
+#define DBE2_MSG_DISPATCH_START_ERROR_CODE	50500
+#define DBE2_SRM_START_ERROR_CODE	50600
+#define DBE2_NRM_START_ERROR_CODE 50700
+#define DBE2_EPA_START_ERROR_CODE 51000
+
+
+using namespace err_info_service;
+
+
+
+
+#endif /* __DBE2_BASE_DEF_H___ */

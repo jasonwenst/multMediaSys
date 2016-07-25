@@ -1,0 +1,17 @@
+#include "IWarnGet.h"
+#include "WarnGetFileQueImp.h"
+
+IWarnGet::IWarnGet()
+{
+}
+
+
+IWarnGet::~IWarnGet()
+{
+}
+
+IWarnGet* IWarnGet::getInstance()
+{
+	static CWarnGetFileQueImp ins;
+	return &ins;
+}

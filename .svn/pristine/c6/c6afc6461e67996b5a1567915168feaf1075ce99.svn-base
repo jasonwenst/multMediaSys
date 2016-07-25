@@ -1,0 +1,95 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_other_mgr_impl.h）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-7-25）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_OTHER_MGR_IMPL_H___
+#define __SRM_OTHER_MGR_IMPL_H___
+
+#include "srm_other_mgr.h"
+#include "dbe2_typedef.h"
+#include "dbe2_lock.h"
+#include "msg_dispatch_mgr.h"
+#include "rdc_table_def_sdl_c.h"
+
+namespace MDbe
+{
+class CWarnMsg
+{
+public:
+    /*	CSendSource m_cSendSrc;
+    	int32 m_iTrans;
+    	int32 m_iMsgType;
+    	aistring m_strMsg;
+    	*/
+};
+typedef std::list<CAmWarnRecordOri> CWarnMsgOriList;
+
+class CWarnMsgLockList
+{
+public:
+    void PushBack(CAmWarnRecordOri &rcWarnMsg);
+    void PopAll(CWarnMsgOriList &rcWarnList);
+private:
+    CWarnMsgOriList m_cWarnMsgList;
+    CLock m_clock;
+};
+
+class CSrmOtherMgrImpl : public ISrmOtherMgr
+{
+public:
+    /**
+    * 初始化
+    */
+    void Init(CMgrInitHelper & cMgrInitHelper);
+    virtual int32 TransmitUpgrade(SSrmSoftWareUpdate &rcUpgrade);
+    virtual void SendWarnInfo(SDbmWarnInfo &rcWarnInfo);
+    virtual void SendWarnInfo(CAmWarnRecordOri &rcWarnOri);
+    virtual void RealSendWarnInfo(void);
+	virtual void InsertWarnDetail(CAmWarnRecordOri &rcWarnOri);
+    /**
+    * 定時調用
+    * 询问软件升级进度
+    */
+    virtual void HandleVmUpgradeProgress(SSrmUpGradeProcess &rcUpInfo);
+
+    /**
+     * 定時調用
+     * 询问软件升级进度
+    */
+    virtual void QueryUpgradeProgress(void);
+protected:
+    CSrmOtherMgrImpl();
+    friend class ISrmOtherMgr;
+private:
+    /**
+     * 将升级记录数据库
+     * 返回此次操作的op_id
+    */
+    int32 CreateUpgradeInfo(SSrmSoftWareUpdate &rcUpgrade, int32 iSec);
+    /**
+     * 升级结束回调处理
+    */
+    void HandleUpgradeEnd(CRdcPuOp &rcPuOp, aistring &rstrErrorVm);
+
+    bool m_bUpgradeDoing;
+    CWarnMsgLockList m_cWarnMsgLockList;
+};
+
+} // namespace MDbe
+
+#endif /* __SRM_OTHER_MGR_IMPL_H___ */

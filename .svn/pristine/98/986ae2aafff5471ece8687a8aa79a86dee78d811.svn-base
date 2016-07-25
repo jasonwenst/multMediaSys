@@ -1,0 +1,2629 @@
+#include <unittest_cp_dbe2_ca_main.h>
+
+SUITE(SUITE_module_ca_def_cpp)
+{
+	//Fuction: NSSYS_START ( SYSTEM_TEST_DEF ) NSSUB_START ( SUBSYS_test_DEF ) NSMOD_START ( module_ca_def )
+	TEST_FIXTURE(TestFixture,TestNSMOD_START)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAClientMainThread_check_killTs ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAClientMainThread_check_killTs)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAClientMainThread_handle_msgSelf ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAClientMainThread_handle_msgSelf)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAClientMainThread_handle_procAndVmStatus ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAClientMainThread_handle_procAndVmStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAClientMainThread_handle_rspCommReg_con_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAClientMainThread_handle_rspCommReg_con_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAClientMainThread_handle_rspCommReg_new_con ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAClientMainThread_handle_rspCommReg_new_con)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAClientMainThread_handle_rspVmId ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAClientMainThread_handle_rspVmId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAClientMainThread_handle_specialTypeSeg ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAClientMainThread_handle_specialTypeSeg)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAClientMainThread_run_handleType ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAClientMainThread_run_handleType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_check_killSelf ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_check_killSelf)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_check_vmIdCommu_Ip ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_check_vmIdCommu_Ip)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_get_IpFromCommApi_err ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_get_IpFromCommApi_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_get_IpFromCommApi_ok ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_get_IpFromCommApi_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_cacCommRegister_recv_ca ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_cacCommRegister_recv_ca)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_cacCommRegister_recv_out ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_cacCommRegister_recv_out)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_cacCommRegister_recv_pt ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_cacCommRegister_recv_pt)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_msgCutType_SRM_cut ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_msgCutType_SRM_cut)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_repVmId_VmIp ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_repVmId_VmIp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_repVmId_err ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_repVmId_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_repVmId_loop ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_repVmId_loop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_repVmId_recv ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_repVmId_recv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_specialTypeSeg_err ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_specialTypeSeg_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_srmCommResponse_err ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_srmCommResponse_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_toCa_Info ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_toCa_Info)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_toCa_pritn ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_toCa_pritn)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_handle_toCa_size ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_handle_toCa_size)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_init_cas_get_SPort ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_init_cas_get_SPort)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_run_recv_CData ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_run_recv_CData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_sendCacConnInfo_CVmConnInfo ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_sendCacConnInfo_CVmConnInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_sendCacConnInfo_CVmConnInfo_L ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_sendCacConnInfo_CVmConnInfo_L)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_send_msgReqCasPort_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_send_msgReqCasPort_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_send_msgReqCasPort_ok ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_send_msgReqCasPort_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCAServerMainThread_send_newSoftNotice ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCAServerMainThread_send_newSoftNotice)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCommunicateWriteFilter_run_handleType ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCommunicateWriteFilter_run_handleType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCommunicateWriteFilter_run_info ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCommunicateWriteFilter_run_info)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCommunicateWriteFilter_run_send_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCommunicateWriteFilter_run_send_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CCommunicateWriteFilter_run_send_ok ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CCommunicateWriteFilter_run_send_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_CommunicateApi_null ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_CommunicateApi_null)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_udp ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_udp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_find_ipAndPortByUdp_getip_from_srm ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_find_ipAndPortByUdp_getip_from_srm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_find_ipAndPortByUdp_port ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_find_ipAndPortByUdp_port)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_find_ipAndPortByUdp_udp_invalid ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_find_ipAndPortByUdp_udp_invalid)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_init_read_config_ret ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_init_read_config_ret)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_register_commClient_create_err ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_register_commClient_create_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_register_commClient_new_connect ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_register_commClient_new_connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_register_commClient_time ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_register_commClient_time)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_run_cac_get_ip_and_port_from_pipeLine ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_run_cac_get_ip_and_port_from_pipeLine)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_run_client_thread_recv_data ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_run_client_thread_recv_data)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_run_get_ip_and_port_from_pipeLine ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_run_get_ip_and_port_from_pipeLine)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_run_recv_notify ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_run_recv_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_run_recv_notify_data ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_run_recv_notify_data)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_run_recv_notify_timeout ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_run_recv_notify_timeout)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_run_register_return ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_run_register_return)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_stop ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_stop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_updateSerIp_begin ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_updateSerIp_begin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_updateSerIp_config ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_updateSerIp_config)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateClient_updateSerIp_create_config ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateClient_updateSerIp_create_config)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateRead_run_new_connect ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateRead_run_new_connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateRead_run_read_data_from ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateRead_run_read_data_from)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateRead_run_read_thread_end ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateRead_run_read_thread_end)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateRead_run_recv_from ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateRead_run_recv_from)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateRead_run_recv_from_illegal ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateRead_run_recv_from_illegal)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateRead_run_recv_notify ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateRead_run_recv_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateWrite_run_no_connection ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateWrite_run_no_connection)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateWrite_run_send_msg_type ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateWrite_run_send_msg_type)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateWrite_run_ts_handle_rate ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateWrite_run_ts_handle_rate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateWrite_run_write_thread_send_error ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateWrite_run_write_thread_send_error)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeCommunicateWrite_run_write_thread_send_notify ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeCommunicateWrite_run_write_thread_send_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeNRRead_run_CVmUpdInfo_detail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeNRRead_run_CVmUpdInfo_detail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeNRRead_run_ProcUpdStatus_detail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeNRRead_run_ProcUpdStatus_detail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeNRRead_run_begin_success ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeNRRead_run_begin_success)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeNRRead_run_begin_to ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeNRRead_run_begin_to)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeNRRead_run_psize ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeNRRead_run_psize)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_CDbeNRRead_run_read_nr_error ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_CDbeNRRead_run_read_nr_error)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_handle_toCa_cannt_find_vm ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_handle_toCa_cannt_find_vm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_init_read_config_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_init_read_config_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_shellCommedNoReturn_shell_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_shellCommedNoReturn_shell_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_shellCommed_cmd ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_shellCommed_cmd)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_shellCommed_do_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_shellCommed_do_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_shellCommed_get_return_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_shellCommed_get_return_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: _errno_t get_errno_shellCommed_not_get_return ( )
+	TEST_FIXTURE(TestFixture,Testget_errno_shellCommed_not_get_return)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAClientMainThread_check_killTs ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAClientMainThread_check_killTs)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAClientMainThread_handle_msgSelf ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAClientMainThread_handle_msgSelf)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAClientMainThread_handle_procAndVmStatus ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAClientMainThread_handle_procAndVmStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAClientMainThread_handle_rspCommReg_con_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAClientMainThread_handle_rspCommReg_con_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAClientMainThread_handle_rspCommReg_new_con ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAClientMainThread_handle_rspCommReg_new_con)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAClientMainThread_handle_rspVmId ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAClientMainThread_handle_rspVmId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAClientMainThread_handle_specialTypeSeg ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAClientMainThread_handle_specialTypeSeg)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAClientMainThread_run_handleType ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAClientMainThread_run_handleType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_check_killSelf ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_check_killSelf)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_check_vmIdCommu_Ip ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_check_vmIdCommu_Ip)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_get_IpFromCommApi_err ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_get_IpFromCommApi_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_get_IpFromCommApi_ok ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_get_IpFromCommApi_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_cacCommRegister_recv_ca ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_cacCommRegister_recv_ca)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_cacCommRegister_recv_out ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_cacCommRegister_recv_out)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_cacCommRegister_recv_pt ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_cacCommRegister_recv_pt)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_msgCutType_SRM_cut ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_msgCutType_SRM_cut)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_repVmId_VmIp ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_repVmId_VmIp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_repVmId_err ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_repVmId_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_repVmId_loop ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_repVmId_loop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_repVmId_recv ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_repVmId_recv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_specialTypeSeg_err ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_specialTypeSeg_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_srmCommResponse_err ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_srmCommResponse_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_toCa_Info ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_toCa_Info)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_toCa_pritn ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_toCa_pritn)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_handle_toCa_size ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_handle_toCa_size)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_init_cas_get_SPort ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_init_cas_get_SPort)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_run_recv_CData ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_run_recv_CData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_sendCacConnInfo_CVmConnInfo ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_sendCacConnInfo_CVmConnInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_sendCacConnInfo_CVmConnInfo_L ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_sendCacConnInfo_CVmConnInfo_L)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_send_msgReqCasPort_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_send_msgReqCasPort_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_send_msgReqCasPort_ok ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_send_msgReqCasPort_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCAServerMainThread_send_newSoftNotice ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCAServerMainThread_send_newSoftNotice)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCommunicateWriteFilter_run_handleType ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCommunicateWriteFilter_run_handleType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCommunicateWriteFilter_run_info ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCommunicateWriteFilter_run_info)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCommunicateWriteFilter_run_send_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCommunicateWriteFilter_run_send_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CCommunicateWriteFilter_run_send_ok ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CCommunicateWriteFilter_run_send_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_CommunicateApi_null ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_CommunicateApi_null)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_udp ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_udp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_getip_from_srm ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_getip_from_srm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_port ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_port)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_udp_invalid ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_find_ipAndPortByUdp_udp_invalid)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_init_read_config_ret ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_init_read_config_ret)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_register_commClient_create_err ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_register_commClient_create_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_register_commClient_new_connect ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_register_commClient_new_connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_register_commClient_time ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_register_commClient_time)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_run_cac_get_ip_and_port_from_pipeLine ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_run_cac_get_ip_and_port_from_pipeLine)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_run_client_thread_recv_data ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_run_client_thread_recv_data)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_run_get_ip_and_port_from_pipeLine ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_run_get_ip_and_port_from_pipeLine)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_run_recv_notify ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_run_recv_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_run_recv_notify_data ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_run_recv_notify_data)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_run_recv_notify_timeout ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_run_recv_notify_timeout)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_run_register_return ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_run_register_return)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_stop ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_stop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_updateSerIp_begin ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_updateSerIp_begin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_updateSerIp_config ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_updateSerIp_config)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateClient_updateSerIp_create_config ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateClient_updateSerIp_create_config)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateRead_run_new_connect ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateRead_run_new_connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateRead_run_read_data_from ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateRead_run_read_data_from)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateRead_run_read_thread_end ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateRead_run_read_thread_end)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateRead_run_recv_from ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateRead_run_recv_from)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateRead_run_recv_from_illegal ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateRead_run_recv_from_illegal)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateRead_run_recv_notify ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateRead_run_recv_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateWrite_run_no_connection ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateWrite_run_no_connection)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateWrite_run_send_msg_type ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateWrite_run_send_msg_type)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateWrite_run_ts_handle_rate ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateWrite_run_ts_handle_rate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateWrite_run_write_thread_send_error ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateWrite_run_write_thread_send_error)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeCommunicateWrite_run_write_thread_send_notify ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeCommunicateWrite_run_write_thread_send_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeNRRead_run_CVmUpdInfo_detail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeNRRead_run_CVmUpdInfo_detail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeNRRead_run_ProcUpdStatus_detail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeNRRead_run_ProcUpdStatus_detail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeNRRead_run_begin_success ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeNRRead_run_begin_success)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeNRRead_run_begin_to ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeNRRead_run_begin_to)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeNRRead_run_psize ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeNRRead_run_psize)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_CDbeNRRead_run_read_nr_error ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_CDbeNRRead_run_read_nr_error)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_handle_toCa_cannt_find_vm ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_handle_toCa_cannt_find_vm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_init_read_config_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_init_read_config_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_shellCommedNoReturn_shell_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_shellCommedNoReturn_shell_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_shellCommed_cmd ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_shellCommed_cmd)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_shellCommed_do_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_shellCommed_do_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_shellCommed_get_return_fail ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_shellCommed_get_return_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_error_format_shellCommed_not_get_return ( )
+	TEST_FIXTURE(TestFixture,Testget_error_format_shellCommed_not_get_return)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAClientMainThread_check_killTs ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAClientMainThread_check_killTs)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAClientMainThread_handle_msgSelf ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAClientMainThread_handle_msgSelf)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAClientMainThread_handle_procAndVmStatus ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAClientMainThread_handle_procAndVmStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAClientMainThread_handle_rspCommReg_con_fail ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAClientMainThread_handle_rspCommReg_con_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAClientMainThread_handle_rspCommReg_new_con ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAClientMainThread_handle_rspCommReg_new_con)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAClientMainThread_handle_rspVmId ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAClientMainThread_handle_rspVmId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAClientMainThread_handle_specialTypeSeg ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAClientMainThread_handle_specialTypeSeg)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAClientMainThread_run_handleType ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAClientMainThread_run_handleType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_check_killSelf ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_check_killSelf)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_check_vmIdCommu_Ip ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_check_vmIdCommu_Ip)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_get_IpFromCommApi_err ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_get_IpFromCommApi_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_get_IpFromCommApi_ok ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_get_IpFromCommApi_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_cacCommRegister_recv_ca ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_cacCommRegister_recv_ca)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_cacCommRegister_recv_out ( char * buf , size_t len , DBG_SRC_ARGS , long p1 , long p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_cacCommRegister_recv_out)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_cacCommRegister_recv_pt ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , int p2 , int p3 , const char * p4 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_cacCommRegister_recv_pt)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_msgCutType_SRM_cut ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_msgCutType_SRM_cut)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_repVmId_VmIp ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_repVmId_VmIp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_repVmId_err ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_repVmId_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_repVmId_loop ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , int p2 , long p3 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_repVmId_loop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_repVmId_recv ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_repVmId_recv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_specialTypeSeg_err ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_specialTypeSeg_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_srmCommResponse_err ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_srmCommResponse_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_toCa_Info ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_toCa_Info)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_toCa_pritn ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_toCa_pritn)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_handle_toCa_size ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_handle_toCa_size)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_init_cas_get_SPort ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_init_cas_get_SPort)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_run_recv_CData ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_run_recv_CData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_sendCacConnInfo_CVmConnInfo ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_sendCacConnInfo_CVmConnInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_sendCacConnInfo_CVmConnInfo_L ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_sendCacConnInfo_CVmConnInfo_L)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_send_msgReqCasPort_fail ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_send_msgReqCasPort_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_send_msgReqCasPort_ok ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_send_msgReqCasPort_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCAServerMainThread_send_newSoftNotice ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCAServerMainThread_send_newSoftNotice)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCommunicateWriteFilter_run_handleType ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCommunicateWriteFilter_run_handleType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCommunicateWriteFilter_run_info ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCommunicateWriteFilter_run_info)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCommunicateWriteFilter_run_send_fail ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCommunicateWriteFilter_run_send_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CCommunicateWriteFilter_run_send_ok ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CCommunicateWriteFilter_run_send_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_CommunicateApi_null ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_CommunicateApi_null)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_fail ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_udp ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_udp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_getip_from_srm ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_getip_from_srm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_port ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_port)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_udp_invalid ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_find_ipAndPortByUdp_udp_invalid)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_init_read_config_ret ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_init_read_config_ret)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_register_commClient_create_err ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_register_commClient_create_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_register_commClient_new_connect ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , const char * p2 , int p3 , int p4 , long p5 , int p6 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_register_commClient_new_connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_register_commClient_time ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_register_commClient_time)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_run_cac_get_ip_and_port_from_pipeLine ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_run_cac_get_ip_and_port_from_pipeLine)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_run_client_thread_recv_data ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_run_client_thread_recv_data)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_run_get_ip_and_port_from_pipeLine ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_run_get_ip_and_port_from_pipeLine)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_run_recv_notify ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_run_recv_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_run_recv_notify_data ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_run_recv_notify_data)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_run_recv_notify_timeout ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_run_recv_notify_timeout)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_run_register_return ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_run_register_return)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_stop ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_stop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_updateSerIp_begin ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_updateSerIp_begin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_updateSerIp_config ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_updateSerIp_config)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateClient_updateSerIp_create_config ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateClient_updateSerIp_create_config)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateRead_run_new_connect ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateRead_run_new_connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateRead_run_read_data_from ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateRead_run_read_data_from)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateRead_run_read_thread_end ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateRead_run_read_thread_end)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateRead_run_recv_from ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateRead_run_recv_from)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateRead_run_recv_from_illegal ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 , int p3 , const char * p4 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateRead_run_recv_from_illegal)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateRead_run_recv_notify ( char * buf , size_t len , DBG_SRC_ARGS , int p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateRead_run_recv_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateWrite_run_no_connection ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateWrite_run_no_connection)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateWrite_run_send_msg_type ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , const char * p2 , int p3 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateWrite_run_send_msg_type)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateWrite_run_ts_handle_rate ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateWrite_run_ts_handle_rate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateWrite_run_write_thread_send_error ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateWrite_run_write_thread_send_error)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeCommunicateWrite_run_write_thread_send_notify ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 , int p3 , const char * p4 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeCommunicateWrite_run_write_thread_send_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeNRRead_run_CVmUpdInfo_detail ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeNRRead_run_CVmUpdInfo_detail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeNRRead_run_ProcUpdStatus_detail ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeNRRead_run_ProcUpdStatus_detail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeNRRead_run_begin_success ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeNRRead_run_begin_success)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeNRRead_run_begin_to ( char * buf , size_t len , DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeNRRead_run_begin_to)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeNRRead_run_psize ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeNRRead_run_psize)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_CDbeNRRead_run_read_nr_error ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_CDbeNRRead_run_read_nr_error)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_handle_toCa_cannt_find_vm ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_handle_toCa_cannt_find_vm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_init_read_config_fail ( char * buf , size_t len , DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_init_read_config_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_shellCommedNoReturn_shell_fail ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_shellCommedNoReturn_shell_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_shellCommed_cmd ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_shellCommed_cmd)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_shellCommed_do_fail ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_shellCommed_do_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_shellCommed_get_return_fail ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_shellCommed_get_return_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int get_error_message_shellCommed_not_get_return ( char * buf , size_t len , DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testget_error_message_shellCommed_not_get_return)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_module_def ( void )
+	TEST_FIXTURE(TestFixture,Testget_module_def)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_subsys_def ( void )
+	TEST_FIXTURE(TestFixture,Testget_subsys_def)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: const char * get_system_def ( void )
+	TEST_FIXTURE(TestFixture,Testget_system_def)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAClientMainThread_check_killTs ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAClientMainThread_check_killTs)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAClientMainThread_handle_msgSelf ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAClientMainThread_handle_msgSelf)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAClientMainThread_handle_procAndVmStatus ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAClientMainThread_handle_procAndVmStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAClientMainThread_handle_rspCommReg_con_fail ( DBG_SRC_ARGS , const char * p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAClientMainThread_handle_rspCommReg_con_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAClientMainThread_handle_rspCommReg_new_con ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAClientMainThread_handle_rspCommReg_new_con)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAClientMainThread_handle_rspVmId ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAClientMainThread_handle_rspVmId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAClientMainThread_handle_specialTypeSeg ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAClientMainThread_handle_specialTypeSeg)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAClientMainThread_run_handleType ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAClientMainThread_run_handleType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_check_killSelf ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_check_killSelf)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_check_vmIdCommu_Ip ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_check_vmIdCommu_Ip)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_get_IpFromCommApi_err ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_get_IpFromCommApi_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_get_IpFromCommApi_ok ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_get_IpFromCommApi_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_cacCommRegister_recv_ca ( DBG_SRC_ARGS , int p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_cacCommRegister_recv_ca)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_cacCommRegister_recv_out ( DBG_SRC_ARGS , long p1 , long p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_cacCommRegister_recv_out)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_cacCommRegister_recv_pt ( DBG_SRC_ARGS , int p1 , int p2 , int p3 , const char * p4 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_cacCommRegister_recv_pt)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_msgCutType_SRM_cut ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_msgCutType_SRM_cut)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_repVmId_VmIp ( DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_repVmId_VmIp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_repVmId_err ( DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_repVmId_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_repVmId_loop ( DBG_SRC_ARGS , int p1 , int p2 , long p3 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_repVmId_loop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_repVmId_recv ( DBG_SRC_ARGS , int p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_repVmId_recv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_specialTypeSeg_err ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_specialTypeSeg_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_srmCommResponse_err ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_srmCommResponse_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_toCa_Info ( DBG_SRC_ARGS , int p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_toCa_Info)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_toCa_pritn ( DBG_SRC_ARGS , int p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_toCa_pritn)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_handle_toCa_size ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_handle_toCa_size)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_init_cas_get_SPort ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_init_cas_get_SPort)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_run_recv_CData ( DBG_SRC_ARGS , int p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_run_recv_CData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_sendCacConnInfo_CVmConnInfo ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_sendCacConnInfo_CVmConnInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_sendCacConnInfo_CVmConnInfo_L ( DBG_SRC_ARGS , int p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_sendCacConnInfo_CVmConnInfo_L)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_send_msgReqCasPort_fail ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_send_msgReqCasPort_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_send_msgReqCasPort_ok ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_send_msgReqCasPort_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCAServerMainThread_send_newSoftNotice ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCAServerMainThread_send_newSoftNotice)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCommunicateWriteFilter_run_handleType ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCommunicateWriteFilter_run_handleType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCommunicateWriteFilter_run_info ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCommunicateWriteFilter_run_info)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCommunicateWriteFilter_run_send_fail ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCommunicateWriteFilter_run_send_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CCommunicateWriteFilter_run_send_ok ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CCommunicateWriteFilter_run_send_ok)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_CommunicateApi_null ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_CommunicateApi_null)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_fail ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_udp ( DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_find_ipAndPortByUdp_getIp_udp)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_find_ipAndPortByUdp_getip_from_srm ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_find_ipAndPortByUdp_getip_from_srm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_find_ipAndPortByUdp_port ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_find_ipAndPortByUdp_port)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_find_ipAndPortByUdp_udp_invalid ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_find_ipAndPortByUdp_udp_invalid)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_init_read_config_ret ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_init_read_config_ret)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_register_commClient_create_err ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_register_commClient_create_err)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_register_commClient_new_connect ( DBG_SRC_ARGS , const char * p1 , const char * p2 , int p3 , int p4 , long p5 , int p6 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_register_commClient_new_connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_register_commClient_time ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_register_commClient_time)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_run_cac_get_ip_and_port_from_pipeLine ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_run_cac_get_ip_and_port_from_pipeLine)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_run_client_thread_recv_data ( DBG_SRC_ARGS , int p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_run_client_thread_recv_data)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_run_get_ip_and_port_from_pipeLine ( DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_run_get_ip_and_port_from_pipeLine)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_run_recv_notify ( DBG_SRC_ARGS , const char * p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_run_recv_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_run_recv_notify_data ( DBG_SRC_ARGS , int p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_run_recv_notify_data)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_run_recv_notify_timeout ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_run_recv_notify_timeout)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_run_register_return ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_run_register_return)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_stop ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_stop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_updateSerIp_begin ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_updateSerIp_begin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_updateSerIp_config ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_updateSerIp_config)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateClient_updateSerIp_create_config ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateClient_updateSerIp_create_config)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateRead_run_new_connect ( DBG_SRC_ARGS , const char * p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateRead_run_new_connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateRead_run_read_data_from ( DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateRead_run_read_data_from)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateRead_run_read_thread_end ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateRead_run_read_thread_end)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateRead_run_recv_from ( DBG_SRC_ARGS , const char * p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateRead_run_recv_from)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateRead_run_recv_from_illegal ( DBG_SRC_ARGS , const char * p1 , int p2 , int p3 , const char * p4 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateRead_run_recv_from_illegal)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateRead_run_recv_notify ( DBG_SRC_ARGS , int p1 , const char * p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateRead_run_recv_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateWrite_run_no_connection ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateWrite_run_no_connection)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateWrite_run_send_msg_type ( DBG_SRC_ARGS , const char * p1 , const char * p2 , int p3 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateWrite_run_send_msg_type)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateWrite_run_ts_handle_rate ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateWrite_run_ts_handle_rate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateWrite_run_write_thread_send_error ( DBG_SRC_ARGS , const char * p1 , int p2 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateWrite_run_write_thread_send_error)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeCommunicateWrite_run_write_thread_send_notify ( DBG_SRC_ARGS , const char * p1 , int p2 , int p3 , const char * p4 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeCommunicateWrite_run_write_thread_send_notify)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeNRRead_run_CVmUpdInfo_detail ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeNRRead_run_CVmUpdInfo_detail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeNRRead_run_ProcUpdStatus_detail ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeNRRead_run_ProcUpdStatus_detail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeNRRead_run_begin_success ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeNRRead_run_begin_success)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeNRRead_run_begin_to ( DBG_SRC_ARGS )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeNRRead_run_begin_to)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeNRRead_run_psize ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeNRRead_run_psize)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_CDbeNRRead_run_read_nr_error ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_CDbeNRRead_run_read_nr_error)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_handle_toCa_cannt_find_vm ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_handle_toCa_cannt_find_vm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_init_read_config_fail ( DBG_SRC_ARGS , int p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_init_read_config_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_shellCommedNoReturn_shell_fail ( DBG_SRC_ARGS , const char * p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testreport_error_shellCommedNoReturn_shell_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_shellCommed_cmd ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_shellCommed_cmd)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_shellCommed_do_fail ( DBG_SRC_ARGS , const char * p1 , int p2 , const char * p3 )
+	TEST_FIXTURE(TestFixture,Testreport_error_shellCommed_do_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_shellCommed_get_return_fail ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_shellCommed_get_return_fail)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int report_error_shellCommed_not_get_return ( DBG_SRC_ARGS , const char * p1 )
+	TEST_FIXTURE(TestFixture,Testreport_error_shellCommed_not_get_return)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

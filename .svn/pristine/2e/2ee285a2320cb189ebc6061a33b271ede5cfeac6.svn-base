@@ -1,0 +1,580 @@
+#include "LocalQueue.h"
+#include <stdio.h>
+#include <string.h>
+#include <memory.h>
+#include "pubtools.h"
+#include <assert.h>
+#include <time.h>
+
+using namespace HW_PUB_TOOLS;
+#include "HwBuffer.h"
+#define _HW_MSG_TYPE_MASK_  0xffff0000
+#define _HW_MSG_NORMAL_HEAD_ 0x13140000
+#define _HW_MSG_JUMP_HEAD_   0x14130000
+CLocalQueue::CLocalQueue():
+m_bHasInit(false)
+, m_fdFileWrite(NULL)
+, m_fdFileRead(NULL)
+, m_fdFileControl(NULL)
+, m_iToCommit(0)
+, m_bPreTakeSpace(true)
+
+{
+	memset(&m_controlInfo, 0, sizeof(m_controlInfo));
+}
+
+
+CLocalQueue::~CLocalQueue()
+{
+	if (m_fdFileRead != NULL)
+	{
+		fclose(m_fdFileRead);
+		m_fdFileRead = NULL;
+	}
+	if (m_fdFileWrite != NULL)
+	{
+		fclose(m_fdFileWrite);
+		m_fdFileWrite = NULL;
+	}
+	
+	if (m_fdFileWrite != NULL)
+	{
+		fclose(m_fdFileWrite);
+		m_fdFileWrite = NULL;
+	}
+
+}
+
+int CLocalQueue::push(const void* data, int len)
+{
+	CHwTmpLock lock(m_lock);
+	if (m_controlInfo.iWritePos + (int)sizeof(SMsgHead)+len > m_controlInfo.iMaxFileSize)
+	{
+		if (0 != changeDataFile())
+			return -1;
+	}
+	if (m_fdFileWrite == NULL)
+	{
+		m_fdFileWrite = fopen(getDataFile(m_controlInfo.iWriteFile).c_str(), "rb+");
+		if (m_fdFileWrite == NULL)
+		{
+			m_fdFileWrite = fopen(getDataFile(m_controlInfo.iWriteFile).c_str(), "wb+");
+		}
+		assert(m_fdFileWrite != NULL);
+		fseek(m_fdFileWrite, m_controlInfo.iWritePos, SEEK_SET);
+	}
+	SMsgHead msg;
+	//msg.msgId = m_controlInfo.iMsgIdToWrite;
+	msg.insertTime = time(NULL);
+	msg.msgLen = len;
+	msg.headFlag = _HW_MSG_NORMAL_HEAD_;
+	if (sizeof(msg) != writeMax(m_fdFileWrite, (char*)&msg, sizeof(msg)))
+	{
+		fseek(m_fdFileWrite, m_controlInfo.iWritePos,SEEK_SET);// 写失败的话复位
+		return -1;
+	}
+	if (len != writeMax(m_fdFileWrite, (char*)data, len))
+	{
+		fseek(m_fdFileWrite, m_controlInfo.iWritePos, SEEK_SET);
+		return -1;
+	}
+
+	CAutoSetToBackup<int> back2(m_controlInfo.iWritePos);
+	m_controlInfo.iWritePos += sizeof(SMsgHead)+len;
+
+	if (0 != saveWriteInfo())
+	{
+		return -1;
+	}
+	fflush(m_fdFileWrite);
+	back2.disable();
+	return 0;
+}
+
+
+//
+#define _If0ThenSet(val,to) do {if((val)==0) {(val) = (to);} }while (0)
+int CLocalQueue::init()
+{
+	CHwTmpLock lock(m_lock);
+	if (m_bHasInit)
+		return 0;
+	std::string controlFile = getControlFile();
+	//
+	//
+	if (!isFileExist(controlFile.c_str()))
+	{
+		_If0ThenSet(m_controlInfo.iMaxFileSize, _QueueMaxSizePerFile);
+		m_controlInfo.endian = HW_PUB_TOOLS::system_endian();
+		saveControlInfo();
+	}
+	else
+	{
+		SContolInfo old = m_controlInfo;
+
+		loadControlInfo();
+	
+		if (old.iMaxFileSize != 0)
+			m_controlInfo.iMaxFileSize = old.iMaxFileSize;
+
+		if (old.bCoverOld != 0)
+			m_controlInfo.bCoverOld = old.bCoverOld;
+		saveControlInfo();
+
+	}
+	//if (m_bPreTakeSpace)//不进行这么复杂的操作
+	//{
+	//	for (int i = 0; i < m_controlInfo.iMaxFileNum; ++i)
+	//	{
+	//		enlargeFile(getDataFile(i).c_str(), m_controlInfo.iMaxFileSize);
+	//	}
+	//}
+	//
+	m_controlInfo.printinfo();
+	m_bHasInit = true;
+
+	return 0;
+}
+
+int CLocalQueue::changeDataFile()
+{ 
+	if (m_fdFileWrite == NULL)
+	{
+		m_fdFileWrite = fopen(getDataFile(m_controlInfo.iWriteFile).c_str(), "rb+");
+		assert(m_fdFileWrite != NULL);
+		
+	}
+	fseek(m_fdFileWrite, m_controlInfo.iWritePos, SEEK_SET);
+	CAutoSetToBackup<int> back(m_controlInfo.iWriteFile);
+	CAutoSetToBackup<int> back2(m_controlInfo.iWritePos);
+
+
+
+	
+
+	assert(m_fdFileWrite != NULL);
+
+	SMsgHead msg;
+	msg.insertTime = time(NULL);
+	msg.msgLen = 0;
+	m_controlInfo.iWriteFile = (m_controlInfo.iWriteFile + 1) % _QueueMaxFileNum;
+	
+	msg.headFlag = _HW_MSG_JUMP_HEAD_ | m_controlInfo.iWriteFile;
+	m_controlInfo.iWritePos = 0;
+	if (m_controlInfo.iWriteFile == m_controlInfo.iReadFile)
+	{
+		CAutoSetToBackup<int> back3(m_controlInfo.iReadPos);
+		CAutoSetToBackup<int> back4(m_controlInfo.iReadFile);
+		if (!isCoverOld())//如果不允许覆盖，则返回写入失败
+		{
+			return -1;
+		}
+	
+		//将读清除
+		if (m_fdFileRead != NULL)
+		{
+			fclose(m_fdFileRead);
+			m_fdFileRead = NULL;
+		
+		}
+
+		m_controlInfo.iReadPos = 0;
+		m_controlInfo.iReadFile = (m_controlInfo.iReadFile + 1) % _QueueMaxFileNum;
+		if (0 != saveReadInfo())
+		{
+			return -1;
+		}
+		back3.disable();
+		back4.disable();
+		printf("------------------\nwrite reach read, discard one read file   ------------------------------\n");
+
+	}
+	if (sizeof(msg) != writeMax(m_fdFileWrite, (char*)&msg, sizeof(msg)))
+	{
+		return -1;
+	}
+	fclose(m_fdFileWrite);
+	m_fdFileWrite = NULL;
+	if (0 != saveWriteInfo())
+	{
+		return -1;
+	}
+	back.disable();
+	back2.disable();
+	return 0;
+
+}
+
+int CLocalQueue::enlargeFile(const char* fileName, int sizeToEnlarge)
+{
+	char tmp[1024] = { 0 };
+	int times = m_controlInfo.iMaxFileSize / 1024;
+	int written = 0;
+	if (isFileExist(fileName))
+		return 0; 
+	CAutoCloseFile file(fileName, "wb+");
+	if ((FILE*)file == NULL)
+	{
+		return -1;
+	}
+	for (int i = 0; i < times; ++i)
+	{
+		written = writeMax(file, tmp, 1024);
+		if (written != 1024)
+			return -1;
+	}
+	int last = m_controlInfo.iMaxFileSize % 1024;
+	if (last>0)
+	{
+		written = writeMax(file, tmp, last);
+		if (written != last)
+			return -1;
+	}
+	return 0;
+}
+
+int CLocalQueue::setRootDir(const char* rootDir)
+{
+	m_sRootDir = rootDir;
+	m_sRootDir += "/";
+	HW_PUB_TOOLS::mkdir_fromFileName(m_sRootDir.c_str());
+	return 0;
+}
+
+std::string CLocalQueue::getControlFile()
+{
+	return m_sRootDir + "queue.control";
+}
+
+std::string CLocalQueue::getDataFile(int index)
+{
+
+	char tmp[11] = { 0 };
+	sprintf(tmp, "%d", index);
+	return m_sRootDir + "queue.data." + tmp;
+
+
+
+}
+
+int CLocalQueue::saveControlInfo()
+{
+	//不能每次都打开
+	if (m_fdFileControl ==NULL)
+	{
+		m_fdFileControl = fopen(getControlFile().c_str(), "rb+");
+		if (m_fdFileControl == NULL)
+		{
+			m_fdFileControl = fopen(getControlFile().c_str(), "wb+");
+		}
+		assert(m_fdFileControl != NULL);
+	}
+
+	fseek(m_fdFileControl, 0, SEEK_SET);
+	int sz = sizeof(m_controlInfo);
+	int written = writeMax(m_fdFileControl, (char*)(&m_controlInfo), sz);
+	if (written != sz)
+	{
+		return -1;
+	}
+	fflush(m_fdFileControl);
+	return 0;
+		
+}
+
+int CLocalQueue::loadControlInfo()
+{
+	CAutoCloseFile file(getControlFile().c_str(), "rb");
+	if ((FILE*)file == NULL)
+	{
+		return -1;
+	}
+	int sz = sizeof(m_controlInfo);
+	fseek(file, 0, SEEK_SET);
+	int written = readMax(file, (char*)(&m_controlInfo), sz);
+	if (written != sz)
+	{
+		assert(false);//不允许出现的。。会导致数据丢失
+		return -1;
+	}
+	return 0;
+
+}
+
+//void CLocalQueue::setMaxFileNum(int n)
+//{
+//	m_controlInfo.iMaxFileNum = n;
+//}
+
+void CLocalQueue::setMaxFileSize(int n)
+{
+	m_controlInfo.iMaxFileSize = n;
+}
+
+
+//fetch  不会改读的位移 ，直到commit了，如果不commit，将会fetch同一条消息
+int CLocalQueue::fetch(SMsgHead & head,void* data, int &len)
+{
+	CHwTmpLock lock(m_lock);
+	if (0 != fetchHead(head))
+		return -1;
+	if (len < head.msgLen)//长度不够
+	{
+		len = head.msgLen;
+		return -2;
+	}
+	len = head.msgLen;
+	//读取内容
+	//if (head.msgLen != readMax(m_fdFileRead,(char*)data, len ))
+	//{
+	//	return -1;
+	//}
+	//此处还有一个preextend没有被finish ，
+	int nread = 0;
+	while (m_bufRead.avaluebleSize() < sizeof(head)+head.msgLen)//在数据的过程中不可能出现切文件
+	{
+		nread = readMoreToReadCache(1024);
+		if (nread < 0)//不可能一笔数据未读又无数据可读
+		{
+			assert(false);
+		}
+
+	}
+	memcpy(data, m_bufRead.cutData() + sizeof(head), len);
+	
+
+
+
+
+#ifdef _DEBUG
+	CHwBuffer buf;
+	buf.set((char*)data, len);
+//	std::cout << "get "<<head.msgId<<" : "<<buf << std::endl;
+#endif
+	m_iToCommit = sizeof(head) +head.msgLen;//finish extend 在commit 里面做
+	return 0;
+}
+
+int CLocalQueue::fetch(char* buf, int & bufLen)
+{
+	SMsgHead head;
+	return fetch(head, buf, bufLen);
+}
+
+int CLocalQueue::commitFetch()
+{
+	if (m_iToCommit == 0)
+		return -1;
+	CAutoSetToBackup<int> back(m_controlInfo.iReadPos);
+	m_controlInfo.iReadPos += m_iToCommit;
+
+	if (0 != saveControlInfo())
+	{
+		return -1;
+	}
+		
+
+	m_bufRead.cutMore(m_iToCommit);
+	if ((m_bufRead.getCutSize()> 1024 && m_bufRead.avaluebleSize()<1024) || m_bufRead.avaluebleSize()<100)
+	{
+		m_bufRead.forward();
+	}
+	m_iToCommit = 0;
+	back.disable();
+	return 0;
+}
+
+int CLocalQueue::fetchHead(SMsgHead &head)
+{
+	if (m_controlInfo.iReadFile == m_controlInfo.iWriteFile && m_controlInfo.iReadPos <= m_controlInfo.iWritePos)//读追写，而非写追读
+	{
+		if (m_controlInfo.iWritePos - m_controlInfo.iReadPos < (int)sizeof(SMsgHead))
+		{
+			printf("emty!\n");
+			return -1;
+		}
+	}
+
+	//if (m_fdFileRead == NULL) //在下层做
+	//{
+	//	m_fdFileRead = fopen(getDataFile(m_controlInfo.iReadFile).c_str(), "rb");
+	//	assert(m_fdFileRead != NULL);
+	//	fseek(m_fdFileRead, m_controlInfo.iReadPos, SEEK_SET);
+	//	
+	//}
+	//fseek(m_fdFileRead, m_controlInfo.iReadPos, SEEK_SET);
+	int readn = 0;
+    if (m_bufRead.avaluebleSize()<sizeof(head))
+	{
+		readn = readMoreToReadCache(1024);
+		if (readn < 0 || m_bufRead.avaluebleSize() < sizeof(head))
+			return -1;//没有可读的，其实是不应该走到这步的
+	}
+
+	//
+	//if (sizeof(head) != readMax(m_fdFileRead, (char*)(&head), sizeof(head)))
+	//{
+	//	fseek(m_fdFileRead, m_controlInfo.iReadPos, SEEK_SET);
+	//	return -1;
+	//}
+	memcpy(&head, m_bufRead.cutData(), sizeof(head));
+	if ((head.headFlag & _HW_MSG_TYPE_MASK_) != _HW_MSG_NORMAL_HEAD_)//消息到达结尾或者已经结束
+	{
+		
+		if ((head.headFlag & _HW_MSG_TYPE_MASK_) == _HW_MSG_JUMP_HEAD_)
+		{
+			//改变读文件
+			if (m_fdFileRead != NULL)
+			{
+				fclose(m_fdFileRead);
+				m_fdFileRead = NULL;
+				//删除该文件
+				HW_PUB_TOOLS::deleteFile(getDataFile(m_controlInfo.iReadFile).c_str());
+			}
+			{
+				//正常文件跳转
+				CAutoSetToBackup<int> a1(m_controlInfo.iReadFile);
+				CAutoSetToBackup<int> a2(m_controlInfo.iReadPos);
+				m_controlInfo.iReadFile = (m_controlInfo.iReadFile + 1) % _QueueMaxFileNum;
+				m_controlInfo.iReadPos = 0;
+			   if (0 != saveReadInfo())
+				{
+					return -1;
+				}
+				a1.disable();
+				a2.disable();
+				m_bufRead.reset();
+			}
+			return fetchHead(head);//递归，从下一个文件获取
+
+		}
+		else
+		{
+			assert(false);
+		}
+		
+
+	}
+	else
+	{
+		return 0;
+	}
+	//m_bufRead.cutMore(sizeof(head)); 到最后和数据一起
+	return 0;
+}
+
+void CLocalQueue::setCoverOld(bool b)
+{
+	m_controlInfo.bCoverOld = b;
+}
+
+bool CLocalQueue::isCoverOld()
+{
+	return m_controlInfo.bCoverOld=='y'?true:false ;
+}
+
+int CLocalQueue::destroy()
+{
+	for (int i = 0; i < _QueueMaxFileNum; ++i)
+	{
+		if (HW_PUB_TOOLS::isFileExist(getDataFile(i).c_str()))
+		{
+			HW_PUB_TOOLS::deleteFile(getDataFile(i).c_str());
+		}
+	}
+	//
+	HW_PUB_TOOLS::deleteFile(getControlFile().c_str());
+	return 0;
+}
+
+int CLocalQueue::commit()
+{
+	return commitFetch();
+}
+
+int CLocalQueue::saveWriteInfo()
+{
+	static long  beginPos = MyStructOf(SContolInfo, iWriteFile);
+	static long  len = MyStructOf(SContolInfo, iReadFile) - beginPos;
+
+	//不能每次都打开
+	if (m_fdFileControl == NULL)
+	{
+		m_fdFileControl = fopen(getControlFile().c_str(), "rb+");
+		if (m_fdFileControl == NULL)
+		{
+			m_fdFileControl = fopen(getControlFile().c_str(), "wb+");
+		}
+		assert(m_fdFileControl != NULL);
+	}
+
+	fseek(m_fdFileControl, beginPos, SEEK_SET);
+	int written = writeMax(m_fdFileControl, (char*)(&m_controlInfo.iWriteFile), len);
+	if (written != len)
+	{
+		return -1;
+	}
+	fflush(m_fdFileControl);
+	return 0;
+}
+
+int CLocalQueue::saveReadInfo()
+{
+	static long  beginPos = MyStructOf(SContolInfo, iReadFile);
+	static long  len = MyStructOf(SContolInfo, iMaxFileSize) - beginPos;
+
+	//不能每次都打开
+	if (m_fdFileControl == NULL)
+	{
+		m_fdFileControl = fopen(getControlFile().c_str(), "rb+");
+		if (m_fdFileControl == NULL)
+		{
+			m_fdFileControl = fopen(getControlFile().c_str(), "wb+");
+		}
+		assert(m_fdFileControl != NULL);
+	}
+
+	fseek(m_fdFileControl, beginPos, SEEK_SET);
+	int written = writeMax(m_fdFileControl, (char*)(&m_controlInfo.iReadFile), len);
+	if (written != len)
+	{
+		return -1;
+	}
+	fflush(m_fdFileControl);
+	return 0;
+}
+
+void CLocalQueue::printcontrol()
+{
+	m_controlInfo.printinfo();
+}
+
+int CLocalQueue::readMoreToReadCache(int len)
+{
+	//
+	if (m_fdFileRead == NULL)
+	{
+		m_fdFileRead = fopen(getDataFile(m_controlInfo.iReadFile).c_str(), "rb");
+		assert(m_fdFileRead != NULL);
+		fseek(m_fdFileRead, m_controlInfo.iReadPos, SEEK_SET);
+
+	}
+	m_bufRead.preExtend(len);
+	//切文件在外面做
+	//业务逻辑在外面去判断，这里只负责多读取这么多到缓存
+	int iRead = readMax(m_fdFileRead, m_bufRead.end(), len);
+	if (iRead == -1)
+	{
+		return -1;
+	}
+	m_bufRead.finishExtend(iRead);
+	return iRead;
+}
+
+//void CLocalQueue::setPreTackSpace(bool b)
+//{
+//	m_bPreTakeSpace = b;
+//}
+
+
+

@@ -1,0 +1,109 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_record_mgr_impl_cpp)
+{
+	//Fuction: CSrmRecordMgrImpl :: CSrmRecordMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_CSrmRecordMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRecordMgrImpl :: DeleteRedundantData ( )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_DeleteRedundantData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRecordMgrImpl :: UpdateTbQueueInfo ( CRdcTbQueue & rcTbQueue )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_UpdateTbQueueInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRecordMgrImpl :: UpdateTsHandleRate ( CRdcTsHandleRate & rcTsHandleRate )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_UpdateTsHandleRate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRecordMgrImpl :: UpdateVmDynamicInfo ( CRdcVmStateRecord & rcVmStateRecord )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_UpdateVmDynamicInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRecordMgrImpl :: UpdateVmProcInfo ( CRdcProcStateRecord & rcProcStateRecord )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_UpdateVmProcInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRecordMgrImpl :: InsertTbQueueInfo ( CRdcTbQueue & rcTbQueue )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_InsertTbQueueInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRecordMgrImpl :: InsertTsHandleRate ( CRdcTsHandleRate & rcTsHandleRate )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_InsertTsHandleRate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRecordMgrImpl :: InsertVmDynamicInfo ( CRdcVmStateRecord & rcVmStateRecord )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_InsertVmDynamicInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRecordMgrImpl :: InsertVmProcInfo ( CRdcProcStateRecord & rcProcStateRecord )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_InsertVmProcInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRecordMgrImpl :: UpdateVmAndProcoInfo ( SSrmVmProcStatus & rcVmProcState )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_UpdateVmAndProcoInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CRecordConfig ( )
+	TEST_FIXTURE(TestFixture,TestCRecordConfig_CRecordConfig)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRecordMgrImpl :: Init ( CMgrInitHelper & cMgrInitHelper )
+	TEST_FIXTURE(TestFixture,TestCSrmRecordMgrImpl_Init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

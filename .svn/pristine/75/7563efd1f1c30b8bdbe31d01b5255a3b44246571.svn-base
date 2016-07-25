@@ -1,0 +1,161 @@
+LastCachedVmList = {}
+NONE = 0
+ALL = 1
+MEM = 2
+CachedByAll = {}
+CachedList = {}
+function DeployType()
+        return ALL
+end
+-- get param2
+function getl_applist_from_sdl(applist)
+    local lua_applist = {};
+    local list_len = getsdllen(applist)
+    for i = 1, list_len do
+        table.insert(lua_applist, getl_srv_from_sdl(getsdl(applist, i)))
+    end
+    return lua_applist
+end
+function getl_srv_from_sdl(srv)
+    local node = {}
+    node.appid = getsdlval(srv, "app_id")
+    node.procnum = getsdlval(srv, "proc_num")
+    node.clusterid = getsdlval(srv, "cluster_id")
+    return node
+end
+---------------------------------------------------------------
+-- get param1
+-- interface SToLuaVmInfoList
+function getl_vmlist_interface_from_sdl(interface)
+    local ret = {}
+    local list_len = getsdllen(interface)
+    psdl=getsdl(interface, 1)
+    for i = 1, list_len do
+        node = getl_vmlist_from_sdl(getsdl(interface, i))
+        table.insert(ret, node)
+    end
+    return ret
+end
+-- same as getl_clusterlist_from_sdl
+--  SToLuaVmInfo {"m_iclusterId", list}
+function getl_vmlist_from_sdl(vmlist)
+    local lua_vmlist = {}
+    local plist = getsdl(vmlist, "vm_state_record_list")
+    local lua_vmlist_len = getsdllen(plist)  
+    lua_vmlist.clusterid = getsdlval(vmlist, "cluster_id")
+    local tmplist = {}
+    for i = 1, lua_vmlist_len do 
+        local vmnode = getsdl(plist, i)
+        local vm = getl_vm_from_sdl(vmnode)
+        table.insert(tmplist, vm)
+    end
+    lua_vmlist.list = tmplist
+    return lua_vmlist
+end
+-- CRdcVmStateRecord { }
+function getl_vm_from_sdl(vm)
+    local luavm = {}
+    
+    luavm.vmid = getsdlval(vm, "vm_id")
+    luavm.wcpu = 0
+    luavm.wnet = 0
+    luavm.wmem = 0
+    luavm.wall = 0
+    luavm.pcpu = getsdlval(vm, "cpu_use_ratio") 
+    luavm.pmem = getsdlval(vm, "mem_use_ratio") 
+    luavm.pnet = getsdlval(vm, "net_use_ratio")
+    luavm.cpu = getsdlval(vm, "cpu_left")
+    luavm.net = 0
+    luavm.mem = getsdlval(vm, "mem_left")
+    if luavm.pmem == 0 then
+        luavm.tmem = 0
+    else
+        luavm.tmem = luavm.mem / luavm.pmem
+    end
+    if luavm.pcpu == 0 then
+        luavm.tcpu = 0
+    else
+        luavm.tcpu = luavm.cpu / luavm.pcpu
+    end
+    if luavm.pnet == 0 then
+        luavm.tnet = 0
+    else
+        luavm.tnet = luavm.net / luavm.pnet
+    end
+   return luavm
+end
+
+--calling function
+function Interface_GetFitableVm(vmlist, applist, retvalue)
+    local ret = {}
+    f=io.open('/dev/urandom')
+    
+    parInvmlist = getl_vmlist_interface_from_sdl(vmlist)
+    parInapplist = getl_applist_from_sdl(applist) 
+     
+    for i_applist, srv_info in pairs(parInapplist) do
+        t_cluster_info = nil  
+        proc_nu = srv_info.procnum
+        for icurrent_pid=1, proc_nu do
+            for i, cluster_info in pairs(parInvmlist) do
+                if cluster_info.clusterid == srv_info.clusterid then
+                    t_cluster_info = cluster_info
+                    break
+                end
+            end                        
+            local vmlist_len = table.getn(t_cluster_info.list)
+            local random_len =string.byte(f:read(1))           
+            local random_index = random_len% vmlist_len + 1
+           
+            vm = GetFitableVm(t_cluster_info.list,srv_info,icurrent_pid,random_index)
+           
+            node = {}
+            node.appid = vm.appid
+            node.procnum = icurrent_pid
+            node.vmid = vm.vmid
+            table.insert(ret, node)
+        end
+    end
+    io.close(f)
+    return  SetReturnSdlList(retvalue, ret)
+end
+
+function GetFitableVm(vmlist,srv_info,icurrent_pid,random_index)
+    local ret = {}
+    ret.appid = srv_info.appid
+    local vmlist_len = table.getn(vmlist)
+     
+    if srv_info.procnum <vmlist_len then
+     ret.vmid = vmlist[random_index].vmid
+    elseif srv_info.procnum ==vmlist_len then    
+        ret.vmid = vmlist[icurrent_pid].vmid
+        else
+            if icurrent_pid <=vmlist_len then
+                    ret.vmid = vmlist[icurrent_pid].vmid
+            else
+                    left = srv_info.procnum%vmlist_len
+                  if icurrent_pid <= (srv_info.procnum - left) then
+                        tindex= icurrent_pid%vmlist_len
+                        if(tindex==0) then
+                            tindex = vmlist_len
+                        end
+                        ret.vmid = vmlist[tindex].vmid
+                    else
+                        ret.vmid = vmlist[random_index].vmid
+                    end
+            end
+    end
+    return ret
+end
+
+function SetReturnSdlList(psdl, tbl)
+    local len = table.getn(tbl)
+    setsdllen(psdl, len)
+    for i = 1, len do
+        node = getsdl(psdl, i)
+        setsdlval(node, "vm_id", tbl[i].vmid)
+        setsdlval(node, "app_id", tbl[i].appid)
+        setsdlval(node, "proc_id", tbl[i].procnum)
+    end
+    return psdl
+end

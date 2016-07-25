@@ -1,0 +1,21 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE_srm_util_cpp)
+{
+	//Fuction: CSendTarget GetDbmTarget ( int32 iVmid )
+	TEST_FIXTURE(TestFixture,TestGetDbmTarget)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CSendTarget GetNrmTarget ( int32 iVmid )
+	TEST_FIXTURE(TestFixture,TestGetNrmTarget)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

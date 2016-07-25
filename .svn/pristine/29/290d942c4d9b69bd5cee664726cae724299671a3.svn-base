@@ -1,0 +1,192 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_communicate_write.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Nov 6, 2012）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "dbe2_communicate_write.h"
+#include "dbe2_base_def.h"
+#include "public/common/communicate/communicate.h"
+#include "dbe2_srm_msg_interface.h"
+#include <communicate_thread.h>
+#include "dbe2_common_struct.h"
+#include "dbe2_util.h"
+
+namespace MDbe
+{
+
+CLock CDbe2CommunicateWrite::m_lstLock[DBE2_CA_WRITE_LOCK_NUM];
+
+int32 CDbe2CommunicateWrite::init()
+{
+    return 0;
+}
+
+
+
+int32 CDbe2CommunicateWrite::destroy()
+{
+    return 0;
+}
+
+
+int32 CDbe2CommunicateWrite::WriteMsg(CCommunicateApi * pCommunicateApi, od_frame::CCommData * pCommData)
+{
+    int32 iSocketId = pCommunicateApi->get_socket();
+    if(iSocketId <= 0)
+    {
+        DBE2_LOG(FATAL_LOGGER, "write thread get socket fail![socket_id:%d]", iSocketId);
+        return -1;
+    }
+    int32 iRet = -1;
+    int32 iSendCostTime = 0;
+    {
+        //锁保护,保证同一SOCKET链接同一时间,只有一个线程在发送
+        CAutoLock cAutoLock(m_lstLock[iSocketId % DBE2_CA_WRITE_LOCK_NUM]);
+        time_t iSendStartTime = time(NULL);
+        iRet = pCommunicateApi->send_notify(*pCommData, false);
+        iSendCostTime = time(NULL) - iSendStartTime;
+        if(iSendCostTime > 7)
+        {
+            //如果超过7秒才发送成功,说明这个链接的对端,消息处理已经有异常,那么就直接关闭这个链接
+            iRet = 1;
+        }
+    }
+    if (iRet == 0)
+    {
+        pCommData->TEMPLATE_MEMBER(CNotify) seek<CRouteData>(0, SEEK_SET);
+        CRouteData* pMyRouteData
+            = pCommData->TEMPLATE_MEMBER(CNotify) get_object<CRouteData>();
+        DBE2_LOG(DEBUG_LOGGER, "write thread send package %d successfully, to %s use %s "
+                    "source ProcKey:%d-%d-%d, targe ProcKey:%d-%d-%d",
+                    pCommData->get_type(),
+                    pCommunicateApi->get_peer(),
+                    pCommunicateApi->get_local(),
+                    pMyRouteData->m_iSFlowId,
+                    pMyRouteData->m_iSSrvId,
+                    pMyRouteData->m_iSProcId,
+                    pMyRouteData->m_iTFlowId,
+                    pMyRouteData->m_iTSrvId,
+                    pMyRouteData->m_iTProcId);
+        if(pCommData->get_type() == MSG_CLOSE_BY_NRM_REG)
+        {
+            //通知pcc线程,退出进程
+            DBE2_LOG(WARN_LOGGER, "write thread send 152 finish and tell program will exit!ip %s source ProcKey:%d-%d-%d, targe ProcKey:%d-%d-%d",
+                    pCommunicateApi->get_peer(),
+                    pMyRouteData->m_iSFlowId,
+                    pMyRouteData->m_iSSrvId,
+                    pMyRouteData->m_iSProcId,
+                    pMyRouteData->m_iTFlowId,
+                    pMyRouteData->m_iTSrvId,
+                    pMyRouteData->m_iTProcId);
+        }
+    }
+    else if(iRet == 1)
+    {
+        DBE2_LOG(WARN_LOGGER,
+                "write thread send data timeout, cost time %d,ret %d ip %s, package type %d, errno: %d,strerrno %s, connection will closed",
+                iSendCostTime,
+                iRet,
+                pCommunicateApi->get_peer(),
+                pCommData->get_type(),
+                errno,
+                strerror(errno));
+        pCommunicateApi->close();
+    }
+    else
+    {
+        DBE2_LOG(WARN_LOGGER,
+                "write thread send data error,ret %d ip %s, package type %d, errno: %d,strerrno %s, connection will closed",
+                iRet,
+                pCommunicateApi->get_peer(),
+                pCommData->get_type(),
+                errno,
+                strerror(errno));
+        pCommunicateApi->close();
+    }
+
+
+    return iRet;
+}
+
+
+
+int32 CDbe2CommunicateWrite::run(NAMESPACE_OD_FRAME CData *p)
+{
+    if(p == NULL)
+        return 0;
+
+    od_frame::CCommData * pCommData = (od_frame::CCommData *)p;
+    od_frame::CConnectionElem * pElement = (od_frame::CConnectionElem *)pCommData;
+
+    for(;pElement!=NULL;pElement = pElement->m_pNext)
+    {
+        //跳过一个无用的链接
+        if(pElement->m_uCommApi.m_pCommunicateApi == NULL)
+        {
+            DBE2_LOG(FATAL_LOGGER, "send msg communicate api is null, can't send msg![msg_type:%d]",
+                    pCommData->get_type());
+            continue;
+        }
+        //发送一个消息
+        WriteMsg(pElement->m_uCommApi.m_pCommunicateApi, pCommData);
+    }
+    send_data(pCommData);
+    return 0;
+}
+
+
+
+CDbe2CommunicateWrite::CDbe2CommunicateWrite()
+{
+}
+
+
+
+CDbe2CommunicateWrite::~CDbe2CommunicateWrite()
+{
+}
+
+
+
+CDbe2CommunicateWrite::CDbe2CommunicateWrite(const CDbe2CommunicateWrite & rh)
+{
+}
+
+
+
+CDbe2CommunicateWrite & CDbe2CommunicateWrite::operator =(const CDbe2CommunicateWrite & rh)
+{
+	return *this;
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_OD_FRAME CThread *create_dbeCommunicateWrite()
+{
+    return new CDbe2CommunicateWrite();
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+}// namespace MDbe
+
+
+
+

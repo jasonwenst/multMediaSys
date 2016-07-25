@@ -1,0 +1,163 @@
+#ifndef _CA_DATA_STRUCT_H
+#define _CA_DATA_STRUCT_H
+
+//#include "srm_list.h"
+#include <map>
+#include <str.h>
+#include <time.h>
+#include "ca_define.h"
+#include <dbe_public.h>
+#include <frame_interface.h>
+#include <communicate_thread.h>
+
+#include <ca_msg_interface.h>
+
+//class CCommunicateApi;
+
+NAMESPACE_OD_CA_BEGIN
+/*
+枚举清单：
+CA_HANDLE_TYPE
+CAC_COMM_TYPE
+CAC_HANDLE_DATA_TYPE
+*/
+//VM数量
+//#define VM_COUNT   1
+
+/*typedef enum {
+        COMM_CREATE = 0,
+        COMM_EXIT = 1
+}COMM_FLAG;*/
+
+/*typedef enum {
+        CA_HANDLE_100 = 0,
+        CA_HANDLE_SELF = 1,
+        CA_HANDLE_NR_READ = 2,
+        CA_HANDLE_SOCKET =3
+}CA_HANDLE_TYPE;*/
+
+/*typedef enum {
+        CAC_COMM_CLIENT_TO_NRM = 0,
+        CAC_COMM_CLIENT_TO_CAS = 1,
+        CAC_COMM_CLIENT_TO_DBMI = 2,
+        CAS_COMM_CLIENT_TO_SRM = 4,
+	CAS_COMM_ACCPET_TO_CAC = 5
+}CA_COMM_TYPE;*/
+
+/*typedef enum {
+        COMMAPI_TYPE = 0,
+        REGISTER_TYPE =1
+}CAC_HANDLE_DATA_TYPE;*/
+
+//const static int32 CONSOLE_LEN = 200;
+
+class CServerConfig
+{
+public:
+       	char  m_szSerIp[16];
+       	int32 m_iSerPort;
+       	int32 m_iUdpSerPort;
+       	char  m_szReconnOcca[16];
+	int32 m_iCheckConnTimeStep;
+	int32 m_iSelectTimeOut;
+	int32 m_iSendTimeOut;
+	int32 m_iRecvTimeOut;
+READ_CONFIG_BEGIN
+	READ_VALUE2(m_szSerIp, "server_ip", "127.0.0.1", NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_iSerPort, "server_port", int32(0), NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_iUdpSerPort, "udp_ser_port", int32(-1), NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_szReconnOcca, "reconnect_occassion", "send", NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_iCheckConnTimeStep, "check_connection_time_step", 0, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_iSelectTimeOut, "select_time_out", 20, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_iSendTimeOut, "send_time_out", 0, NAMESPACE_XML_CONFIG emValueOptional)
+        READ_VALUE2(m_iRecvTimeOut, "recv_time_out", 0, NAMESPACE_XML_CONFIG emValueOptional)
+READ_CONFIG_END
+};
+
+/**
+ * @brief
+ * 配置文件读取自定义server ip
+ * 用于读取配置xml文件中list里每个item结构
+ */
+class CCustomServerIpConfig
+{
+public:
+    char m_szCustomSerIp[16];  /*ipv4*/
+    int32 m_iPort;        /*port*/
+READ_CONFIG_BEGIN
+    READ_VALUE2(m_szCustomSerIp, "custom_server_ip", "", NAMESPACE_XML_CONFIG emValueOptional)
+    READ_VALUE2(m_iPort, "custom_port", -1, NAMESPACE_XML_CONFIG emValueOptional)
+READ_CONFIG_END
+};
+/**
+ * @brief
+ * 配置文件读取类
+ * 用于读取配置xml文件中list的结构
+ */
+class CCustomServerIpLsConfig
+{
+public:
+    CCustomServerIpConfig m_objCustomServerIpConfig;
+READ_CONFIG_BEGIN
+    //读取一个对象使用APP_READ_OBJ
+    READ_OBJ2(m_objCustomServerIpConfig, "custom_server", NAMESPACE_XML_CONFIG emValueOptional/*emValueRequire*/)
+READ_CONFIG_END
+};
+
+//读取list的约定，需要定义CConfigList对象
+typedef NAMESPACE_XML_CONFIG CConfigList< CCustomServerIpLsConfig > CCustomServerIpLsConfigList;
+
+class CCACommClientConfig
+{
+public:
+	CCommunicateClientConfig m_objCommClientConfig;
+	CServerConfig m_objServerConfig;
+       	int32 m_iProcType;	//!< 客户端类型，注册时发送给SRM使用，标识是CA,NRM,PT等
+       	int32 m_iReconnFreq;
+	int32 m_iDebug;
+	int32 m_iGetIp;		//!< 连接cas的两个客户端中，广播查找cas的那个node
+	int32 m_iGetPipeLine;
+	int32 m_iSerProcType;	//!< 在SRM进程内部使用，标识不同的服务端
+	CCustomServerIpLsConfigList m_lstCustomServerIpLsConfigList;
+READ_CONFIG_BEGIN
+	READ_OBJ2(m_objCommClientConfig, "comm_client", NAMESPACE_XML_CONFIG emValueOptional)
+	READ_OBJ2(m_objServerConfig, "socket_client", NAMESPACE_XML_CONFIG emValueOptional)
+    READ_VALUE2(m_iProcType, "proc_type", 0, NAMESPACE_XML_CONFIG emValueOptional)
+    READ_VALUE2(m_iSerProcType, "server_proc_type", -1, NAMESPACE_XML_CONFIG emValueOptional)
+    READ_VALUE2(m_iReconnFreq, "reconn_freq", 5, NAMESPACE_XML_CONFIG emValueOptional)
+	READ_VALUE2(m_iDebug, "debug", 0, NAMESPACE_XML_CONFIG emValueOptional)
+	READ_VALUE2(m_iGetIp, "get_ip", 0, NAMESPACE_XML_CONFIG emValueOptional)
+	READ_VALUE2(m_iGetPipeLine, "get_pipe_line", 0, NAMESPACE_XML_CONFIG emValueOptional)
+    //读取一个列表用APP_READ_OBJ
+    READ_OBJ2(m_lstCustomServerIpLsConfigList, "custom_server_list", NAMESPACE_XML_CONFIG emValueOptional/*emValueRequire*/)
+READ_CONFIG_END
+};
+
+//传递通信指针，用于CAC发送到备分SRM的CAS的通信指针
+class CSendCommApi : public NAMESPACE_OD_FRAME CNodeVar
+{
+public:
+	CSendCommApi() : m_pCaServerSlave(NULL) { }
+        ~CSendCommApi() { }
+private:
+	CSendCommApi(const CSendCommApi& rh);
+	CSendCommApi& operator=(const CSendCommApi& rh);
+
+public:
+	CCommunicateApi *m_pCaServerSlave;
+};
+//传递CAC发送UDP广播获取主备CAS的IP和PORT
+class CSendIpPort: public NAMESPACE_OD_FRAME CNodeVar
+{
+public:
+	CSendIpPort() { }
+        ~CSendIpPort() { }
+private:
+	CSendIpPort(const CSendIpPort& rh);
+	CSendIpPort& operator=(const CSendIpPort& rh);
+
+public:
+	char cszIpPort[32];
+};
+NAMESPACE_OD_CA_END
+#endif

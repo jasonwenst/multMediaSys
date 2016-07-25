@@ -1,0 +1,34 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dispatch_define.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：jinxin）
+/// date		（文件创建日期，eg：2012-4-24）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#ifndef _DISPATCH_DEFINE_H
+#define _DISPATCH_DEFINE_H
+
+#include <compile.h>
+#include <frame_interface.h>
+
+//#define NAMESPACE_OD_MDBE MDbe::
+//
+//#ifndef NAMESPACE_OD_MDBE_BEGIN
+//#define NAMESPACE_OD_MDBE_BEGIN namespace MDbe {
+//#endif
+//
+//#ifndef NAMESPACE_OD_MDBE_END
+//#define NAMESPACE_OD_MDBE_END }//end namespace
+//#endif
+
+#endif

@@ -1,0 +1,170 @@
+#include "msg_dispatch_mgr.h"
+#include "nrm_util.h"
+
+#ifndef _NRM_MSG_PROCESS_DBE_H_
+#define _NRM_MSG_PROCESS_DBE_H_
+
+namespace MDbe {
+
+class CMsgProcess7001 : public IMsgProcess
+{    
+public:
+    CMsgProcess7001();
+
+    virtual ~CMsgProcess7001();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcess7121 : public IMsgProcess
+{    
+public:
+    CMsgProcess7121();
+
+    virtual ~CMsgProcess7121();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcess7122 : public IMsgProcess
+{    
+public:
+    CMsgProcess7122();
+
+    virtual ~CMsgProcess7122();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcess3001 : public IMsgProcess
+{    
+public:
+    CMsgProcess3001();
+
+    virtual ~CMsgProcess3001();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcessTimer : public IMsgProcess
+{    
+public:
+    CMsgProcessTimer();
+
+    virtual ~CMsgProcessTimer();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcess7002 : public IMsgProcess
+{    
+public:
+    CMsgProcess7002();
+
+    virtual ~CMsgProcess7002();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+/*
+ *class CMsgProcess207 : public IMsgProcess
+ *{    
+ *public:
+ *    CMsgProcess207();
+ *
+ *    virtual ~CMsgProcess207();
+ *
+ *    virtual void Process(CMsgHelper &rcMsgHelper, CSendSource &rcSendSrouce, int32 iMsgType, obb_stream &rcInObbStream);
+ *};
+ *
+ */
+
+class CMsgProcess7004 : public IMsgProcess
+{    
+public:
+    CMsgProcess7004();
+
+    virtual ~CMsgProcess7004();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcess7007 : public IMsgProcess
+{    
+public:
+    CMsgProcess7007();
+
+    virtual ~CMsgProcess7007();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcessInner : public IMsgProcess
+{    
+public:
+    CMsgProcessInner();
+
+    virtual ~CMsgProcessInner();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);
+};
+
+class CMsgProcess151 : public IMsgProcess
+{
+public:
+    CMsgProcess151();
+
+    virtual ~CMsgProcess151();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);   
+};
+
+
+class CMsgProcessForwardSrm : public IMsgProcess
+{
+public:
+    CMsgProcessForwardSrm();
+
+    virtual ~CMsgProcessForwardSrm();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);   
+};
+
+class CMsgProcessForwardTbts : public IMsgProcess
+{
+public:
+    CMsgProcessForwardTbts();
+
+    virtual ~CMsgProcessForwardTbts();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);   
+};
+
+class CMsgProcess7013 : public IMsgProcess
+{
+public:
+    CMsgProcess7013();
+
+    virtual ~CMsgProcess7013();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);   
+};
+
+
+
+/*
+ * 告警信息类
+ */
+class CMsgProcessWarn : public IMsgProcess
+{
+public:
+	CMsgProcessWarn();
+
+	virtual ~CMsgProcessWarn();
+
+    virtual void Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream);   
+};
+
+
+
+}
+#endif

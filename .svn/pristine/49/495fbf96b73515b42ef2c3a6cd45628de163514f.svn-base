@@ -1,0 +1,83 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_util.h）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_UTIL_H___
+#define __SRM_UTIL_H___
+
+#include "dbe2_typedef.h"
+#include "dbe2_base_mgr.h"
+#include "dbe2_util.h"
+//包含的sdl
+#include "dbe_base_def_sdl_c.h"
+#include "srm_error_code.h"
+
+static const char* SRM_MONITOR_URI = "/system/srm/monitor";
+static const char* SRM_MONITOR_KEY = "monitor";
+static const char* SRM_PROC_SYNC = "dbe.proc_sync";
+
+static const char* STR_FALSE = "false";
+namespace MDbe
+{
+
+/**
+ * 获取DBM目标
+ * iVmId DBM所在的虚拟机ID，不设置时为广播
+ */
+CSendTarget GetDbmTarget(int32 iVmid = -1);
+
+/**
+ * 获取JOB目标
+ * iVmId DBM所在的虚拟机ID，不设置时为广播
+ */
+CSendTarget GetJobTarget(int32 iVmid = -1);
+
+/**
+ * 获取NRM目标
+ * iVmId NRM所在的虚拟机ID，不设置时为广播
+ */
+CSendTarget GetNrmTarget(int32 iVmid = -1);
+
+/**
+ * 比较时间
+ * mode 1：比较月日；2：比较年月日
+ */
+bool CompareDateBE(CBSDateTime &baseDate, CBSDateTime &compareDate, int32 mode);
+
+/**
+ * 设置NRM超时时间
+ */
+int32 ModifyNrmTime(int32 iTimeoutSec);
+/** 
+ * 写文件
+ */
+void  WriteFile(const char *pzFileName,const char *pzFileContent);
+int32 CheckDir(const char *pszDir);
+/**
+ * 启动监控脚本
+ */
+int32 StartScript(aistring& strScriptName,aistring& strScriptContent,aistring& strScriptParams);
+
+} // namespace MDbe
+
+
+#endif /* __SRM_UTIL_H___ */

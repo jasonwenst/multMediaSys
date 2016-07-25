@@ -1,0 +1,13 @@
+#!/bin/bash
+
+ps -ef|grep 'ecframe -i frame'|grep -v grep|awk '{print $2}'|xargs kill -9
+
+rm -rf pcc_*/
+
+rm -rf pid*
+
+rm -rf log*
+
+rm com*
+
+echo "--------clean OK-----"

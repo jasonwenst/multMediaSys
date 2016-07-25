@@ -1,0 +1,300 @@
+#include "message_simulate.h"
+
+
+int32 CMessageSimulateThread::real_send_message(int32 iMsgType, const char *pData, int32 iSize)
+{
+	char *szSend = new char[280 + iSize];
+	if(NULL == szSend) return -1;
+	struct PACKAGE_HEADER header = PACKAGE_HEADER();
+	header.type_ = iMsgType;
+	header.count_ = 2;
+	header.size_ = 72 * 3 + iSize;
+	memcpy(szSend, &header, sizeof(header));
+	int32 iTotal = sizeof(header);
+
+	struct ITEM_HEADER routItem;
+	routItem.size_ = 72;
+	routItem.flag_ = system_endian();
+	routItem.type_ = 2;
+	memcpy(routItem.class_name, "N6od_srm10CRouteDataE", 21);
+	memcpy(szSend + iTotal, &routItem, sizeof(routItem));
+	iTotal += sizeof(routItem);
+
+	CRouteData cRt;
+	cRt.m_iSFlowId = m_objProcUpdStatus.m_objSKey.m_iFlowId;
+	cRt.m_iSSrvId = m_objProcUpdStatus.m_objSKey.m_iSrvId;
+	cRt.m_iSProcId = m_objProcUpdStatus.m_iProcId;
+	cRt.m_iSSrvType = 9;
+	memcpy(szSend + iTotal, &cRt, sizeof(CRouteData));
+	iTotal += sizeof(CRouteData);
+
+	routItem.size_ = (iSize + 7)/8 *8;
+	routItem.flag_ = system_endian();
+	routItem.type_ = 0;
+	if (150 == iMsgType)
+	{
+		routItem.type_ = 2;
+	}
+	memcpy(routItem.class_name, "CControlPkg", 13);
+	memcpy(szSend + iTotal, &routItem, sizeof(routItem));
+	iTotal += sizeof(routItem);
+
+	memcpy(szSend + iTotal, pData, iSize);
+	iTotal += iSize;
+
+	NetWrite(m_iSd, szSend, iTotal);
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "send msg %d success", iMsgType);
+	return 0;
+}
+
+int32 CMessageSimulateThread::send_start_process(int32 iPid, int32 iResult, int32 iType)
+{
+	char szCon[2048];
+	NAMESPACE_BILLING40_FRAME CControlPkg cControlPkg;
+	
+	if (iType)
+	{
+		cControlPkg.m_iMsgType = 3501;
+	}
+	else
+	{
+		cControlPkg.m_iMsgType = 3502;
+	}
+	snprintf(szCon, 2048, "obbs:J:1.3:{\n    \"struct_0_MDbe::SSrmNotifyProc\" : {\n        \"int16_0__MarkerNum\" : 1,\n            \"int64_1__UsedMarker\" : \"7\",\n            \"int64_2__Marker\" : \"7\",\n            \"struct_3_MSG_HEAD\" : {\n                \"int16_0__MarkerNum\" : 1,\n                \"int64_1__UsedMarker\" : \"7\",\n                \"int64_2__Marker\" : \"7\",\n                \"int32_3_COMMAND\" : 7111,\n                \"int64_4_SEQUENCE\" : \"1\",\n                \"int64_5_ID\" : \"1\"\n            },\n            \"struct_4_PROC_INFO\" : {\n                \"int16_0__MarkerNum\" : 1,\n                \"int64_1__UsedMarker\" : \"27\",\n                \"int64_2__Marker\" : \"27\",\n                \"struct_3_BASE_PROC_KEY\" : {\n                    \"int16_0__MarkerNum\" : 1,\n                    \"int64_1__UsedMarker\" : \"3\",\n                    \"int64_2__Marker\" : \"3\",\n                    \"struct_3_BASE_SRV_KEY\" : {\n                        \"int16_0__MarkerNum\" : 1,\n                        \"int64_1__UsedMarker\" : \"3\",\n                        \"int64_2__Marker\" : \"3\",\n                        \"int32_3_FLOW_ID\" : %d,\n                        \"int32_4_SRV_ID\" : %d\n                    },\n                    \"int32_4_PROC_ID\" : %d\n                },\n                \"int64_4_UPDATE_TIME\" : \"0\",\n                \"int32_5_VM_ID\" : 0,\n                \"int32_6_PID\" : %d\n            },\n            \"struct_5_PROC_EXE_RESULT\" : {\n                \"int16_0__MarkerNum\" : 1,\n                \"int64_1__UsedMarker\" : \"6\",\n                \"int64_2__Marker\" : \"6\",\n                \"int32_3_RESULT\" : %d,\n                \"string_4_FAIL_REASON\" : \"%s\"\n            }\n    }\n}\n",
+		m_objProcUpdStatus.m_objSKey.m_iFlowId, m_objProcUpdStatus.m_objSKey.m_iSrvId, 
+		m_objProcUpdStatus.m_iProcId, m_objProcUpdStatus.m_iPid, iResult, "");
+	cControlPkg.m_strMsgInfo = szCon;
+	send_message(&cControlPkg);
+	return 0;
+}
+
+void CMessageSimulateThread::send_processStopped()
+{
+	
+}
+
+NAMESPACE_BILLING40_FRAME CControlPkg * CMessageSimulateThread::receive_message()
+{
+
+}
+
+int32 CMessageSimulateThread::send_startProcess(int32 iPid, int32 iResult)
+{
+	return 1;
+}
+
+int32 CMessageSimulateThread::send_msg3501(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg)
+{
+    std::string strFlowName("");
+    std::string strXdrType("");
+    std::string strInputPath("");
+    int32 iWaitCount = 0;
+    LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "send msg 3501:%s", pControlPkg->m_strMsgInfo.c_str());
+    std::string &strTmp = pControlPkg->m_strMsgInfo;
+    int32 iSize = strTmp.length();
+    int32 iStart = 0;
+    int32 iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strFlowName = strTmp.substr(iStart, iEnd - iStart);
+    }
+
+    if (iStart < iSize) iStart ++;
+    iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strXdrType = strTmp.substr(iStart, iEnd - iStart);
+    }
+
+    if (iStart < iSize) iStart ++;
+    iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strInputPath = strTmp.substr(iStart, iEnd - iStart);
+    }
+
+    if (iStart < iSize) iStart ++;
+    iWaitCount = atoi(strTmp.substr(iStart).c_str());
+
+    char szCon[2048];
+	
+    snprintf(szCon, 2048, "obbs:J:1.3:{\n   \"struct_0_MDbe::SProcBackLog\" : {\n      \"int16_0__MarkerNum\" : 1,\n         \"int64_1__UsedMarker\" : \"254\",\n         \"int64_2__Marker\" : \"254\",\n         \"struct_3_PROC_KEY\" : {\n            \"int16_0__MarkerNum\" : 1,\n            \"int64_1__UsedMarker\" : \"3\",\n            \"int64_2__Marker\" : \"3\",\n            \"struct_3_BASE_SRV_KEY\" : { \n               \"int16_0__MarkerNum\" : 1,\n               \"int64_1__UsedMarker\" : \"3\",\n               \"int64_2__Marker\" : \"3\",\n               \"int32_3_FLOW_ID\" : %d,\n               \"int32_4_SRV_ID\" : %d\n            },\n            \"int32_4_PROC_ID\" : %d\n         },\n         \"int32_4_VM_ID\" : %d,\n         \"string_5_FLOW_NAME\" : \"%s\",\n         \"string_6_XDR_TYPE\" : \"%s\",\n         \"string_7_INPUT_PATH\" : \"%s\",\n         \"int32_8_WAIT_HANDLE_COUNT\" : %d,\n         \"int64_9_UPDATE_TIME\" : \"%lld\"\n   }\n}\n",
+        m_objProcUpdStatus.m_objSKey.m_iFlowId, m_objProcUpdStatus.m_objSKey.m_iSrvId, m_objProcUpdStatus.m_iProcId,
+        0, strFlowName.c_str(), strXdrType.c_str(),  strInputPath.c_str(), iWaitCount, GetSecTime());
+    
+    return real_send_message(3501, szCon, strlen(szCon));
+}
+
+int32 CMessageSimulateThread::send_msg3502(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg)
+{
+    std::string strFlowName("");
+    std::string strXdrType("");
+    int64 iHandleRate = 0l;
+    LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "send msg 3502:%s", pControlPkg->m_strMsgInfo.c_str());
+    std::string &strTmp = pControlPkg->m_strMsgInfo;
+    int32 iSize = pControlPkg->m_strMsgInfo.length();
+    int32 iStart = 0;
+    int32 iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strFlowName = strTmp.substr(iStart, iEnd - iStart);
+    }
+    
+    if (iStart < iSize) iStart ++;
+    iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strXdrType = strTmp.substr(iStart, iEnd - iStart);
+    }
+
+    if (iStart < iSize) iStart ++;
+    iHandleRate = atol(strTmp.substr(iStart).c_str());
+
+    char szCon[2048];
+	
+    snprintf(szCon, 2048, "obbs:J:1.3:{\n   \"struct_0_MDbe::SProcHandleRate\" : {\n      \"int16_0__MarkerNum\" : 1,\n         \"int64_1__UsedMarker\" : \"126\",\n         \"int64_2__Marker\" : \"126\",\n         \"struct_3_PROC_KEY\" : {\n            \"int16_0__MarkerNum\" : 1,\n            \"int64_1__UsedMarker\" : \"3\",\n            \"int64_2__Marker\" : \"3\",\n            \"struct_3_BASE_SRV_KEY\" : {\n               \"int16_0__MarkerNum\" : 1,\n               \"int64_1__UsedMarker\" : \"3\",\n               \"int64_2__Marker\" : \"3\",\n               \"int32_3_FLOW_ID\" : %d,\n               \"int32_4_SRV_ID\" : %d\n            },\n            \"int32_4_PROC_ID\" : %d\n         },\n         \"int32_4_VM_ID\" : %d,\n         \"string_5_FLOW_NAME\" : \"%s\",\n         \"string_6_XDR_TYPE\" : \"%s\",\n         \"int64_7_HANDLE_RATE\" : \"%d\",\n         \"int64_8_UPDATE_TIME\" : \"%lld\"\n   }\n}\n",
+        m_objProcUpdStatus.m_objSKey.m_iFlowId, m_objProcUpdStatus.m_objSKey.m_iSrvId, m_objProcUpdStatus.m_iProcId,
+        0, strFlowName.c_str(), strXdrType.c_str(), iHandleRate, GetSecTime());
+    return real_send_message(3502, szCon, strlen(szCon));
+}
+
+int32 CMessageSimulateThread::send_message(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg)
+{
+    if (3501 == pControlPkg->m_iMsgType)
+    {
+        return send_msg3501(pControlPkg);
+    }
+    else if (3502 == pControlPkg->m_iMsgType)
+    {
+        return send_msg3502(pControlPkg);
+    }
+	else 
+	{
+		return 0;
+	}
+}
+
+int32 CMessageSimulateThread::init()
+{
+	int32 iRet = read_config(m_objConfig);
+	if(iRet != 0) 
+		return iRet;
+
+	m_objProcUpdStatus.m_objSKey.m_iFlowId = get_cpfFlowId();
+	m_objProcUpdStatus.m_objSKey.m_iSrvId = get_cpfServiceId();
+	m_objProcUpdStatus.m_iProcId = get_cpfProcId();
+	m_objProcUpdStatus.m_iPid = getpid();
+	/*
+		//init nr here
+		cpf::CNrApi *pNrApi = cpf::CNrApi::CreateNr();
+		if(pNrApi == NULL)
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "create nr object error, errno:%d", errno);
+			return -1;
+		}
+
+		iRet = pNrApi->NrInit(this);
+		if(iRet != 0)
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "init nr error, errno:%d", errno);
+			return -1;
+		}
+
+		aistring strCommand;
+		iRet = pNrApi->HoldNr(m_objProcUpdStatus, strCommand.c_str());
+		if(iRet != 0)
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "hold nr error with flow id %d service id %d proc id %d, command %s, errno:%d %s",
+				m_objProcUpdStatus.m_objSKey.m_iFlowId,
+				m_objProcUpdStatus.m_objSKey.m_iSrvId,
+				m_objProcUpdStatus.m_iProcId,
+				strCommand.c_str(),
+				errno,strerror(errno));
+			return -1;
+		}
+		else
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "hold nr success with flow id %d service id %d proc id %d, command %s",
+				m_objProcUpdStatus.m_objSKey.m_iFlowId,
+				m_objProcUpdStatus.m_objSKey.m_iSrvId,
+				m_objProcUpdStatus.m_iProcId,
+				strCommand.c_str());
+		}
+		LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "pcc set_messageObj");
+		set_messageObj(this);
+		m_pNrApi = pNrApi;
+	*/
+	int32 iPort = 0;
+	{
+		aistring strPort;
+		iRet = ConvertEnvPath("$NRM_PORT", strPort);
+		if(iRet == 0)
+		{
+			iPort = atoi(strPort.c_str());
+			if(iPort <= 1024) iPort = 8701;
+		}
+		else iPort = 8701;
+	}
+
+	int32 iSockFd = NetTcpConnect("127.0.0.1", iPort);
+	if (iSockFd < 0)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "create connect to 127.0.0.1:%s failed", iPort);
+		return -1;
+	}
+	
+	m_iSd = iSockFd;
+	connect();
+	return 0;
+}
+
+int32 CMessageSimulateThread::connect()
+{
+	NAMESPACE_BILLING40_FRAME CControlPkg cControlPkg;
+	cControlPkg.m_iMsgType = 150;
+	char szContent[100];
+	
+	CDbeCommApi cDbeCommApi;
+	cDbeCommApi.m_objPKey = m_objProcUpdStatus;
+	cDbeCommApi.m_iProcType = 9;
+	cDbeCommApi.m_tmRegTime = GetSecTime();
+	cDbeCommApi.m_tmRegModifyTime = 0;
+	
+	memcpy(szContent, &cDbeCommApi, sizeof(cDbeCommApi));
+	real_send_message(150, szContent, sizeof(cDbeCommApi));
+}
+
+int32 CMessageSimulateThread::destroy()
+{
+	return 0;
+}
+
+int32 CMessageSimulateThread::run(bs_frame_file::CFrameFile *pFrameFile)
+{
+	int32 i_rand_num = 0;
+
+//	while (1)
+	// {
+		sleep(5);
+		i_rand_num = rand();
+		if (i_rand_num % 2 == 0)
+		{
+			send_start_process(0, 0, 1);
+		}
+		else 
+		{
+			send_start_process(0, 0, 0);
+		}
+	// }
+	return 999;
+}
+
+CMessageSimulateThread::CMessageSimulateThread() : m_lLastCheckTime(0)
+{ 
+	
+}
+
+CMessageSimulateThread::~CMessageSimulateThread()
+{ 
+	
+}

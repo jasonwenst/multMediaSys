@@ -1,0 +1,30 @@
+package ClassForName;
+use strict;
+
+require Exporter;
+our @ISA = qw(Exporter);
+our @EXPORT_OK = qw();
+our @EXPORT=qw(newInstance);
+our %EXPORT_TAGS = ( 
+        ALL => [@EXPORT, @EXPORT_OK],
+        );  
+
+sub newInstance{
+    my ($ca,$ClassName, $Method, $Para)=@_;
+    if (!defined($Method) or $Method eq "" ) { 
+        $Method="new($Para"
+    } else {
+        $Method="$Method($Para)"
+    }   
+    
+    my $Object="null";
+    my $ret1= eval("use $ClassName;");
+    print "Exception:$@\n" if defined($ret1); 
+   
+    my $ret2= eval('$Object='."$ClassName->$Method".",".'$ca'.")");
+    print "Exception:$@\n" if !defined($ret2);
+    
+    return $Object;
+}
+
+1;

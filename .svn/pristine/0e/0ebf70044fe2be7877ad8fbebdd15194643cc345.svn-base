@@ -1,0 +1,1339 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc. 
+///	All rights reserved.
+///
+/// file	nrm_nr_mgr.cpp
+/// brief	 
+///
+///
+///
+/// version     1.1
+/// author		louxiao
+/// date        2012-5-7
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "nrm_proc_mgr_impl.h"
+#include "nrm_util.h"
+#include "nrm_define.h"
+#include "nrm_error_code.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include "dbe2_util.h"
+#include <string>
+#include <list>
+#include "srm_def_sdl_c.h"
+#include "msg_dispatch_mgr.h"
+#include "dbm_def_sdl_c.h"
+
+namespace MDbe
+{
+
+extern aistring GetHostIp();
+
+/**
+ * @brief            
+ *
+ * @param rcProcKey  需要kill的进程的prockey
+ * @param pid        需要kill的进程的pid
+ * @param sig        kill的信号
+ *
+ * @return 
+ *          0  -> 进程存在 或者 进程不是NRM所在用户启动
+ *          -1 -> 进程不存在
+
+ */
+static int NrmKill(SBaseProcKey & rcProcKey, int pid, int sig)
+{
+    // 小于等于1的pid，一定是init进程或者是进程id非法
+    // nrm的pid是getpid()，nrm不允许kill 自己，如果以后允许，请在这里修改
+    // 对着这种进程，不做kill
+    if ( pid == getpid() || pid <= 1 )
+    {
+        return 0;
+    }
+    int32 iRet = kill(pid, sig);
+    if(sig != 0)
+    {
+        DBE2_LOG(INFO_LOGGER, 
+                "nrm kill -%d %d proc %d-%d", sig, pid, 
+                rcProcKey.appId(),
+                rcProcKey.procId());
+    }
+    if ( iRet < 0 ) {
+        if ( errno == ESRCH ) {  // 进程不存在
+            return -1;
+        } else if ( errno == EPERM ) {  // 没有权限kill
+            DBE2_LOG(ERROR_LOGGER, "warnning, this proc %d-%d is not start by nrm", 
+                    rcProcKey.appId(),
+                    rcProcKey.procId());
+            return 0;
+        } else if ( errno == EINVAL ) { // 非法信号
+            DBE2_LOG(ERROR_LOGGER, "invalid signal %d, nrm will abort", sig);
+            abort();
+        }
+    }
+    return iRet;
+}
+
+static int GetPidByStartCmd(SBaseProcKey &rcProcKey)
+{
+    INrmNrMgr &objNrMgr = INrmNrMgr::GetInstance();
+    aistring strCmd = objNrMgr.GetProcStartCmd(rcProcKey);
+    aistring strExecCmd;
+	
+    if ( strCmd.size() < 1 || strCmd.find("ecframe -i") == AISTD string::npos )
+    {
+		DBE2_LOG(ERROR_LOGGER, "can not get nr file,use start cmd ecframe-%d-%d -i", 
+			rcProcKey.appId(),
+			rcProcKey.procId());
+    }
+
+    aistring strKeyWord = FormatString("ecframe-%d-%d -i",rcProcKey.get_appId(),rcProcKey.get_procId());
+    strExecCmd = FormatString("ps -ef | grep '%s' | grep -v grep | awk '{print $2}'", strKeyWord.c_str());
+
+    aistring strRet;
+    pid_t pid = 0;
+    ShellCmd(strExecCmd, strRet);
+    // 如果返回值不是一个有效的字符串，atoi会返回0，在停止的时候，将不做处理，因此这里不需要考虑拿不到pid的情况
+    pid = atoi(strRet.c_str());
+    return pid;
+}
+
+static void SendAlarm(SBaseProcKey rcProcKey, int type)
+{
+
+}
+
+CNrmProcMgrImpl::CNrmProcMgrImpl()
+    : m_cObjCfg(GetNrmConfig())
+    , m_iNrmStatus(NRM_STATUS_INACTIVE)
+{
+}
+
+void CNrmProcMgrImpl::StartSystemProcess()
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    aistring strCmd;
+    CProcAttr cProcAttr;
+    SBaseProcKey cBaseProcKey;
+
+    // 获取必须随NRM启动而启动的进程
+    // 这些进程都是一些平台的必须进程
+    // 这些进程统一配置在nrm的配置xml的<system_process>子项里面
+    CSystemProcessConfigList::iterator it;
+    for ( it = m_cObjCfg.m_cSystemProcConfigList.begin(); 
+          it != m_cObjCfg.m_cSystemProcConfigList.end();
+          ++it )
+    {
+        try {
+            cBaseProcKey.set_appId(it->m_iServId);
+            cBaseProcKey.set_procId(it->m_iProcId);
+
+            // 目前这些进程都是ecframe进程，配置文件中只配置了启动xml和进程的ID（flowid，serverid，procid）
+            // 因此，直接拼接字符串，用ecframe启动，日后如果有java进程也需要如此启动，请修改
+            strCmd = "ecframe -i ";
+            strCmd += it->m_szXmlPathFile;
+            strCmd += " -m";
+
+            // 创建进程启动信息nr，nr设置进程状态为启动中
+            objNrMgr.CreateProcInfo(cBaseProcKey, strCmd); 
+            objNrMgr.SetProcStartStatus(cBaseProcKey);
+
+            // 初始化进程启动信息
+            cProcAttr.m_strStartCmd = strCmd;
+            cProcAttr.m_iTimeout = 60;
+            cProcAttr.m_strStopCmd = "";
+            cProcAttr.m_strCheckCmd = "";
+            cProcAttr.m_strForcedStopCmd = "";
+            cProcAttr.m_strRestartCmd = strCmd;
+
+            // 把进程启动信息写入nr
+            objNrMgr.UpdateProcAttr(cBaseProcKey, cProcAttr);
+            // 启动进程
+            StartProcOperator(cBaseProcKey, strCmd);
+        } catch ( CAIException & e) {
+            if ( e.get_code() == DBE2_NRM_PROCMGR_PROC_ALREAD_STARTED )
+            {
+                ;
+            }
+            else if ( e.get_code() == DBE2_NRM_NRMGR_HOLD_NR_FAIL ) 
+            {
+                ;
+            }
+            else
+            {
+                objNrMgr.DeleteProcInfo(cBaseProcKey);
+            }
+        }
+    }
+
+}
+
+void CNrmProcMgrImpl::Init(CMgrInitHelper & rcMgrInitHelper)
+{
+    // 读取配置文件信息
+    rcMgrInitHelper.ReadConfig(m_cObjCfg);
+    m_cObjCfg.init();
+    // 启动平台关键进程
+    StartSystemProcess();
+}
+
+void CNrmProcMgrImpl::CheckStopStatusHelper(SBaseProcKey & rcProcKey)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    int64 lastTime = objNrMgr.GetLastOperateTime(rcProcKey);
+    int64 time;
+
+    GetCurrentTime(time);
+
+    // nr中记录了进程上次更新的时间（进程时刻在写nr）
+    // 只有进程的上次更新时间超过停止超时时间 -- 这个时间是srm下发的，如果没有下发，用nrm配置文件中的默认时间
+    // 才会去做停止检测，否则不做停止检测
+    int64 iTimeout = objNrMgr.GetProcStopTimeout(rcProcKey);
+    if ( iTimeout <= 0 )
+    {
+        // 默认启动和停止超时时间是同一个时间
+        iTimeout = m_cObjCfg.m_nProcInitOutTime;
+    }
+
+    // 如果停止超时了，强制停止进程
+    if ( lastTime != 0 && ((time - lastTime) > iTimeout) )
+    {
+        DBE2_LOG(INFO_LOGGER, "check stopping status, prockey:%d-%d will be force stopped",  rcProcKey.appId(), rcProcKey.procId());
+        StopProcForce(rcProcKey, STOP_FLAG);
+    }
+}
+
+void CNrmProcMgrImpl::CheckStopStatusWithJavaProcess(SBaseProcKey &rcProcKey, aistring &strCmd)
+{
+    aistring strRet;
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+
+    // java进程通过脚本检测他的停止状态，如果脚本的返回值是ok，那么说明进程还活着
+    int iStatus = ShellCmd(strCmd, strRet);
+    bool bFlag = true;
+    if ( iStatus >= 0 )
+    {
+        if ( strRet == "ok" )
+        {
+            bFlag = false;
+            // 如果进程还存活，那么开始对进程是否停止超时做检测
+            // 否则，直接回复进程已经停止成功
+            CheckStopStatusHelper(rcProcKey);
+        }
+    }
+
+    if ( bFlag ) 
+    {
+        SendAlarm(rcProcKey, STOP_ALARM);
+        Send3008(rcProcKey, STOP_OK, STOP_FLAG, "java ts stop success");
+        objNrMgr.DeleteProcInfo(rcProcKey);
+    }
+}
+
+void CNrmProcMgrImpl::CheckStopStatusWithFrameProcess(SBaseProcKey &rcProcKey)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    int32 iPid = objNrMgr.GetProcPid(rcProcKey);
+    // 如果从nr中获取的pid合法
+    // 那么直接kill(pid, 0),如果进程不存在，那么直接上报停止成功
+    // 否则进入进程停止超时的处理
+    if ( iPid > 0 )
+    {
+        if ( NrmKill(rcProcKey, iPid, 0) ) 
+        {
+            Send3008(rcProcKey, STOP_OK, STOP_FLAG, "proc stopped normal");
+            objNrMgr.DeleteProcInfo(rcProcKey);
+        }
+        else
+        {
+            CheckStopStatusHelper(rcProcKey);
+        }
+    }
+    else
+    {
+		//nr 已经没用了
+		objNrMgr.DeleteProcInfo(rcProcKey);
+		iPid = GetPidByStartCmd(rcProcKey);
+		if (iPid>0)
+		{
+			NrmKill(rcProcKey, iPid,9);
+		}
+        Send3008(rcProcKey, STOP_OK, STOP_FLAG, "pid cannot get from nr file,use start cmd force stop");
+    }
+}
+
+void CNrmProcMgrImpl::CheckStopStatus(SBaseProcKey & rcProcKey)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    aistring strCmd = objNrMgr.GetProcCheckCmd(rcProcKey);
+    // 强制要求，java进程必须配置check脚本，因此，如果没有check脚本，就认为是ecframe进程，否则是java进程
+    if ( strCmd != "" )
+    {
+        CheckStopStatusWithJavaProcess(rcProcKey, strCmd);
+    }
+    else
+    {
+        CheckStopStatusWithFrameProcess(rcProcKey);
+    }
+}
+
+void CNrmProcMgrImpl::CheckInitStatusTimeout(SBaseProcKey & rcProcKey, bool bJavaProcess)
+{
+    INrmNrMgr &objNrMgr = INrmNrMgr::GetInstance();
+    int32 iRestartCount = objNrMgr.GetProcRestartCount(rcProcKey);
+    int32 iMsgType = objNrMgr.GetProcMsgType(rcProcKey);
+
+    // 进程没有启动成功，而且重启次数超过了默认的重启次数，那么，向SRM请求迁移
+    if ( iRestartCount > m_cObjCfg.m_nProcRestartNumber )
+    {
+        TransportProc(rcProcKey);
+        return;
+    }
+    
+    // 进程启动超时了，强停进程
+    if ( bJavaProcess )
+    {
+        aistring strForceStopCmd = objNrMgr.GetProcForceStopCmd(rcProcKey);
+        ShellCmdNoReturn(strForceStopCmd);
+    }
+    else
+    {
+        int32 iPid = objNrMgr.GetProcPid(rcProcKey);
+        if ( iPid < 1 ) {
+            iPid = GetPidByStartCmd(rcProcKey);
+        }
+        NrmKill(rcProcKey, iPid, 9);
+    }
+
+    // 如果是进程第一次启动（也就是前台启动的进程）
+    if ( iMsgType == 7001 ) 
+    {
+        Send3008(rcProcKey, START_FAIL, START_FLAG, "timeout, proc start failed");
+        objNrMgr.DeleteProcInfo(rcProcKey);
+        DBE2_LOG(ERROR_LOGGER, "check status, timeout, proc %d-%d start failed",  rcProcKey.appId(), rcProcKey.procId());
+    }
+
+    // 如果不是第一次启动进程，也就是说，进程启动成功了以后，非法退出过
+    // nrm再重新启动进程的情况下，进程启动超时了，那么，继续重启进程
+    else
+    {
+        Send5017(rcProcKey, 502, "process restart failed, start it again");
+        SendAlarm(rcProcKey, RESTART_ALARM);
+        RestartProc(rcProcKey);
+    }
+}
+
+void CNrmProcMgrImpl::CheckInitStatusHelper(SBaseProcKey & rcProcKey, bool bJavaProcess)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    int64 lastTime = objNrMgr.GetLastOperateTime(rcProcKey);
+    int64 time;
+
+    GetCurrentTime(time);
+    int64 iTimeout = objNrMgr.GetProcStartTimeout(rcProcKey);
+    if ( iTimeout <= 0 ) 
+    {
+        iTimeout = m_cObjCfg.m_nProcInitOutTime;
+    }
+
+    // 通过对比第一次check和当前check启动的时间，来判断进程是否启动超时
+
+    // 进程启动超时
+    if ( (lastTime != 0) && ((time - lastTime) > iTimeout)) 
+    {
+        CheckInitStatusTimeout(rcProcKey, bJavaProcess); 
+    }
+    // 第一次check启动状态，把操作时间写入nr
+    else if ( lastTime == 0 )
+    {
+        objNrMgr.SetLastOperateTime(rcProcKey, time);
+    }
+    // 还没有超时，继续等待下一次check
+    else
+    {
+        // nothing to do
+    }
+
+}
+
+void CNrmProcMgrImpl::CheckInitStatusWithFrameProcess(SBaseProcKey &rcProcKey)
+{
+    INrmNrMgr &objNrMgr = INrmNrMgr::GetInstance();
+    int32 iPid = objNrMgr.GetProcPid(rcProcKey);
+    
+    // 通过kill(pid,0)来判断进程是否存在
+    // FIXME:这样做的话，如果进程是在其他用户下启动的，会直接返回失败
+    // 指定进程启动失败
+    if ( iPid > 0 && NrmKill(rcProcKey, iPid, 0) )  
+    {
+        DBE2_LOG(ERROR_LOGGER, "check status, prockey: %d-%d, start failed",                 
+                rcProcKey.appId(), 
+                rcProcKey.procId());
+
+        if ( objNrMgr.GetProcMsgType(rcProcKey) == 7001 ) 
+        {
+            Send5017(rcProcKey, 501, "process restart failed, start it again");
+            Send3008(rcProcKey, START_FAIL, START_FLAG, "during starting,proc exit");
+            objNrMgr.DeleteProcInfo(rcProcKey);
+        } 
+        else
+        {
+            CheckInitStatusHelper(rcProcKey, false);
+        }
+
+    }
+    // 进程还在启动过程中，进入启动check过程
+    else
+    {
+        CheckInitStatusHelper(rcProcKey, false);
+    }
+}
+
+void CNrmProcMgrImpl::CheckInitStatusWithJavaProcess(SBaseProcKey &rcProcKey, aistring &strCmd)
+{
+    aistring strRet;
+    int iStatus = ShellCmd(strCmd, strRet);
+    if ( iStatus >= 0 )
+    {
+        if ( strRet != "ok" )
+        {
+            CheckInitStatusHelper(rcProcKey, true);
+        }
+    }
+}
+
+void CNrmProcMgrImpl::CheckInitStatus(SBaseProcKey & rcProcKey)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    aistring strCmd = objNrMgr.GetProcCheckCmd(rcProcKey);
+    // java process
+    if ( strCmd != "" )
+    {
+        CheckInitStatusWithJavaProcess(rcProcKey, strCmd); 
+    }
+    // ecframe process
+    else
+    {
+        CheckInitStatusWithFrameProcess(rcProcKey);
+    }
+}
+
+void CNrmProcMgrImpl::CheckRunningAndRestart(SBaseProcKey & rcProcKey)
+{
+    int iPid;
+    bool bSend = false;
+    bool bJava;
+    aistring strRet;
+    aistring strCmd;
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+
+    strCmd = objNrMgr.GetProcCheckCmd(rcProcKey);
+    iPid = objNrMgr.GetProcPid(rcProcKey);
+    bJava = (strCmd == "") ? false:true;
+
+    // java process
+    if ( bJava ) 
+    {
+        if ( ShellCmd(strCmd, strRet) >= 0 )
+        {
+            bSend = (strRet != "ok") ? true:false;
+        }
+    }
+    // ecframe process
+    else
+    {
+        bSend = (NrmKill(rcProcKey, iPid, 0) == 0) ? false : true;
+    }
+    if ( bSend )
+    {
+        DBE2_LOG(ERROR_LOGGER, "check status, prockey:%d-%d will be restarted",  rcProcKey.appId(), rcProcKey.procId());
+        try
+        {
+            Send5017(rcProcKey, 502, "process is dead, start it again");
+            SendAlarm(rcProcKey, RESTART_ALARM);
+        }
+        catch(CAIException & e)
+        {
+            DBE2_LOG_EXCEPTION(e);
+        }
+        RestartProc(rcProcKey);
+    }
+}
+
+void CNrmProcMgrImpl::CheckRunningAndNotRestart(SBaseProcKey & rcProcKey)
+{
+    int iPid;
+    bool bSend = false;
+    bool bJava;
+    aistring strRet;
+    aistring strCmd;
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+
+    strCmd = objNrMgr.GetProcCheckCmd(rcProcKey);
+    iPid = objNrMgr.GetProcPid(rcProcKey);
+
+    bJava = (strCmd == "") ? false:true;
+    // java进程
+    if ( bJava ) 
+    {
+        if ( ShellCmd(strCmd, strRet) >= 0 )
+        {
+            bSend = ((strRet != "ok") ? true:false);
+        }
+    }
+    // ecframe进程 
+    else
+    {
+        bSend = (NrmKill(rcProcKey, iPid, 0) == 0) ? false : true;
+    }
+
+    if ( bSend )
+    {
+        DBE2_LOG(ERROR_LOGGER, "check status, prockey:%d-%d will be transport",  rcProcKey.appId(), rcProcKey.procId());
+        TransportProc(rcProcKey);
+    }
+}
+
+void CNrmProcMgrImpl::CheckIsAlive(SBaseProcKey & rcProcKey)
+{
+    int32 iRestartCount;
+    int64 time;
+    int32 iPid;
+        
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    iPid = objNrMgr.GetProcPid(rcProcKey);
+    iRestartCount = objNrMgr.GetProcRestartCount(rcProcKey);
+    GetCurrentTime(time);
+
+    if(iPid <= 0) 
+    {
+		DBE2_LOG(DEBUG_LOGGER, "check proc alive %d-%d,get pid form nr file exception:%d",
+			rcProcKey.appId(),
+			rcProcKey.procId(),
+			iPid);
+        return ;
+    }
+    
+    int32 iTimeout = m_cObjCfg.m_nProcOutTime;
+
+    if ( (time - objNrMgr.GetLastUpdateTime(rcProcKey)) < iTimeout ) 
+    {
+        return;
+    }
+
+    // 没有到达重启上限次数，继续重启
+    if ( m_cObjCfg.m_nProcRestartNumber > 0
+         && iRestartCount < m_cObjCfg.m_nProcRestartNumber )
+    {
+        CheckRunningAndRestart(rcProcKey);
+    }
+
+    // 达到重启次数，迁移
+    else
+    {
+        CheckRunningAndNotRestart(rcProcKey);
+    }
+}
+
+void CNrmProcMgrImpl::CheckWaitStopStatus(SBaseProcKey & rcProcKey)
+{
+    INrmNrMgr &objNrMgr = INrmNrMgr::GetInstance();
+    int32 iPid = objNrMgr.GetProcPid(rcProcKey);
+
+    int iRet = NrmKill(rcProcKey, iPid, 0);
+    if ( iRet == 0 ) 
+    {
+        StopProcForce(rcProcKey);
+    } 
+    else
+    {
+         int64 lastTime = objNrMgr.GetLastOperateTime(rcProcKey);
+         int64 time;
+         int64 iTimeout = objNrMgr.GetProcStopTimeout(rcProcKey);
+
+         GetCurrentTime(time);
+
+         if ( lastTime != 0 && ((time - lastTime) > iTimeout) ) 
+         {
+             objNrMgr.DeleteProcInfo(rcProcKey);
+         }
+    }
+}
+
+
+static aistring GetProcStatusString(int32 iStatus)
+{
+    aistring strRet = "";
+    switch ( iStatus ) 
+    {
+        case EM_NR_STOPPING:
+            strRet = "STOPPING";
+            break;
+        case EM_NR_INIT:
+            strRet = "STARTING";
+            break;
+        case EM_NR_RUN:
+            strRet = "RUNNING";
+            break;
+        case EM_NR_RESTART:
+            strRet = "RESTARTING";
+            break;
+        case EM_NR_WAIT_STOPPING:
+            strRet = "WAITTINGSTOP";
+        default:
+            strRet = "<UNKNOWN>";
+            break;
+    }
+    return strRet;
+}
+
+void CNrmProcMgrImpl::CheckProcAllStatus()
+{    
+    std::list<SBaseProcKey> procKeyList;
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    objNrMgr.GetBaseProcKeyListInNr(procKeyList);
+    DBE2_LOG(DEBUG_LOGGER, "start to check proc stat, there are [%ld] in nr", procKeyList.size());
+    for ( std::list<SBaseProcKey>::iterator it = procKeyList.begin(); it != procKeyList.end(); ++it )
+    {
+        SBaseProcKey & cProcKey = *it;
+        // 忽略对NRM的check
+        if (cProcKey.appId() == 1  && cProcKey.procId() == 1) 
+        {
+            continue;
+        }
+
+        int iStatus = objNrMgr.GetProcStatus(cProcKey);
+        switch ( iStatus )
+        {
+            case EM_NR_STOPPING:
+                CheckStopStatus(cProcKey);
+                break;
+            case EM_NR_INIT:
+				CheckInitStatus(cProcKey);
+				break;
+            case EM_NR_RESTART:
+				if (3==m_iNrmStatus)
+				{
+					DBE2_LOG(INFO_LOGGER, "nrm is waiting for sync proc,do not check restart proc");
+				}
+				else
+				{
+					CheckInitStatus(cProcKey);
+				}
+                break;
+            case EM_NR_RUN:
+				if (3==m_iNrmStatus)
+				{
+					DBE2_LOG(INFO_LOGGER, "nrm is waiting for sync proc,do not check run proc");
+				}
+				else
+				{
+					 CheckIsAlive(cProcKey);
+				}
+                break;
+            case EM_NR_WAIT_STOPPING:
+                CheckWaitStopStatus(cProcKey);
+                break;
+            default:
+                break;
+        }
+    }
+    DBE2_LOG(DEBUG_LOGGER, "end to check proc stat");
+}
+
+bool CNrmProcMgrImpl::StartProcOperator(SBaseProcKey & rcProcKey, const aistring & strCmd)
+{
+    int iMaxCount = m_cObjCfg.m_nSystemProcRestartNumber;
+    int iStatus;
+    int i;
+        
+    for ( i = 0; i < iMaxCount; i++ )
+    {
+        iStatus = ShellCmdNoReturn(strCmd);
+        if ( (WEXITSTATUS(iStatus) == 2) || (WEXITSTATUS(iStatus) != 0) || (WIFEXITED(iStatus) == 0) ) 
+        {
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    if ( (WEXITSTATUS(iStatus) == 2) || (WEXITSTATUS(iStatus) != 0) || (WIFEXITED(iStatus) == 0) ) 
+    {
+        aistring strReason;
+        strReason = FormatString("start proc %d-%d by [%s] failed : %d:%s", 
+                 
+                rcProcKey.appId(), 
+                rcProcKey.procId(), 
+                strCmd.c_str(),
+                errno,
+                strerror(errno));
+
+        Send5017(rcProcKey, 503, strReason.c_str());
+        THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_PROC_RUN_START_CMD_ERROR, "?") << strReason;
+        return false;
+    }
+
+    // XXX: NRM在启动进程过程中休眠是无效的，因为可能有多个NRM同时启动，所以，不要尝试在NRM中休眠，来延缓启动进程的速度
+    // 也不要尝试加锁，加锁的话，会导致整个nrm被锁住，消息包的处理速度大大下降
+#ifdef NEVER_USE_THIS
+    if ( m_cObjCfg.m_nStartProcSleepTime > 0 ) 
+    {
+        usleep(m_cObjCfg.m_nStartProcSleepTime);
+    }
+#endif
+    return true;
+}
+
+void CNrmProcMgrImpl::GetProcAttrFromJavaTs(SBaseProcKey & rcProcKey, CProcAttr & rcProcAttr)
+{
+    size_t rpos = rcProcAttr.m_strtSpecifyClassPath.find_last_of('/');
+    aistring strPath;
+
+    if ( rpos == aistring::npos )
+    {
+        DBE2_LOG(INFO_LOGGER, "use tbts config dir as classpath");
+        rcProcAttr.m_strtSpecifyClassPath = m_cObjCfg.m_szTbTsCfgPath;
+        // init的时候已经check过路径了，所以直接返回
+        return;
+    }
+    else
+    {
+        strPath = rcProcAttr.m_strtSpecifyClassPath.substr(0, rpos + 1);
+    }
+
+    if ( CheckDir(strPath.c_str()) == -1 )
+    {
+        if ( CheckPath(strPath.c_str()) == -1 )
+        {
+            DBE2_LOG(ERROR_LOGGER, "loss script");
+            //THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_TBTS_CONFIG_PATH_NOT_EXIST, "tbts dir is empty");
+        }
+    }
+    rcProcAttr.m_strCfgName = rcProcAttr.m_strtSpecifyClassPath;
+    DBE2_LOG(INFO_LOGGER, "[prockey: %d-%d] start java tbts proc, configfile is [%s]",  rcProcKey.appId(), rcProcKey.procId(), rcProcAttr.m_strCfgName.c_str());
+}
+
+void CNrmProcMgrImpl::GetProcAttrFromNativeTs(SBaseProcKey & rcProcKey, CProcAttr & rcProcAttr)
+{
+    aistring strFilePrefix;
+    strFilePrefix = rcProcAttr.m_strFilePrefix;
+
+    aistring strXmlName;
+    strXmlName = FormatString("%s_%d_%d.xml", strFilePrefix.c_str(), rcProcKey.appId(), rcProcKey.procId());
+
+    aistring strXmlPath;
+    strXmlPath = FormatString("%s_%d/", strFilePrefix.c_str(), abs(rcProcKey.appId()));
+
+    aistring strPath = m_cObjCfg.m_szTbTsCfgPath;
+
+    strPath += strXmlPath;
+    if(CheckDir(strPath.c_str()) == -1)
+    {
+        if(-1 == CheckPath(strPath.c_str()) )
+        {
+			DBE2_LOG(INFO_LOGGER, "[prockey: %d-%d] check strPath -1 :%s", rcProcKey.appId(), rcProcKey.procId(),strPath.c_str());
+            THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_TBTS_CONFIG_PATH_NOT_EXIST, "create proc config dir error");
+            return;
+        }
+    }
+    rcProcAttr.m_strCfgName = strPath + strXmlName;
+    DBE2_LOG(INFO_LOGGER, "[prockey: %d-%d] start c++ tbts proc, configfile is [%s]",  rcProcKey.appId(), rcProcKey.procId(), rcProcAttr.m_strCfgName.c_str());
+}
+
+void CNrmProcMgrImpl::GetProcAttr(SBaseProcKey & rcProcKey, CProcAttr & rcProcAttr)
+{
+    if(rcProcAttr.m_strtSpecifyClassPath.size() > 1)
+    {
+        GetProcAttrFromJavaTs(rcProcKey, rcProcAttr);
+        CheckExecutable(m_cObjCfg.m_vecEnvPath, rcProcAttr.m_strStopCmd.c_str(), STOP);
+        CheckExecutable(m_cObjCfg.m_vecEnvPath, rcProcAttr.m_strForcedStopCmd.c_str(), FORCE_STOP);
+        if(rcProcAttr.m_strCheckCmd.length() > 0)
+        {
+        	//因为war脚本有可能不配置,所以可以忽略
+        	CheckExecutable(m_cObjCfg.m_vecEnvPath, rcProcAttr.m_strCheckCmd.c_str(), CHECK);
+        }
+        // XXX:
+        // 重启脚本也可以不配置，直接用启动脚本
+        // 如果以后需要对重启和启动做区分，开启重启脚本配置
+        //CheckExecutable(m_cObjCfg.m_vecEnvPath, rcProcAttr.m_strRestartCmd.c_str(), RESTART);
+    }
+    else
+    {
+        GetProcAttrFromNativeTs(rcProcKey, rcProcAttr);
+    }
+}
+
+void CNrmProcMgrImpl::SaveXmlFile(const aistring & rcStrXmlFileName, const aistring & rcStrXmlInfo)
+{
+    int fd = creat(rcStrXmlFileName.c_str(), 0777);
+    if ( fd < 0 )
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_CREATE_XML_FAIL, "save xml fail");
+        return;
+    }
+    if ( write(fd, rcStrXmlInfo.c_str(), rcStrXmlInfo.size()) != (ssize_t)rcStrXmlInfo.size() )
+    {
+        close(fd);
+        THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_WRITE_XML_FAIL, "save xml fail");
+        return;
+    }
+    close(fd);
+}
+
+void CNrmProcMgrImpl::StartProc(SNrmStartProc & rcNrmStartProc)
+{
+    DBE2_LOG(INFO_LOGGER,
+            "begin start proc %d-%d", 
+            rcNrmStartProc.baseProcKey().appId(),
+            rcNrmStartProc.baseProcKey().procId());
+
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    int iRet;
+    // 进程已经存在
+    if ( (iRet = objNrMgr.IsProcContain(rcNrmStartProc.baseProcKey())) == 0 )
+    {
+        THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_PROC_ALREAD_STARTED, "proc already exists");
+        return;
+    }
+    // 进程已经存在，但是进程死了
+    else if ( iRet == 1 ) 
+    {
+        DBE2_LOG(INFO_LOGGER,
+                "the proc %d-%d is death now,"
+                "but the proc info has not removed, start it again",
+                rcNrmStartProc.baseProcKey().appId(),
+                rcNrmStartProc.baseProcKey().procId());
+        objNrMgr.DeleteProcInfo(rcNrmStartProc.baseProcKey());
+    }
+    // 进程不存在，不做任何额外处理
+    else
+    {
+    }
+    //
+    // 获取相关的配置信息
+    //
+    CProcAttr procAttr;
+    procAttr.m_strFilePrefix = rcNrmStartProc.get_filePrefix();
+    procAttr.m_strtSpecifyClassPath = rcNrmStartProc.get_tsClasspath();
+    procAttr.m_strStartCmd = rcNrmStartProc.get_startCmd();
+    procAttr.m_strStopCmd = rcNrmStartProc.get_stopCmd();
+    procAttr.m_strForcedStopCmd = rcNrmStartProc.get_forcedStopCmd();
+    procAttr.m_strCheckCmd = rcNrmStartProc.get_checkCmd();
+    procAttr.m_strRestartCmd = rcNrmStartProc.get_restartCmd();
+    procAttr.m_strCfgName = rcNrmStartProc.get_configFile();
+    procAttr.m_iTimeout = rcNrmStartProc.get_timeOutSecond();
+    if ( !procAttr.m_iTimeout )
+    {
+        procAttr.m_iTimeout = m_cObjCfg.m_nProcInitOutTime;
+    }
+
+    objNrMgr.CreateProcInfo(rcNrmStartProc.baseProcKey(), procAttr.m_strStartCmd);
+
+    GetProcAttr(rcNrmStartProc.baseProcKey(), procAttr);
+
+    aistring strSuffix = procAttr.m_strStartCmd;
+    aistring strStart = GetStartCmd(rcNrmStartProc.baseProcKey(), strSuffix, procAttr);
+
+    SaveXmlFile(procAttr.m_strCfgName, rcNrmStartProc.get_configFile());
+    SaveScriptCmdInNr(procAttr, rcNrmStartProc.baseProcKey());  
+    objNrMgr.SetProcStartStatus(rcNrmStartProc.baseProcKey());
+        
+    // 接到7001以后，设置原操作消息类型为7001
+    objNrMgr.SetProcMsgType(rcNrmStartProc.baseProcKey(), 7001);
+
+    StartProcOperator(rcNrmStartProc.baseProcKey(), strStart);
+
+	int32 iPid = GetPidByStartCmd(rcNrmStartProc.baseProcKey());
+	if (iPid>0)
+	{
+		DBE2_LOG(INFO_LOGGER, "check start proc %d-%d,pid %d",
+			rcNrmStartProc.baseProcKey().appId(), 
+			rcNrmStartProc.baseProcKey().procId(),
+			iPid);
+	}
+	else
+	{
+		objNrMgr.DeleteProcInfo(rcNrmStartProc.baseProcKey());
+		THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_PROC_START_PROC_FAIL, "pid cannot get by start commond,proc exit without message");
+	}
+    DBE2_LOG(INFO_LOGGER, "end start proc %d-%d", rcNrmStartProc.baseProcKey().appId(), rcNrmStartProc.baseProcKey().procId());
+}
+
+//
+// 替换脚本执行命令
+// 脚本分别为：start stop forcedstop check restart
+//
+void CNrmProcMgrImpl::ReplaceCmdParam(CProcAttr & rcProcAttr, SBaseProcKey & rcProcKey)
+{
+    aistring strProcKet;
+    strProcKet = FormatString("%d-%d",  rcProcKey.appId(), rcProcKey.procId());
+
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strStartCmd, CMD_CONFIG_SYMBOL, rcProcAttr.m_strCfgName.c_str());
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strStartCmd, CMD_PROCKEY_SYMBOL, strProcKet.c_str());
+    SetBackstageRun(rcProcAttr.m_strStartCmd);
+
+    //stop_cmd
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strStopCmd, CMD_CONFIG_SYMBOL, rcProcAttr.m_strCfgName.c_str());
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strStopCmd, CMD_PROCKEY_SYMBOL, strProcKet.c_str());
+
+    //forced_stop_cmd
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strForcedStopCmd, CMD_CONFIG_SYMBOL, rcProcAttr.m_strCfgName.c_str());
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strForcedStopCmd, CMD_PROCKEY_SYMBOL, strProcKet.c_str());
+
+    //check_cmd
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strCheckCmd, CMD_CONFIG_SYMBOL, rcProcAttr.m_strCfgName.c_str());
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strCheckCmd, CMD_PROCKEY_SYMBOL, strProcKet.c_str());
+
+    //restart_cmd
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strRestartCmd, CMD_CONFIG_SYMBOL, rcProcAttr.m_strCfgName.c_str());
+    ReplaceSpecifiedSymbol(rcProcAttr.m_strRestartCmd, CMD_PROCKEY_SYMBOL, strProcKet.c_str());
+    SetBackstageRun(rcProcAttr.m_strRestartCmd);
+}
+
+//
+// 给脚本加上后台执行标志&
+//
+void CNrmProcMgrImpl::SetBackstageRun(aistring & strCmd)
+{
+    size_t iPos = strCmd.find("&");
+    if(iPos == aistring::npos && strCmd.size() != 0)
+    {
+        strCmd = strCmd + " &";
+    }
+}
+
+void CNrmProcMgrImpl::ReplaceSpecifiedSymbol(aistring & strCmd, const char * szSymbol, const char * szParam)
+{
+    aistring strTmpCmd;
+
+    //替换回车换行符号
+    strCmd = ReplaceString(strCmd, "\r", "");
+    strCmd = ReplaceString(strCmd, "\n", "");
+
+    size_t iPos = strCmd.find(szSymbol);
+    if(iPos != aistring::npos)
+    {
+        aistring strDest1 = strCmd.substr(0, iPos);
+        aistring strDest2 = strCmd.substr(iPos + strlen(szSymbol));
+
+        strTmpCmd = FormatString("%s %s %s", strDest1.c_str(), szParam, strDest2.c_str());
+    }
+    else
+    {
+        strTmpCmd = FormatString("%s", strCmd.c_str());
+    }
+    //返回替换后的串
+    strCmd = strTmpCmd;
+}
+
+aistring CNrmProcMgrImpl::GetStartCmd(SBaseProcKey & rcProcKey, aistring & strSuffix, CProcAttr & rcProcAttr)
+{
+    aistring strStart;
+    if ( strSuffix.size() < 1 || strSuffix.find("ecframe -i") != AISTD string::npos )
+    {
+        strStart = FormatString("pwrapper ecframe-%d-%d ecframe -i %s -m -f cpf",
+                 rcProcKey.appId(), rcProcKey.procId(), rcProcAttr.m_strCfgName.c_str());
+        rcProcAttr.m_strStartCmd = strStart;
+    }
+    else
+    {
+        ReplaceCmdParam(rcProcAttr, rcProcKey);
+        strStart = rcProcAttr.m_strStartCmd;
+        if(strStart == "")
+        {
+            THROW_CAIEXCEPTION(DBE2_NRM_PROCMGR_START_CMD_IS_NULL, "start cmd is null");
+            return "";
+        }
+    }
+    return strStart;
+}
+
+
+void CNrmProcMgrImpl::SaveScriptCmdInNr(CProcAttr & rcProcAttr, SBaseProcKey rcProcKey)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    objNrMgr.UpdateProcAttr(rcProcKey, rcProcAttr);
+    objNrMgr.SetProcStartStatus(rcProcKey);
+}
+
+void CNrmProcMgrImpl::StopProc(SNrmStopProc & rcNrmStop)
+{
+    DBE2_LOG(INFO_LOGGER, "begin stop proc %d-%d", 
+            rcNrmStop.baseProcKey().appId(),
+            rcNrmStop.baseProcKey().procId());
+
+    int iStopFlag = rcNrmStop.get_operateType();
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+
+	//进程已经不在
+    if ( objNrMgr.IsProcContain(rcNrmStop.baseProcKey()) == -1
+		&& GetPidByStartCmd(rcNrmStop.baseProcKey())==0)
+    {
+        Send3008(rcNrmStop.baseProcKey(), STOP_OK, iStopFlag, "proc is already, stoped");
+		objNrMgr.DeleteProcInfo(rcNrmStop.baseProcKey());
+        return;
+    }
+
+    objNrMgr.SetProcStopStatus(rcNrmStop.baseProcKey());
+
+    if ( iStopFlag == 0 )
+    {
+        StopProcNormal(rcNrmStop);
+    }
+    else
+    {
+        StopProcForce(rcNrmStop);
+    }
+    DBE2_LOG(INFO_LOGGER, 
+            "end stop proc %d-%d", 
+            rcNrmStop.baseProcKey().appId(), 
+            rcNrmStop.baseProcKey().procId());
+}
+
+void CNrmProcMgrImpl::StopProcForce(SNrmStopProc & rcNrmStop)
+{
+    StopProcForce(rcNrmStop.baseProcKey());
+}
+
+void CNrmProcMgrImpl::StopProcForce(SBaseProcKey & rcProcKey, int32 iType)
+{
+    aistring strCmd;
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    int32 iPid = objNrMgr.GetProcPid(rcProcKey);
+
+	DBE2_LOG(INFO_LOGGER, "force stop proc %d-%d,get pid from nr file: %d",
+		rcProcKey.appId(),
+		rcProcKey.procId(),iPid);
+
+    if ( iPid <= 0 ) 
+    {
+        iPid = GetPidByStartCmd(rcProcKey);
+    }
+
+    int iRet;
+    if(iPid > 0)
+    {
+		if ( (strCmd = objNrMgr.GetProcForceStopCmd(rcProcKey)) == "" )
+		{
+			iRet = NrmKill(rcProcKey, iPid, 9);
+            // 进程不存在情况下，等待check来停止可能被重启的进程
+            // 暂时不删除nr信息
+            if ( iRet == -1 ) {
+                objNrMgr.SetProcStatus(rcProcKey, EM_NR_WAIT_STOPPING);
+            }
+		}
+		else
+		{
+			if ( ShellCmdNoReturn(strCmd) != 0 )
+			{
+				iRet = NrmKill(rcProcKey, iPid, 9);
+                // 进程不存在情况下，等待check来停止可能被重启的进程
+                // 暂时不删除nr信息
+                if ( iRet == -1 ) {
+                    objNrMgr.SetProcStatus(rcProcKey, EM_NR_WAIT_STOPPING);
+                }
+			}
+		}
+    }
+    Send3008(rcProcKey, STOP_OK, iType, "force stop", iPid);
+    objNrMgr.DeleteProcInfo(rcProcKey);
+}
+
+void CNrmProcMgrImpl::StopProcNormal(SNrmStopProc & rcNrmStop)
+{
+    aistring strCmd;
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    strCmd = objNrMgr.GetProcStopCmd(rcNrmStop.baseProcKey());
+    if ( strCmd == "" )
+    {
+        StopProcNormalByKill(rcNrmStop.baseProcKey());
+    }
+    else
+    {
+        if(ShellCmdNoReturn(strCmd) != 0)
+        {
+            StopProcForce(rcNrmStop.baseProcKey(), rcNrmStop.operateType());
+            objNrMgr.DeleteProcInfo(rcNrmStop.baseProcKey());
+        }
+        else
+        {
+            objNrMgr.SetProcStopStatus(rcNrmStop.baseProcKey());
+        }
+    }
+}
+
+void CNrmProcMgrImpl::StopProcNormalByKill(SBaseProcKey & rcProcKey)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    SSrmRepExeProc srmRepExeProc;
+    int32 iPid = objNrMgr.GetProcPid(rcProcKey);
+	DBE2_LOG(INFO_LOGGER, "stop proc %d-%d,get pid from nr file: %d",
+		rcProcKey.appId(),
+		rcProcKey.procId(),iPid);
+
+    if ( iPid <= 0 ) 
+    {
+        iPid = GetPidByStartCmd(rcProcKey);
+    }
+
+    if( (iPid > 1)  && ((rcProcKey.appId() != 1)&& (rcProcKey.appId() != 5) ))
+    {       
+		NrmKill(rcProcKey, iPid, SIGTERM); 
+    }
+}
+
+void CNrmProcMgrImpl::RestartProc(SBaseProcKey & rcProcKey)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    aistring strCmd = objNrMgr.GetProcStartCmd(rcProcKey);
+
+    int64 time;
+
+    try
+    {
+        //启动出现异常记录一下
+        StartProcOperator(rcProcKey, strCmd);
+    }
+    catch(CAIException & e)
+    {
+        DBE2_LOG(FATAL_LOGGER, "restart proc fail!proc key %d-%d!%s",
+                 rcProcKey.appId(),
+                rcProcKey.procId(), e.get_message().c_str());
+    }
+    objNrMgr.SetProcRestartStatus(rcProcKey);
+    objNrMgr.SetProcMsgType(rcProcKey, 0);
+    GetCurrentTime(time);
+    objNrMgr.SetLastOperateTime(rcProcKey, time);
+}
+
+void CNrmProcMgrImpl::TransportProc(SBaseProcKey & rcProcKey)
+{
+    INrmNrMgr::GetInstance().SetProcTransportStatus(rcProcKey);
+
+    SSrmProcNeedMigrate srmProcNeedMigrate;
+    srmProcNeedMigrate.set_procKey(rcProcKey);
+    srmProcNeedMigrate.set_msgHead(GetMsgHead(3010));
+
+    CSendTarget sendTarget = GetSrmAddress();
+
+    obb_stream stream = Sdl2Obbstream(srmProcNeedMigrate);
+
+    // 发送3010消息，申请迁移进程
+    GetMsgHelper()->Send(sendTarget, 3010, stream);
+    INrmNrMgr::GetInstance().DeleteProcInfo(rcProcKey);
+}
+
+void CNrmProcMgrImpl::StopProcProg(SNrmStopProcProg & rcNrmProcProg)
+{
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+    bool bSend = false;
+    aistring strReason;
+    bool bCleanNr = true;
+
+    int32 iMsgType = objNrMgr.GetProcMsgType(rcNrmProcProg.baseProcKey());
+    int iStopProcess = rcNrmProcProg.stopProcessProgress().get_stopProgress();
+
+    // 如果不是前台发送的停止命令
+    // 前台发送停止命令的消息ID是7002
+    // 当没有记录7002的时候，那么一定有认为的行为停止的，我们把这个行为认为是非法kill
+    // 即使进程停止成功，我们也不会删除nr，这样nr里面记录的状态还是进程启动状态
+    // nrm在下次check的时候，会把进程拉起来
+    // FIXME: 如果写nr失败，前台下发了7002消息，这个时候，也会进入这个环节
+    if ( iMsgType != 7002 )
+    {
+        DBE2_LOG(ERROR_LOGGER,
+                 "the proc %d-%d, has been invalid killed",
+                 rcNrmProcProg.baseProcKey().appId(),
+                 rcNrmProcProg.baseProcKey().procId());
+        bCleanNr = false;
+    }
+
+    DBE2_LOG(DEBUG_LOGGER, "receive 7004 from %d-%d stop process is %d", 
+            rcNrmProcProg.baseProcKey().appId(),
+            rcNrmProcProg.baseProcKey().procId(),
+            iStopProcess);
+
+    if ( iStopProcess < 0 || iStopProcess > 1000000 )
+    {
+        bSend = true;
+    }
+    // 当进程上报100万的时候，我们认为进程停止成功了
+    // 这个是约定的！如果进程上报了100万，没有停止成功，那么NRM不负责
+    else if ( iStopProcess == 1000000 )
+    {
+        strReason = "normal stop success";
+        bSend = true;
+    }
+    else
+    {
+        // 如果还没上报到100万，那么把进程停止进度写入nr记录
+        objNrMgr.SetStopProgress(rcNrmProcProg.baseProcKey(), iStopProcess);
+    }
+
+    // 原操作消息是7002的操作导致的7004停止结束消息，才会回复3008消息和删除NR
+    if ( bSend && iMsgType == 7002 )
+    {
+        Send3008(rcNrmProcProg.baseProcKey(), STOP_OK, 0, strReason, objNrMgr.GetProcPid(rcNrmProcProg.baseProcKey()));
+        if ( bCleanNr )
+        {
+            objNrMgr.DeleteProcInfo(rcNrmProcProg.baseProcKey());
+        }
+    }
+}
+
+void CNrmProcMgrImpl::Send3008(SBaseProcKey & rcProcKey, int32 iResult, int32 iOperatorType, const aistring & strReason, int pid)
+{
+
+    if ( iResult )
+    {
+        DBE2_LOG(INFO_LOGGER, "send 3008 to srm, proc %d-%d start %s",  rcProcKey.appId(), rcProcKey.procId(), iResult ? "success" : "failed");
+    } 
+    else
+    {
+        DBE2_LOG(ERROR_LOGGER, "send 3008 to srm, proc %d-%d start %s",  rcProcKey.appId(), rcProcKey.procId(), iResult ? "success" : "failed");
+    }
+
+    if ((rcProcKey.appId() == 1)||(rcProcKey.appId() == 5)) 
+    {
+        return;
+    }
+
+    SSrmRepExeProc cSrmRepExeProc;
+    cSrmRepExeProc.set_msgHead(GetMsgHead(3008));
+
+    CSendTarget sendTarget = GetSrmAddress();
+
+    cSrmRepExeProc.procExeResult().baseExeProc().set_baseProcKey(rcProcKey);
+    cSrmRepExeProc.procExeResult().baseExeProc().set_flag(iOperatorType);                         // 0-stop 2-force-stop 1-start
+    cSrmRepExeProc.procExeResult().set_result(iResult);                                           // 0-false  1-true
+    cSrmRepExeProc.procExeResult().set_failReason(strReason);
+    cSrmRepExeProc.set_pid(INrmNrMgr::GetInstance().GetProcPid(rcProcKey));
+    obb_stream stream = Sdl2Obbstream(cSrmRepExeProc);
+
+    LogSdl(cSrmRepExeProc);
+    GetMsgHelper()->Send(sendTarget, 3008, stream);
+
+}
+
+void CNrmProcMgrImpl::Send5017(SBaseProcKey & rcProcKey, int32 iMoniId, const aistring &strDes)
+{
+    SDbmWarnInfo sDbmWarnInfo;
+    aistring strMessage;
+    int64 time;
+
+    try { 
+
+        GetCurrentTime(time);
+
+        strMessage = FormatString("%d-%d", 
+                
+                rcProcKey.appId(),
+                rcProcKey.procId());
+
+        sDbmWarnInfo.set_msgHead(GetMsgHead(5017));
+        // sDbmWarnInfo.set_warnId(0);  -- srm 确定
+        sDbmWarnInfo.set_score(0);
+
+		// warn_id 替换 moniId
+        sDbmWarnInfo.set_moniId(iMoniId);                 // 500-600
+		sDbmWarnInfo.set_warnId(iMoniId);
+
+        sDbmWarnInfo.set_procKey(rcProcKey);
+        sDbmWarnInfo.set_vmId(od_system::get_vmId());
+        sDbmWarnInfo.set_message(strMessage);
+        sDbmWarnInfo.set_description(strDes);
+        sDbmWarnInfo.set_warnTime(time);
+
+        CSendTarget sendTarget = GetSrmAddress();
+        obb_stream stream = Sdl2Obbstream(sDbmWarnInfo);
+        LogSdl(sDbmWarnInfo);
+
+        GetMsgHelper()->Send(sendTarget, 5017, stream);
+    } catch ( CAIException & e ) {
+        DBE2_LOG(ERROR_LOGGER, "send 5017 faild [%d:%s]", e.get_code(), e.get_message().c_str());
+    } catch ( ... ) {
+        DBE2_LOG(ERROR_LOGGER, "send 5017 faild, unknown error");
+    }
+
+}
+
+int32 CNrmProcMgrImpl::GetNrmStatus()
+{
+    return m_iNrmStatus;
+}
+
+void CNrmProcMgrImpl::SetNrmStatus(int32 iStatus)
+{
+    m_iNrmStatus = iStatus;
+}
+
+void CNrmProcMgrImpl::KillAllProcess()
+{
+    std::list<SBaseProcKey> procKeyList;
+    INrmNrMgr & objNrMgr = INrmNrMgr::GetInstance();
+
+    objNrMgr.GetBaseProcKeyListInNr(procKeyList);
+
+    for ( std::list<SBaseProcKey>::iterator it = procKeyList.begin(); it != procKeyList.end(); ++it )
+    {
+        SBaseProcKey & cProcKey = *it;
+		if ( cProcKey.appId() !=1 && cProcKey.appId() !=5) 
+		{
+			StopProcForce(cProcKey);
+		}
+    }
+
+    //清理完所有进程后休眠一些时间,以保证对应的进程锁都释放了
+    int32 iSleepSec = 5;
+    DBE2_LOG(INFO_LOGGER, "kill all process finish, begin sleep %d sec", iSleepSec);
+    sleep(iSleepSec);
+    DBE2_LOG(INFO_LOGGER, "kill all process finish, end sleep %d sec", iSleepSec);
+}
+
+void CNrmProcMgrImpl::CheckSystemProcessStatus()
+{
+	SBaseProcKey  cProcKey;
+	INrmNrMgr &objNrMgr = INrmNrMgr::GetInstance();
+    CSystemProcessConfigList::iterator it;
+    for ( it = m_cObjCfg.m_cSystemProcConfigList.begin(); 
+          it != m_cObjCfg.m_cSystemProcConfigList.end();
+          ++it )
+    {
+        cProcKey.set_appId(it->m_iServId);
+        cProcKey.set_procId(it->m_iProcId);
+        int iStatus = objNrMgr.GetProcStatus(cProcKey);
+        switch ( iStatus )
+        {
+        case EM_NR_STOPPING:
+            CheckStopStatus(cProcKey);
+            break;
+        case EM_NR_INIT:
+        case EM_NR_RESTART:
+            CheckInitStatus(cProcKey);
+            break;
+        case EM_NR_RUN:
+            CheckIsAlive(cProcKey);
+            break;
+        case EM_NR_WAIT_STOPPING:
+            CheckWaitStopStatus(cProcKey);
+            break;
+        default:
+            break;
+        }
+	}
+}
+
+}
+
+

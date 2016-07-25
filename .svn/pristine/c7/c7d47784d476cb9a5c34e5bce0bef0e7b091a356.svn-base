@@ -1,0 +1,779 @@
+#include <unittest_cp_dbe2_srm_main.h>
+#include "dbe2_util.h"
+#include "srm_def_sdl_c.h"
+#include "rdc_table_def_sdl_c.h"
+#include "srm_rdc_mgr.h"
+
+using namespace MDbe;
+SUITE(SUITE___mgr_impl_srm_rdc_mgr_impl_cpp)
+{
+	//Fuction: CSrmRdcMgrImpl :: CSrmRdcMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_CSrmRdcMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: InsertTbAddr ( const MRdc :: CRdcTbAddr objTbAddr )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertTbAddr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: CheckTbSupplyed ( const MDbe :: SBaseProcKey & objProcKey )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_CheckTbSupplyed)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetSuitTbAddr ( CRdcTbAddr & rcTbAddr , SBaseSubscribeMsg & rcSubscribeMsg )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetSuitTbAddr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetFlowSrvLocation ( CRdcFlowSrv & rcFlowSrv , SBaseProcKey & rcProcKey )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetFlowSrvLocation)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: DeleteRedundantData ( )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_DeleteRedundantData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CSrmRdcMgrImpl :: GetProcTransId ( void )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetProcTransId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetRegistLestTbAddr ( CRdcTbAddrList & rTbAddrList , int32 iDomainId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetRegistLestTbAddr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetTbAddrList ( CRdcTbAddrList & rTbAddrList , SBaseSubscribeMsg & rcSubscribeMsg , int32 iFlag )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetTbAddrList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: InsertTbQueueInfo ( CRdcTbQueue & rcTbQueue )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertTbQueueInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: InsertTransInfo ( SRdcCreateTrans & rcCreateTrans )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertTransInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: InsertTsHandleRate ( CRdcTsHandleRate & rcTsHandleRate )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertTsHandleRate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: InsertVmDynamicInfo ( CRdcVmStateRecord & rcVmStateRecord )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertVmDynamicInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: InsertVmProcInfo ( CRdcProcStateRecord & rcProcStateRecord )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertVmProcInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: CheckIfJobFlowSrv ( int32 iflowId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_CheckIfJobFlowSrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: CheckFlowHasTB ( int32 iFlowId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_CheckFlowHasTB)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: InsertTsRegist ( CRdcTsQueryKey & rcTsQureyKey )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertTsRegist)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: RemoveTbAddr ( SBaseProcKey & rcProcKey )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_RemoveTbAddr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetTbTsData ( SBaseSubscribeMsg & rcSubscribeMsg , CRdcTbAddrList & rTbAddrList , CRdcTsQueryKeyList & rTsRegistRely )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetTbTsData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: RemoveTsRegist ( int32 iflowId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_RemoveTsRegist)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetHeadFlows ( int32 iJobInsId , SJobFlowIdList rJobFlowIdList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetHeadFlows)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetJobFlowByStatus ( int32 iJobId , SJobFlowIdList & rcJobFlowIdList , int32 iFlowStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetJobFlowByStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetJobInfo ( int32 iJobInsId , CRdcJobIns & rcJobInfo )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetJobInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetJobStepByStatus ( int32 iJobId , SStepIdList & rcStepIdList , int32 iStepStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetJobStepByStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetStepFlowByStatus ( int32 iJobId , SJobFlowIdList & rcJobFlowIdList , int32 iFlowStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetStepFlowByStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: ResetJobStatus ( int32 iJobInsId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_ResetJobStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: SetJobInfo ( int32 iJobInsId , CRdcJobIns & rcJobInfo )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetJobInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: SetJobStatus ( int32 iJobId , int32 JobStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetJobStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetProcList ( int32 iSrvId , CRdcProcList & lstProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetProcList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetSrvList ( int32 iFlowId , CRdcFlowSrvList & lstFlowSrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetSrvList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetSrvRelation ( int32 iSrvId , CRdcSrvRelationList & lstSrvRelationList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetSrvRelation)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetFlowsByStep ( SStepId & rcStepId , SJobFlowIdList & rcJobFlowIdList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetFlowsByStep)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetHeadSteps ( int32 iJobInsId , SStepIdList & rStepIdList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetHeadSteps)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetNextSteps ( SStepId & rcStepId , SStepIdSet & rcStepIdSet )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetNextSteps)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetPreSteps ( SStepId & rcStepId , SStepIdSet & rcStepIdSet )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetPreSteps)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetStepInfo ( SStepId & rcStepId , CRdcJobRunStep & rcRdcJobRunStep )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetStepInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: SetJobFlowStatus ( SJobFlowId & rcJobFlowId , int32 iJobFlowStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetJobFlowStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: SetStepStatus ( SStepId & rcStepId , int32 iStepStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetStepStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetLuaScript ( AISTD string & rScriptName , AISTD string & rScritpContent )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetLuaScript)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetProcStateRecord ( int32 iVmId , CRdcProcStateRecordList & rProcStateRecorList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetProcStateRecord)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetVmList ( int32 iVmConnetState , int32 iVmState , CPdcVmList & lstVmList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetVmList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetVmStateRecord ( int32 iVmId , CRdcVmStateRecord & rVmStateRecord )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetVmStateRecord)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void DeleteTransInfo ( int32 iTransId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_DeleteTransInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool QueryFlow ( int32 iFlowId , CRdcFlow & rFlow )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryFlow)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: QueryFlowSrvParam ( rsetInt & ri32FlowIdSet , rsetInt & ri32SrvIdSet , CPdcFlowSrvParamSalList & rlstFlowParamSal , CPdcFlowSrvParamOthList & rlstSrvParamOth , CPdcFlowSrvParamDbList & rlstSrvParamDb , SPdcFlowSrvPipeLineList & rlstSrvPipeLine )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryFlowSrvParam)
+	{
+		printf("TestCSrmRdcMgrImpl_QueryFlowSrvParam is start\n");
+		/*codes for test start here*/
+		CInt32Set cFlowSet;
+		cFlowSet.insert(89);
+		CInt32Set cSrvSet;
+		cSrvSet.insert(1);
+		CPdcFlowSrvParamSalList lstFlowParamSal;
+		CPdcFlowSrvParamOthList lstSrvParamOth;
+		CPdcFlowSrvParamDbList lstFlowParamDb;
+		SPdcFlowSrvPipeLineList lstSrvPipeLine;
+		SPdcFlowSrvPipeLineList::iterator itPipeLine;
+		ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+		rcRdcMgr.QueryFlowSrvParam(cFlowSet, cSrvSet, lstFlowParamSal,
+				lstSrvParamOth, lstFlowParamDb, lstSrvPipeLine);
+		printf("PipeLine size is %d\n", lstSrvPipeLine.size());
+		for (itPipeLine = lstSrvPipeLine.begin(); itPipeLine != lstSrvPipeLine.end(); ++itPipeLine)
+		{
+			printf("pipeline info is %s\n", itPipeLine->get_pipeLineValue().c_str());
+		}
+		//DBE2_LOG();
+		/*codes for test stop here*/
+	}
+	//Fuction: void QueryProcByFlow ( int32 iFlowId , CRdcProcList & rlstProc )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryProcByFlow)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool QueryProcOperate ( SBaseProcKey & rcProcKey , int32 iVmId , int32 iOperateType , CRdcProcTransOperate & rcProcOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryProcOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void QueryTimeOutOperate ( const CBSDateTime & rcCompareTime , CRdcProcTransOperateList & rlstProcOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryTimeOutOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void QueryTransByFlow ( int32 iFlowId , CRdcProcTransList & rlstProcTrans )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryTransByFlow)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool QueryTransById ( int32 iTransId , CRdcProcTrans & rcProcTrans )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryTransById)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void UpdateAndQueryOperate ( CRdcProcTransOperate & rcProcOperate , CRdcProcTransOperateList & rlstProcOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateAndQueryOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool UpdateFlowState ( int32 iFlowId , CrdcFlow & rcFlow )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateFlowState)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void UpdateProcOperate ( CRdcProcTransOperate & rcProcOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateProcOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetDomainVmRelation ( int32 iDoMainId , CPdcDomainVmRelationList & rDomainVmRelationList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetDomainVmRelation)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetPdcVm ( int32 iVmId , CPdcVm & rcPdcVm )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetPdcVm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: InsertPdcVm ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertPdcVm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: UpdateVmstate ( int32 iVmId , int32 iVmConnectState , int32 iVmState )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateVmstate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: VmUpdateStaticInfo ( int32 iVmId , CPdcVm & rcPdcVm )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_VmUpdateStaticInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: QueryFlowOperate ( int32 iFlowId , int32 iExeType , CRdcFlowOperate & rcFlowOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryFlowOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: DeleteFlowOperate ( int32 iFlowId , int32 iSequence )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_DeleteFlowOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: InsertFlowOperate ( CRdcFlowOperate & rcFlowOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertFlowOperate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetDomainVmRelationObj ( int32 iVmId , CPdcDomainVmRelation & rDomainVmRelation )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetDomainVmRelationObj)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: CheckVmIdExsit ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_CheckVmIdExsit)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: QueryFlowTbProc ( int32 iFlowId , CRdcProcList & rcTbProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryFlowTbProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: QueryFlowTsOrder ( SBaseSrvKey & rcSrvKey , CPdcFlowTsSrvOrder & rcTsSrvOrder )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryFlowTsOrder)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: QueryProcInfoBySrv ( SBaseSrvKey & rcSrvKey , CRdcProcList & rcProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryProcInfoBySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: QueryProcInfobyProc ( SBaseProcKey & rcProcKey , CRdcProc & rcProc )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryProcInfobyProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: UpdateAndQueryProcInfo ( CRdcProc & rcProc , CRdcProcList & rcProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateAndQueryProcInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: UpdateProcInfo ( CRdcProc & rcProc )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateProcInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: DeleteProcInfo ( int32 iFlowId , int32 iSrvId , int32 iProcId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_DeleteProcInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: InsertProcInfo ( CRdcProc & rcProc )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertProcInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: QueryFlowOperateByProc ( SBaseExeProc & rcExeProc , int32 iVmId , CRdcFlowOperate & rcFlowOperate )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryFlowOperateByProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: QueryFlowList ( CInt32Set & rcFlowIdSet , CRdcFlowList & rcFlowList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryFlowList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: QueryFlowSrvList ( CInt32Set & rcSrvIdSet , CRdcFlowSrvList & rcSrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryFlowSrvList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: QueryTransOperateById ( int32 iTransId , CRdcProcTransOperateList & rcProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryTransOperateById)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: Init ( CMgrInitHelper & cMgrInitHelper )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_Init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CXcConfig ( )
+	TEST_FIXTURE(TestFixture,TestCXcConfig_CXcConfig)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CRdcConfig ( )
+	TEST_FIXTURE(TestFixture,TestCRdcConfig_CRdcConfig)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CSrmRdcMgrImpl :: GetFlowSrvMaxProcId ( int32 iFlowId , int32 iSrvId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetFlowSrvMaxProcId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetTsHandleRateList ( int32 iFlowId , int32 iSrvId , CRdcTsHandleRateList & rCRdcTsHandleRateList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetTsHandleRateList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: QueryAliveTbProc ( CRdcProcList & rCRdcProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryAliveTbProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: QueryTbQueue ( int32 iFlowId , int32 iSrvId , int32 iProcId , CRdcTbQueue & rCRdcTbQueue )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryTbQueue)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetVmStateCache ( CRdcVmStateRecordMap & rCRdcVmStateRecordMap )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetVmStateCache)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: CheckVmTransExist ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_CheckVmTransExist)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: DelTbTsRecordByVm ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_DelTbTsRecordByVm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetDomainVmRelationByVm ( int32 iVmId , CPdcDomainVmRelationList & rDomainVmRelationList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetDomainVmRelationByVm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetProcInfo ( int32 iFlowId , int32 iSrvId , int32 iVmId , CRdcProc & rProc )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetProcInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetProcListByVm ( int32 iVmId , CRdcProcList & rRdcProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetProcListByVm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: InsertFlowOperateHis ( CRdcFlowOperateHis & rcFlowOperateHis )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_InsertFlowOperateHis)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: QueryAllProc ( CRdcProcList & rcProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_QueryAllProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GeSrvGroupRecord ( AISTD set < int32 > & rSetSrvId , CRdcFlowSrvList & rFlowSrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GeSrvGroupRecord)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: UpdateProcInfoList ( CRdcProcList & rProcList , int32 iState )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateProcInfoList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: DeleteVmProcCache ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_DeleteVmProcCache)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: UpdateTransInfo ( CRdcProcTrans & cUpProcTrans )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateTransInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

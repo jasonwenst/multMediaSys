@@ -25,4 +25,6 @@ public interface UserService {
 	
 	public boolean isUserExist(User user);
 	
+	public boolean findByNameAndPassword(User user);
+	
 }

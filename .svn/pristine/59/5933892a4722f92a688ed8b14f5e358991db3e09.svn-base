@@ -1,0 +1,76 @@
+#include "WarnGetFileQueImp.h"
+#include "pubtools.h"
+#include "QueForMutiProc.h"
+#include <string.h>
+#include "hwmutex.h"
+using namespace HW_PUB_TOOLS;
+CWarnGetFileQueImp::CWarnGetFileQueImp()
+:m_pQue(NULL)
+{
+
+}
+
+
+CWarnGetFileQueImp::~CWarnGetFileQueImp()
+{
+	uninit();
+}
+
+int CWarnGetFileQueImp::init()
+{
+	CHwTmpLock lock(m_lock);
+	if (m_pQue == NULL)
+	{
+		m_pQue = new CQueForMutiProcRead();
+		int res = 0;
+#ifdef _HWWIN_
+		res = m_pQue->setRootDir("C:/data/warning_file_que/");
+#else
+		std::string sHome = getenv("HOME");
+		sHome += "/warning_file_que/";
+		res = m_pQue->setRootDir(sHome.c_str());
+#endif
+		if (res != 0)
+		{
+			delete m_pQue;
+			m_pQue = NULL;
+			return -1;
+		}
+	}
+	return 0;
+}
+
+int CWarnGetFileQueImp::uninit()
+{
+	CHwTmpLock lock(m_lock);
+	if (m_pQue != NULL)
+	{
+		delete m_pQue;
+		m_pQue = NULL;
+	}
+	return 0;
+}
+
+bool CWarnGetFileQueImp::getOneWarnRecord(char* cache, const int cacheLen, int & realLen)
+{
+	assert(cacheLen > 0);
+	if (m_pQue == NULL)
+		return false;
+	PsHwBuffer pBuf;
+	{
+		CHwTmpLock lock(m_lock);
+		pBuf = m_pQue->getOneRow();
+		if (pBuf == gHwNullBuf)
+			return false;
+	}
+	
+	int sz = pBuf->avaluebleSize();
+	realLen = (sz <= cacheLen) ? sz : cacheLen;
+	if (realLen <= 0)
+		return false;
+	memcpy(cache, pBuf->cutData(), realLen);
+	return true;
+
+
+
+}

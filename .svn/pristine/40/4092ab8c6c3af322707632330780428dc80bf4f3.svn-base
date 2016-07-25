@@ -1,0 +1,125 @@
+#ifndef _NR_COMMON_STRUCT_H
+#define _NR_COMMON_STRUCT_H
+#include "parseenv.h"
+#include "compile.h"
+#include "frame_interface.h"
+#include "cpf_common_struct.h"
+
+#define MAX_KEY_LEN		256
+#define MAX_PATH_LEN	256
+#define MAX_VALUE_LEN	1024
+#define DEFAULT_PROC_LIMIT 1000
+#define COMM_MAX_LEN 256
+#define CMD_MAX_LEN	1024
+#define DEFAULT_NR_ROOT_DIR	"$OB_REL/ipc/nr/"
+#define DEFAULT_NR_BAK_DIR	"$OB_REL/ipc/.nr_bak/"
+#define STATUS_FILE "status"
+#define CAPABILITY_FILE	"capability"
+#define CMD_LINE_FILE "cmd_line"
+#define PID_FILE "pid"
+#define SEPARATOR ":="
+
+namespace cpf
+{
+
+//nr命令类型
+enum EmNrProcCmdType
+{
+	EM_NR_PROC_CMD_START	=	1,	//启动
+	EM_NR_PROC_CMD_STOP		=	2,	//停止
+	EM_NR_PROC_CMD_CHECK	=	3,	//检测
+	EM_NR_PROC_CMD_RESTART	=	4,	//重启
+	EM_NR_PROC_CMD_FORCED_STOP	=	5,	//强停
+};
+
+//nr进程状态
+enum EmNrProcStatus
+{
+	EM_NR_INIT		=	0,	//初始状态
+	EM_NR_INIT_END	=	1,	//初始状态成功
+	EM_NR_RUN		=	2,	//运行标志位
+	EM_NR_STOPPING	=	3,	//停止中标志位
+	EM_NR_SEND		=	4,	//迁移消息标志位
+	EM_NR_RESTART	=	5,	//重启标志位
+    EM_NR_WAIT_STOPPING = 6, // 进程停止失败，等待check停止
+	EM_NR_END			//结束
+};
+
+typedef struct _CNrProcCmd
+{
+	EmNrProcCmdType m_emCmdType;				// 脚本类型
+	char m_szProcCmd[CMD_MAX_LEN];			// 脚本
+	char m_szProcParameter[COMM_MAX_LEN];	// 脚本参数
+}CNrProcCmd;
+typedef AISTD list<_CNrProcCmd> ListNrProcCmd;
+typedef AISTD map<aistring, aistring> MapNrRecord;
+
+class CProcStat
+{
+public:
+	CProcStat();
+	int32 init();
+	aistring TransInfo2Map(MapNrRecord &rNrRecord);
+	virtual ~CProcStat();
+	CProcStat& operator=(const CProcStat& rProcStat);
+public:
+	/*todo进程标志位*/
+	EmNrProcStatus m_emProcStat;
+	/*原message*/
+	int32 m_iSrcMsg;
+	/*操作标志位*/
+	int32 m_iDataType;
+	/*进程操作次数(重启，迁移，停止)*/
+	int32 m_iCount;
+	/*进程最后一次操作的时间(重启，迁移，停止)*/
+	int64 m_lluLastOperateTime;
+	/*进程停止进度*/
+	int32 m_iStopProgress;
+
+};
+
+typedef AISTD map<CProcKey/**/, CProcPid/**/> ProcPidMap;
+typedef AISTD map<CProcKey/**/, CProcStat/**/> ProcStatMap;
+
+
+class CDbeNrConfig
+{
+public:
+	CDbeNrConfig(){
+		strcpy(m_szNrRootDir, DEFAULT_NR_ROOT_DIR);
+		strcpy(m_szNrRootBakDir, DEFAULT_NR_BAK_DIR);
+		m_iNrBak = 0;
+	}
+	char m_szNrRootDir[MAX_PATH_LEN];
+	char m_szNrRootBakDir[MAX_PATH_LEN];
+	int32 m_iNrBak;
+	int32 m_iNeedRestart;
+READ_CONFIG_BEGIN
+	READ_VALUE(m_szNrRootDir, "nr_root_dir", DEFAULT_NR_ROOT_DIR, NAMESPACE_BILLING40_LOG WARN_LEVEL)
+	READ_VALUE(m_szNrRootBakDir, "nr_bak_dir", DEFAULT_NR_BAK_DIR, NAMESPACE_BILLING40_LOG WARN_LEVEL)
+	READ_VALUE(m_iNeedRestart, "need_restart", 1, NAMESPACE_BILLING40_LOG WARN_LEVEL) // 读取进程重启配置项 2014.06.25 默认开启
+
+	AISTD string strDst;
+	ConvertEnvPath(m_szNrRootDir, strDst);
+	strncpy(m_szNrRootDir, strDst.c_str(), sizeof(m_szNrRootDir) - 1);
+	AISTD string strBak;
+	ConvertEnvPath(m_szNrRootBakDir, strBak);
+	strncpy(m_szNrRootBakDir, strBak.c_str(), sizeof(m_szNrRootBakDir) - 1);
+READ_CONFIG_END
+};
+
+class CNrRecord {
+public:
+	CNrRecord()
+	{
+		memset(m_szKey, 0, sizeof(m_szKey));
+		memset(m_szValue, 0, sizeof(m_szValue));
+	}
+	char	m_szKey[MAX_KEY_LEN];		/* 记录的key */
+	char	m_szValue[MAX_VALUE_LEN];	/* 记录的value */
+};
+
+extern CDbeNrConfig g_cDbeNrConfig;
+}//end namespace
+
+#endif

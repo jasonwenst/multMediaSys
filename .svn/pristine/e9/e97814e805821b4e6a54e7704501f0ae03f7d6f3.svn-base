@@ -1,0 +1,46 @@
+
+#ifndef _OD_FRAME_DBE_PCC_STATE_H_
+#define _OD_FRAME_DBE_PCC_STATE_H_
+
+#include "const.h"
+#include <frame_interface.h>
+
+NAMESPACE_DBE_PCC_BEGIN
+
+class CPccState
+ : public NAMESPACE_OD_FRAME CThread
+{
+public:
+	enum {
+		TIME_STEP = 5
+	};
+public:
+	virtual int32 init();
+	virtual int32 destroy();
+	virtual int32 run(NAMESPACE_OD_FRAME CData *p);
+
+	CPccState();
+	~CPccState();
+
+private:
+	CPccState(const CPccState& rh);
+	CPccState& operator=(const CPccState& rh);
+
+	//time_t m_lNextWriteTime;
+	NAMESPACE_OD_SYSTEM CTimeCmp m_cNextWriteTime;
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_OD_FRAME CThread *create_pccStateInstance();
+
+#ifdef __cplusplus
+}
+#endif
+
+NAMESPACE_DBE_PCC_END
+
+#endif //_OD_FRAME_DBE_PCC_STATE_H_
+

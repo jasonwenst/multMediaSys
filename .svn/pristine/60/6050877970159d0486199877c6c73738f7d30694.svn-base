@@ -1,0 +1,101 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_lock.h）
+/// brief	 
+///				锁封装
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-16）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_LOCK_H___
+#define __DBE2_LOCK_H___
+
+#include <pthread.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <assert.h>
+#include "dbe2_base_def.h"
+
+namespace MDbe
+{
+
+/**
+ * 锁(同一线程不会死锁)
+ */
+class CLock
+{
+public:
+    CLock()
+    {
+        pthread_mutexattr_t attr_;
+        pthread_mutexattr_init(&attr_);
+        pthread_mutexattr_settype(&attr_, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&m_lock, &attr_);
+    }
+    virtual ~CLock()
+    {
+        pthread_mutex_destroy(&m_lock);
+    }
+
+    /**
+     * 加锁
+     */
+    void Lock()
+    {
+        pthread_mutex_lock(&m_lock);
+    }
+
+    /**
+     * 解锁
+     */
+    void UnLock()
+    {
+        pthread_mutex_unlock(&m_lock);
+    }
+private:
+    pthread_mutex_t m_lock;
+};
+
+/**
+ * 自动锁,自动释放
+ */
+class CAutoLock
+{
+public:
+	CAutoLock(CLock & cLock):m_cLock(cLock)
+    {
+    	m_cLock.Lock();
+    }
+
+    ~CAutoLock()
+    {
+    	m_cLock.UnLock();
+    }
+private:
+    //不支持拷贝构造
+    CAutoLock(const CAutoLock & rhs):m_cLock(rhs.m_cLock)
+    {
+    	*this = rhs;
+    }
+
+    CAutoLock & operator=(const CAutoLock & rhs)
+    {
+        return *this;
+    }
+private:
+    CLock & m_cLock;
+};
+
+} // namespace MDbe
+
+
+#endif /* __DBE2_LOCK_H___ */

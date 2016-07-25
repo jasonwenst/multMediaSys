@@ -1,0 +1,830 @@
+/* $Id: srm_rdc_job_mgr_impl.cpp 393873 2013-12-20 03:44:23Z kongll $  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_rdc_job_mgr_impl.cpp）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：zhangxiang）
+/// date		（文件创建日期，eg：2012-5-4）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#include "srm_rdc_mgr_impl.h"
+#include "public/ob_kernel/ob_kernel.h"
+#include "rdc_table_def_sdl_c.h"
+#include "dbe2_util.h"
+#include "dbe2_log.h"
+#include "srm_error_code.h"
+#include "srm_job_mgr.h"
+
+
+namespace MDbe
+{
+
+int32 CSrmRdcMgrImpl::GetNextJob(int32 ijobId, CRdcJobRelationList& listJobRelation)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcJobRelationList> cKernel(*db, m_schemeName);
+    CRdcJobRelation rCond;
+    rCond.set_jobInsId(ijobId);
+    cKernel.select_all(listJobRelation, rCond);
+    return listJobRelation.size();
+}
+
+int32 CSrmRdcMgrImpl::GetPrevJob(int32 ijobId, CRdcJobRelationList& listJobRelation)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcJobRelationList> cKernel(*db, m_schemeName);
+    CRdcJobRelation rCond;
+    // rCond.set_jobInsId(ijobId);
+    rCond.set_nextJobInsId(ijobId);
+    cKernel.select_all(listJobRelation, rCond);
+    return listJobRelation.size();
+}
+
+void CSrmRdcMgrImpl::ModifyAppParam(SJobAppIdList rcJobAppIdList, int32 InsId, int64 SeqId)
+{
+    DBE2_LOG(DEBUG_LOGGER, "modify app param!");
+    CAutoDb db(m_strDbName);
+
+
+    ob_kernel <CRdcAppList> cRdcAppKernel(*db, m_schemeName);
+    SJobAppIdList::iterator it = rcJobAppIdList.begin();
+    for(; it != rcJobAppIdList.end(); ++it)
+    {
+        CRdcApp rData, rCond;
+        CRdcAppList rAppList;
+        rCond.set_appId(it->appId());
+        cRdcAppKernel.select_all(rAppList, rCond);
+        if (rAppList.size() < 1)
+            continue;
+
+
+		aistring strConfig;
+		ISrmRdcMgr::GetInstance().QueryAppParamConfig(it->appId(), strConfig);
+
+        //更新替换 insid和seqid
+        // aistring param = rAppList[0].appParam();
+        aistring param = strConfig;
+        int32 iPosFristInsid = param.find("<ins_id_>");
+        int32 iPosEndSeqid  = param.find("</seq_id_>");
+        aistring strAdd     = FormatString("<ins_id_>%d</ins_id_><seq_id_>%lld</seq_id_>", InsId, SeqId);
+        if (iPosFristInsid != aistring::npos && iPosEndSeqid != aistring::npos)
+        {
+            param.replace(iPosFristInsid, iPosEndSeqid - iPosFristInsid + 10, strAdd);
+        }
+        else if (iPosFristInsid == aistring::npos)
+        {
+            int32 iPosEndParams = param.find("</params>");
+            if (iPosEndParams != aistring::npos)
+            {
+                param.insert(iPosEndParams, strAdd);
+            }
+        }
+
+        //modify thirdParams
+        int32 iPos = param.find("<thirdParams>");
+        int32 iPosEnd = param.find("</thirdParams>");
+        if(iPos != aistring::npos && iPosEnd != aistring::npos)
+        {
+            aistring thirdParamOld, thirdParamNew;
+            thirdParamOld = param.substr(iPos + 13, iPosEnd - iPos - 13);
+            if (thirdParamOld.size() > 0)
+            {
+                thirdParamNew = ReplaceStringExe(thirdParamOld, "%INS_ID=", " ", FormatString("%d", InsId));
+                thirdParamNew = ReplaceStringExe(thirdParamNew, "%SEQ_ID=", " ", FormatString("%lld", SeqId));
+                DBE2_LOG(DEBUG_LOGGER, "thirdParamOld:%s\n thirdParamNew:%s", thirdParamOld.c_str(), thirdParamNew.c_str());
+                param = ReplaceString(param, thirdParamOld, thirdParamNew);
+            }
+        }
+
+        if (param.size() > 0)
+        {
+            DBE2_LOG(DEBUG_LOGGER, "newParam:%s", param.c_str());
+            // rData.set_appParam(param);
+            // cRdcAppKernel.update(rData, rCond);
+
+			CAutoDb db(m_strDbName);
+			ob_kernel<CRdcSrmLockList> cKernel(*db, m_schemeName);
+
+			ob_whereCond cExeCond;
+			cExeCond << OCS("update ") << OCS(m_transSchemeName) 
+				<< OCS(".RDC_APP set APP_PARAM = ")
+				<< param
+				<< OCS(" where APP_ID = ")
+				<< it->appId();
+
+			int32 iCount = cKernel.direct_execExt(cExeCond, true);
+        }
+    }
+    db.commit();
+}
+
+bool CSrmRdcMgrImpl::BackUpJobInfo(int32 iJobInsId)
+{
+    DBE2_LOG(DEBUG_LOGGER, "back up job info:%d", iJobInsId);
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobInsList > dbJobIns(*db, m_schemeName);
+    ob_kernel < CRdcJobRunStepList > dbJobStep(*db, m_schemeName);
+    ob_kernel < CRdcJobRunStepAppList > dbJobApp(*db, m_schemeName);
+
+    
+    ob_kernel < CSoJobInsResultList > dbJobInsHis(*db, m_schemeName);
+    ob_kernel < CSoJobInsStepResultList > dbJobStepHis(*db, m_schemeName);
+    ob_kernel < CSoJobInsAppResultList > dbJobAppHis(*db, m_schemeName);
+    try
+    {
+    	CRdcJobIns condJob;condJob.set_jobInsId(iJobInsId);
+    	CRdcJobRunStep condStep;condStep.set_jobInsId(iJobInsId);
+    	CRdcJobRunStepApp condApp;condApp.set_jobInsId(iJobInsId);
+
+    	CRdcJobInsList jobInsList;
+    	CRdcJobRunStepList stepList;
+    	CRdcJobRunStepAppList appList;
+    	dbJobIns.select_all(jobInsList,condJob);
+    	dbJobStep.select_all(stepList,condStep);
+    	dbJobApp.select_all(appList,condApp);
+
+    	dbJobInsHis.insert(*(CSoJobInsResultList *) &jobInsList);
+    	dbJobStepHis.insert(*(CSoJobInsStepResultList *) &stepList);
+    	dbJobAppHis.insert(*(CSoJobInsAppResultList *) &appList);
+
+    	db.commit();
+    	if(jobInsList[0].get_jobInsOperType()==1)
+    	{
+    		CRdcJobIns  cJobData,cjobInfoCond;
+    		cjobInfoCond.set_jobInsId(iJobInsId);
+    		cJobData.set_removeFlag(1);
+    		dbJobIns.update(cJobData,cjobInfoCond,true);
+    	}
+		if (jobInsList[0].get_jobInsOperType() == 2 && jobInsList[0].get_jobInsStatus() == JOB_COMPLETE_)
+		{
+			CRdcJobIns  cJobData, cjobInfoCond;
+			cjobInfoCond.set_jobInsId(iJobInsId);
+			cJobData.set_jobInsStatus(JOB_READY_);
+			cJobData.set_jobInsSequence(NULL);
+			dbJobIns.update(cJobData, cjobInfoCond, true);
+		}
+		db.commit();
+		
+    }
+    catch(CAIException & e)
+    {
+    	THROW_CAIEXCEPTION(DBE2_SRM_BACKUP_JOBINFO_FAILED,"back up jobinfo failed , job id[?],?")
+    					<<iJobInsId<< e.get_message();
+    	return false;
+    }
+    return true;
+}
+
+void CSrmRdcMgrImpl::RefreshJobInfo(int32 iJobInsId)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepList > cDelStepKernel(*db, m_schemeName);
+    ob_kernel < CRdcJobRunStepAppList > cDelAppKernel(*db, m_schemeName);
+    ob_kernel < CRdcJobInsStepList > cSelStepKernel(*db, m_schemeName);
+    ob_kernel < CRdcJobInsStepAppList > cSelAppKernel(*db, m_schemeName);
+    CRdcJobInsStepList cJobInsStepList;
+    CRdcJobInsStepAppList cJobInsAppList;
+
+
+    try
+    {
+        //删除旧信息
+        CRdcJobRunStep stepCond;
+        CRdcJobRunStepApp flowCond;
+        stepCond.set_jobInsId(iJobInsId);
+        flowCond.set_jobInsId(iJobInsId);
+        cDelStepKernel.remove(stepCond, false);
+        cDelAppKernel.remove(flowCond, false);
+
+        //获取step及flow的新信息
+        CRdcJobInsStep relstepCond;
+        CRdcJobInsStepApp relflowCond;
+        relstepCond.set_jobInsId(iJobInsId);
+        relflowCond.set_jobInsId(iJobInsId);
+        cSelStepKernel.select_all(cJobInsStepList, relstepCond);
+        cSelAppKernel.select_all(cJobInsAppList, relflowCond);
+        db.commit();
+    }
+    catch(CAIException & e)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_SET_JOBSTATUS_FAILED, "reset job status failed , job id[?],?")
+                << iJobInsId << e.get_message();
+    }
+
+   // int64 iTime;
+   // GetCurrentTime(iTime);
+
+	aistring strSeqName = m_schemeName + ".RDC_JOB_INS_SEQUENCE_SEQ";
+	int64 newJobInsSeq = (int64)ob_kernelBase::get_sequence_value(strSeqName, &(*db));
+
+    try
+    {
+        ob_kernel < CRdcJobInsList > cUpJobInsKernel(*db, m_schemeName);
+        CRdcJobIns cJobCond;
+        cJobCond.set_jobInsId(iJobInsId);
+        //aistring strUpdate= FormatString("JOB_INS_START_TIME=null,JOB_INS_END_TIME=null,JOB_INS_PAUSE_TIME=null,JOB_INS_STATUS =0,JOB_INS_PAUSE_DURE_SECOND=0,DURATION=0,JOB_INS_SEQUENCE=%lld ",newJobInsSeq);
+        //cUpJobInsKernel.update(strUpdate, cJobCond);
+        ob_whereCond updateCond;
+        updateCond << OCS("update ") << OCS(m_transSchemeName) << OCS(".rdc_job_ins set JOB_INS_START_TIME=null,JOB_INS_END_TIME=null,JOB_INS_PAUSE_TIME=null,JOB_INS_STATUS =0,JOB_INS_PAUSE_DURE_SECOND=0,DURATION=0,JOB_INS_SEQUENCE=")
+                   << newJobInsSeq << OCS("where job_ins_id= ") << iJobInsId;
+        cUpJobInsKernel.direct_execExt(updateCond, true);
+    }
+    catch(CAIException & e)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_SET_JOBSTATUS_FAILED, "reset rdc_job_ins  failed , job id[?],?")
+                << iJobInsId << e.get_message();
+    }
+    ob_kernel < CRdcJobRunStepList > cInsetStepKernel(*db, m_schemeName);
+    if( cJobInsStepList.get_size() > 0 )
+    {
+        CRdcJobRunStepList cJobRunStepList;
+        CRdcJobInsStepList::iterator it = cJobInsStepList.begin();
+        for(; it != cJobInsStepList.end(); ++it)
+        {
+            CRdcJobRunStep temp;
+            temp.set_jobRunStepId(it->get_stepId());
+            temp.set_jobInsId(it->get_jobInsId());
+            temp.set_breakpoint(it->get_breakpoint());
+            temp.set_stepTimeLimit(it->get_timeLimit());
+            temp.set_stepName(it->get_stepName());
+            temp.set_stepStatus(STEP_READY_);
+            temp.set_jobInsSequence(newJobInsSeq);
+			temp.set_unconfirmed(it->get_unconfirmed()); // add at 2015.01.21 获取step待确认字段值
+			DBE2_LOG(INFO_LOGGER, "the it->get_unconfirmed is [%d]", it->get_unconfirmed());
+			// temp.set_unconfirmed(0); // 暂时避免没有值的错误问题
+            cJobRunStepList.push_back(temp);
+        }
+        //更新step的信息
+        cInsetStepKernel.insert(cJobRunStepList);
+    }
+    else
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_JOB_INS_STEP_EMPTY, "job run step infomation is empty , job id[?]")
+                << iJobInsId;
+    }
+
+    ob_kernel < CRdcJobRunStepAppList > cInsertAppKernel(*db, m_schemeName);
+    if( cJobInsAppList.get_size() > 0 )
+    {
+        CRdcJobRunStepAppList cJobRunAppList;
+        CRdcJobInsStepAppList::iterator it = cJobInsAppList.begin();
+        for(; it != cJobInsAppList.end(); ++it)
+        {
+            CRdcJobRunStepApp temp;
+            temp.set_appId(it->get_appInsId());
+            temp.set_jobInsId(it->get_jobInsId());
+            temp.set_jobRunStepId(it->get_stepId());
+            temp.set_appStatus(APP_READY_);
+            temp.set_jobInsSequence(newJobInsSeq);
+            cJobRunAppList.push_back(temp);
+        }
+        //更新app的信息
+        cInsertAppKernel.insert(cJobRunAppList);
+    }
+    else
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_JOB_INS_STEP_APP_EMPTY, "job run app infomation is empty , job id[?]")
+                << iJobInsId;
+    }
+    db.commit();
+
+    //修改该job下的param
+    SJobAppIdList rcJobAppIdList;
+    GetJobAppByStatus(iJobInsId, rcJobAppIdList);
+    ModifyAppParam(rcJobAppIdList, iJobInsId, newJobInsSeq);
+}
+
+void CSrmRdcMgrImpl::GetAppsByStep(SStepId& rcStepId, SJobAppIdList& rcJobAppIdList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepAppList > cKernel(*db, m_schemeName);
+    CRdcJobRunStepAppList cStepApplist;
+    CRdcJobRunStepApp rCond;
+    rCond.set_jobRunStepId(rcStepId.get_stepinsId());
+    rCond.set_jobInsId(rcStepId.jobinsId());
+    cKernel.select_all(cStepApplist, rCond);
+
+
+    if( cStepApplist.get_size() > 0 )
+    {
+        CRdcJobRunStepAppList::iterator it = cStepApplist.begin();
+        for(; it != cStepApplist.end(); ++it)
+        {
+            SJobAppId tempAppId;
+            tempAppId.set_jobinsId(it->get_jobInsId());
+            tempAppId.set_appId(it->appId());
+            tempAppId.set_stepinsId(it->get_jobRunStepId());
+            rcJobAppIdList.push_back(tempAppId);
+        }
+    }
+    else
+    {
+        DBE2_LOG(INFO_LOGGER, "the app of step is empty, job id[%d], step id[%d]", rcStepId.get_jobinsId(), rcStepId.get_stepinsId());
+    }
+}
+
+void CSrmRdcMgrImpl::SetJobInfo(CRdcJobIns& rcData, CRdcJobIns& rcCond)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobInsList > cKernel(*db, m_schemeName);
+
+    try
+    {
+        cKernel.update(rcData, rcCond, true);
+    }
+    catch(CAIException & e)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_SET_JOBSTATUS_FAILED, "set job status fail , job id[?],?")
+                << rcData.jobInsId() << e.get_message() ;
+    }
+}
+
+void CSrmRdcMgrImpl::SetStepInfo(CRdcJobRunStep& rcData, CRdcJobRunStep& rcCond)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepList > cKernel(*db, m_schemeName);
+    try
+    {
+        cKernel.update(rcData, rcCond, true);
+    }
+    catch(CAIException & e)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_SET_STEPSTATUS_FAILED, "set step status fail , job id[?] step id[?],?")
+                << rcData.jobInsId() << rcData.get_jobRunStepId() << e.get_message();
+    }
+}
+
+void CSrmRdcMgrImpl::SetJobAppInfo(CRdcJobRunStepApp& rcJobApp, CRdcJobRunStepApp& rcCond)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepAppList > cKernel(*db, m_schemeName);
+
+    try
+    {
+        cKernel.update(rcJobApp, rcCond, true);
+    }
+    catch(CAIException & e)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_SET_JOBFLOWSTATUS_FAILED, "set job_app status fail , job id[?] step id[?] app id[?],?")
+                << rcJobApp.jobInsId() << rcJobApp.jobRunStepId() << rcJobApp.appId() << e.get_message();
+    }
+}
+
+void CSrmRdcMgrImpl::GetHeadSteps(int32 iJobInsId, SStepIdList& rStepIdList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcJobInsStepRelList> cKernel(*db, m_schemeName);
+    CRdcJobInsStepRelList cStepRelList;
+    CRdcJobInsStepRel cCond;
+
+	
+    cCond.set_jobInsId(iJobInsId);
+    cCond.set_dependStepId(0);
+    cKernel.select_all(cStepRelList, cCond);
+    if( cStepRelList.size() > 0 )
+    {
+        CRdcJobInsStepRelList::iterator it = cStepRelList.begin();
+        for(; it != cStepRelList.end(); ++it)
+        {
+            SStepId tempStepId;
+            tempStepId.set_jobinsId(it->get_jobInsId());
+            tempStepId.set_stepinsId(it->get_stepId());
+            rStepIdList.push_back(tempStepId);
+        }
+    }
+}
+
+void CSrmRdcMgrImpl::GetJobStepByStatus(int32 iJobId, CRdcJobRunStepList& rcSteplist, int32 iStepStatus)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepList > cKernel(*db, m_schemeName);
+    CRdcJobRunStep rCond;
+    rCond.set_jobInsId(iJobId);
+    if(iStepStatus != ALL_STATUS_)
+        rCond.set_stepStatus(iStepStatus);
+    cKernel.select_all(rcSteplist, rCond);
+    if(rcSteplist.get_size() < 1)
+    {
+        DBE2_LOG(INFO_LOGGER, "job %d has not this status %d of step !", iJobId, iStepStatus);
+    }
+}
+
+void CSrmRdcMgrImpl::GetJobStepByStatus(int32 iJobId, SStepIdList& rcStepIdList, int32 iStepStatus)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepList > cKernel(*db, m_schemeName);
+    CRdcJobRunStepList cSteplist;
+    CRdcJobRunStep rCond;
+    rCond.set_jobInsId(iJobId);
+    if(iStepStatus != ALL_STATUS_)
+        rCond.set_stepStatus(iStepStatus);
+    cKernel.select_all(cSteplist, rCond);
+    if(cSteplist.get_size() > 0)
+    {
+        CRdcJobRunStepList::iterator it = cSteplist.begin();
+        for( ; it != cSteplist.end(); ++it )
+        {
+            SStepId tempStepId;
+            tempStepId.set_jobinsId(it->get_jobInsId());
+            tempStepId.set_stepinsId(it->get_jobRunStepId());
+            rcStepIdList.push_back(tempStepId);
+        }
+    }
+    else
+    {
+        DBE2_LOG(INFO_LOGGER, "job %d has not this status %d of step !", iJobId, iStepStatus);
+    }
+}
+
+void CSrmRdcMgrImpl::GetJobAppByStatus(int32 iJobId, SJobAppIdList& rcJobAppIdList, int32 iAppStatus)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepAppList > cKernel(*db, m_schemeName);
+    CRdcJobRunStepAppList cJobRunStepAppList;
+    CRdcJobRunStepApp rCond;
+    rCond.set_jobInsId(iJobId);
+    if(iAppStatus != ALL_STATUS_)
+        rCond.set_appStatus(iAppStatus);
+    cKernel.select_all(cJobRunStepAppList, rCond);
+    if( cJobRunStepAppList.get_size() > 0 )
+    {
+        CRdcJobRunStepAppList::iterator it = cJobRunStepAppList.begin();
+        for( ; it != cJobRunStepAppList.end(); ++it )
+        {
+            SJobAppId tempJobAppId;
+            tempJobAppId.set_jobinsId(it->get_jobInsId());
+            tempJobAppId.set_stepinsId(it->get_jobRunStepId());
+            tempJobAppId.set_appId(it->get_appId());
+            rcJobAppIdList.push_back(tempJobAppId);
+        }
+    }
+    else
+    {
+        DBE2_LOG(INFO_LOGGER, "job %d has not this status %d of app !", iJobId, iAppStatus);
+    }
+}
+
+void CSrmRdcMgrImpl::GetStepAppByStatus(SStepId& rcStepId, CRdcJobRunStepAppList& rcJobRunStepAppList, int32 iAppStatus)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepAppList > cKernel(*db, m_schemeName);
+    CRdcJobRunStepApp rCond;
+    rCond.set_jobInsId(rcStepId.jobinsId());
+    rCond.set_jobRunStepId(rcStepId.stepinsId());
+    if(iAppStatus != ALL_STATUS_)
+        rCond.set_appStatus(iAppStatus);
+    cKernel.select_all(rcJobRunStepAppList, rCond);
+    if( rcJobRunStepAppList.get_size() < 1 )
+    {
+        DBE2_LOG(INFO_LOGGER, "job %d step %d has not this status %d of app !", rcStepId.get_jobinsId(), rcStepId.get_stepinsId(), iAppStatus);
+    }
+}
+
+void CSrmRdcMgrImpl::GetStepAppByStatus(SStepId& rcStepId, SJobAppIdList& rcJobAppIdList, int32 iAppStatus)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepAppList > cKernel(*db, m_schemeName);
+    CRdcJobRunStepAppList cJobRunStepAppList;
+    CRdcJobRunStepApp rCond;
+    rCond.set_jobInsId(rcStepId.jobinsId());
+    rCond.set_jobRunStepId(rcStepId.stepinsId());
+    if(iAppStatus != ALL_STATUS_)
+        rCond.set_appStatus(iAppStatus);
+    cKernel.select_all(cJobRunStepAppList, rCond);
+    if( cJobRunStepAppList.get_size() > 0 )
+    {
+        CRdcJobRunStepAppList::iterator it = cJobRunStepAppList.begin();
+        for(; it != cJobRunStepAppList.end(); ++it)
+        {
+            SJobAppId tempJobAppId;
+            tempJobAppId.set_jobinsId(it->get_jobInsId());
+            tempJobAppId.set_stepinsId(it->get_jobRunStepId());
+            tempJobAppId.set_appId(it->get_appId());
+            rcJobAppIdList.push_back(tempJobAppId);
+        }
+    }
+    else
+    {
+        DBE2_LOG(INFO_LOGGER, "job %d step %d has not this status %d of app !", rcStepId.get_jobinsId(),  rcStepId.get_stepinsId(), iAppStatus);
+    }
+}
+
+void CSrmRdcMgrImpl::GetNextSteps(SStepId& rcStepId, SStepIdSet& rcStepIdSet)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobInsStepRelList> cKernel(*db, m_schemeName);
+    CRdcJobInsStepRelList cStepRelList;
+    CRdcJobInsStepRel cCond;
+    cCond.set_dependStepId(rcStepId.stepinsId());
+    cCond.set_jobInsId(rcStepId.jobinsId());
+    cKernel.select_all(cStepRelList, cCond);
+
+
+    if( cStepRelList.get_size() > 0 )
+    {
+        CRdcJobInsStepRelList::iterator it = cStepRelList.begin();
+        for(; it != cStepRelList.end(); ++it)
+        {
+            SStepId tempStepId;
+            tempStepId.set_jobinsId(it->get_jobInsId());
+            tempStepId.set_stepinsId(it->get_stepId());
+            rcStepIdSet.insert(tempStepId);
+        }
+    }
+}
+
+void CSrmRdcMgrImpl::GetPreSteps(SStepId& rcStepId, SStepIdSet& rcStepIdSet)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcJobInsStepRelList> cKernel(*db, m_schemeName);
+    CRdcJobInsStepRelList cStepRelList;
+    CRdcJobInsStepRel cCond;
+    cCond.set_stepId(rcStepId.stepinsId());
+    cCond.set_jobInsId(rcStepId.jobinsId());
+    cKernel.select_all(cStepRelList, cCond);
+    if( cStepRelList.get_size() > 0 )
+    {
+        CRdcJobInsStepRelList::iterator it = cStepRelList.begin();
+        for(; it != cStepRelList.end(); ++it )
+        {
+            if(it->dependStepId() > 0)
+            {
+                SStepId tempStepId;
+                tempStepId.set_jobinsId(it->get_jobInsId());
+                tempStepId.set_stepinsId(it->dependStepId());
+                rcStepIdSet.insert(tempStepId);
+            }
+        }
+    }
+}
+
+void CSrmRdcMgrImpl::GetJobInfo(int32 iJobInsId, CRdcJobIns& rcJobInfo)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobInsList > cKernel(*db, m_schemeName);
+    CRdcJobInsList rRdcJobInsList;
+    CRdcJobIns rCond;
+    rCond.set_jobInsId(iJobInsId);
+    try
+    {
+        cKernel.select_all(rRdcJobInsList, rCond);
+    }
+    catch(CAIException & e)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_GET_JOBINFO_FAILED, "db select failed , job id[?],?")
+                << iJobInsId << e.get_message();
+    }
+    if(rRdcJobInsList.size() != 1)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_GET_JOBINFO_FAILED, "zero or multiple job info, job id[?] , result size[?]")
+                << iJobInsId << rRdcJobInsList.size();
+    }
+    else
+    {
+        rcJobInfo = rRdcJobInsList[0];
+    }
+}
+
+void CSrmRdcMgrImpl::GetStepInfo(SStepId& rcStepId, CRdcJobRunStep& rcRdcJobRunStep)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepList > cKernel(*db, m_schemeName);
+    CRdcJobRunStep 		rCond;
+    CRdcJobRunStepList	rcJobStepIdList;
+    rCond.set_jobRunStepId(rcStepId.get_stepinsId());
+    rCond.set_jobInsId(rcStepId.get_jobinsId());
+    cKernel.select_all(rcJobStepIdList, rCond);
+    if( rcJobStepIdList.get_size() == 1)
+    {
+        rcRdcJobRunStep = rcJobStepIdList[0];
+    }
+    else
+    {
+        DBE2_LOG(DEBUG_LOGGER, "get step info fail job id [%d]step id [%d]", rcStepId.get_jobinsId() , rcStepId.get_stepinsId());
+        THROW_CAIEXCEPTION(DBE2_SRM_CAN_NOT_FIND_JOB_STEP_INFO, "zero or multiple job step info, job id[?] step id[?]")
+                << rcStepId.get_jobinsId() << rcStepId.get_stepinsId();
+    }
+}
+
+void CSrmRdcMgrImpl::GetJobAppInfo(SJobAppId& rcAppId, CRdcJobRunStepApp& rcRdcJobApp)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobRunStepAppList > cKernel(*db, m_schemeName);
+    CRdcJobRunStepApp 		rCond;
+    CRdcJobRunStepAppList	rcJobAppIdList;
+    rCond.set_jobRunStepId(rcAppId.get_stepinsId());
+    rCond.set_jobInsId(rcAppId.get_jobinsId());
+    rCond.set_appId(rcAppId.get_appId());
+    cKernel.select_all(rcJobAppIdList, rCond);
+    if( rcJobAppIdList.get_size() == 1)
+    {
+        rcRdcJobApp = rcJobAppIdList[0];
+    }
+    else
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_CAN_NOT_FIND_JOB_STEP_INFO, "zero or multiple job app info, job id[?] step id[?] app_id[?]")
+                << rcAppId.get_jobinsId() << rcAppId.get_stepinsId() << rcAppId.get_appId() ;
+    }
+}
+
+void CSrmRdcMgrImpl::GetJobAppInfoByApp(SBaseProcKey& rcProcKey, CRdcJobRunStepApp& rcRdcJobApp)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel < CRdcJobRunStepAppList > cKernel(*db, m_schemeName);
+	CRdcJobRunStepApp 		rCond;
+	CRdcJobRunStepAppList	rcJobAppIdList;
+	rCond.set_appId(rcProcKey.get_appId());
+	cKernel.select_all(rcJobAppIdList, rCond);
+	if (rcJobAppIdList.get_size() == 1)
+	{
+		rcRdcJobApp = rcJobAppIdList[0];
+	}
+	else
+	{
+		THROW_CAIEXCEPTION(DBE2_SRM_CAN_NOT_FIND_JOB_STEP_INFO, "zero or multiple job app info, app_id[?]  proc_id[?]")
+			<< rcProcKey.get_appId()<< rcProcKey.get_procId();
+	}
+}
+
+bool CSrmRdcMgrImpl::QueryJobAppInfo(int32 iAppId, CRdcJobRunStepApp& rcRdcJobApp)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcJobRunStepAppList> cKernel(*db, m_schemeName);
+    CRdcJobRunStepApp cCond;
+    cCond.set_appId(iAppId);
+    CRdcJobRunStepAppList cJobAppIdList;
+    cKernel.select_all(cJobAppIdList, cCond);
+    if (0 == cJobAppIdList.size()) return false;
+    rcRdcJobApp = cJobAppIdList[0];
+    return true;
+}
+
+void CSrmRdcMgrImpl::GetJobSchedule(CRdcJobScheduleList& rJobScheduleList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobScheduleList > cKernel(*db, m_schemeName);
+    ob_whereCond Cond;
+    Cond << OCS("job_ins_schedule_time <= ") << GetCurrentTime() << OCS("order by job_ins_schedule_time");
+    cKernel.select_allExt(rJobScheduleList, Cond);
+}
+
+void CSrmRdcMgrImpl::GetLastSchedule(int32 iJobInsId, CRdcJobSchedule& rJobSchedule)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobScheduleList > cKernel(*db, m_schemeName);
+    CRdcJobSchedule cCond;
+    cCond.set_jobInsId(iJobInsId);
+    CRdcJobScheduleList rJobScheduleList;
+    ob_whereCond Cond;
+    Cond << OCS("job_ins_id = ") << iJobInsId << OCS("order by job_ins_schedule_time desc");
+    cKernel.select_allExt(rJobScheduleList, Cond);
+    if(rJobScheduleList.size() > 0)
+    {
+        rJobSchedule = rJobScheduleList[0];
+    }
+}
+
+void CSrmRdcMgrImpl::AutoAddJobSchedule()
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobInsList> cJobInsKernel(*db, m_schemeName);
+    ob_kernel < CRdcJobScheduleList > cJobScheduleKernel(*db, m_schemeName);
+
+    ob_whereCond cCond;
+    cCond << OCS( "job_ins_id not in (select job_ins_id from rdc_job_schedule)"
+                  "and SCHEDULE_INVALID_FLAG != 1 and job_ins_oper_type = 2 and expirydate > sysdate");
+    //新增job
+    CRdcJobInsList cJobInsList;
+    cJobInsKernel.select_allExt(cJobInsList, cCond);
+    CRdcJobInsList::iterator it = cJobInsList.begin();
+    for(; it != cJobInsList.end(); ++it)
+    {
+        //计算表达式
+        if(it->validdate().toTimet() < 0 || it->expirydate().toTimet() < 0 || it->validdate().toTimet() > it->expirydate().toTimet())
+        {
+            DBE2_LOG(ERROR_LOGGER, "job schedule valid_time:%lld or expird_time:%lld illegal,please check!", it->validdate().toTimet(), it->expirydate().toTimet());
+            continue;
+        }
+        int32 count = 5;
+        CRdcJobScheduleList listJobSchedule;
+        time_t time_in, time_out;
+        time_in = time_out = GetCurrentTime().toTimet();
+        while(count-- > 0)
+        {
+            CRdcJobSchedule cJobSchedule;
+            cJobSchedule.set_jobId(it->jobId());
+            cJobSchedule.set_jobInsId(it->jobInsId());
+
+            time_in = time_out;
+            try
+            {
+                ParaseTime(it->jobCronExpress(), time_in, time_out);
+            }
+            catch(CAIException &e)
+            {
+                DBE2_LOG(WARN_LOGGER, "jobinid:%d %s", it->jobInsId(), e.get_message().c_str());
+                //todo:  告警
+                continue;
+            }
+            //cJobSchedule.set_jobInsSequence(time_out);
+            if(it->validdate().toTimet() <= time_out && time_out <= it->expirydate().toTimet() && time_out > time_in)
+            {
+                //DBE2_LOG(WARN_LOGGER,"zhangxiang:time_out %lld time_in %lld",time_out, time_in);
+                CBSDateTime cbTime;
+                cbTime.setTime_t(time_out);
+                cJobSchedule.set_jobInsScheduleTime(cbTime);
+                cJobSchedule.set_jobCronExpress(it->jobCronExpress());
+                listJobSchedule.push_back(cJobSchedule);
+            }
+        }
+        cJobScheduleKernel.insert(listJobSchedule);
+    }
+    db.commit();
+}
+
+void CSrmRdcMgrImpl::UpdateShedule(CRdcJobSchedule& rApdJobSchedule, CRdcJobSchedule& rmCond, CBSDateTime validTime, CBSDateTime expiryTime)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobScheduleList > cJobScheduleKernel(*db, m_schemeName);
+    cJobScheduleKernel.remove(rmCond);
+
+    if(validTime.toTimet() <= rApdJobSchedule.jobInsScheduleTime().toTimet() && rApdJobSchedule.jobInsScheduleTime().toTimet() <= expiryTime.toTimet())
+    {
+        try
+        {
+            // cJobScheduleKernel.insert(rApdJobSchedule);
+            if(rApdJobSchedule.jobInsScheduleTime() > rmCond.jobInsScheduleTime())
+            {
+                // rApdJobSchedule.set_jobInsScheduleTime(expiryTime);
+                CRdcJobScheduleList listShedule;
+                listShedule.push_back(rApdJobSchedule);
+                cJobScheduleKernel.insert(listShedule);
+            }
+        }
+        catch(CAIException & e)
+        {
+            DBE2_LOG(DEBUG_LOGGER, "insert schedule fail %s", e.get_message().c_str());
+        }
+    }
+    db.commit();
+}
+
+void  CSrmRdcMgrImpl::ParaseTime(aistring szCronTime, time_t time_in, time_t& time_out)
+{
+    if(strlen(szCronTime.c_str()) <= 0)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_PARASE_CROMEXPRESS_FAILED, "parase cron express fail! parase is null");
+    }
+    CCronMain objCronExper;
+    objCronExper.InitCron();
+    int32 iRet = objCronExper.ParseExpress(szCronTime.c_str());
+    if(-1 == iRet)
+    {
+        THROW_CAIEXCEPTION(DBE2_SRM_PARASE_CROMEXPRESS_FAILED, "parase cron express fail! express[?]")
+                << szCronTime ;
+    }
+    objCronExper.GetNearTime(time_in, time_out);
+}
+
+void  CSrmRdcMgrImpl::DeleteInvalidJobData()
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel < CRdcJobScheduleList > cJobScheduleKernel(*db, m_schemeName);
+    ob_kernel < CRdcJobRunStepList > cJobRunStep(*db, m_schemeName);
+    ob_kernel < CRdcJobRunStepAppList > cJobRunApp(*db, m_schemeName);
+
+    // delete shedule from delete job_ins
+    cJobScheduleKernel.remove("not exists (select job_ins_id from rdc_job_ins where (rdc_job_ins.job_ins_id= rdc_job_schedule.job_ins_id and SCHEDULE_INVALID_FLAG != 1) and job_ins_oper_type = 2 )", true);
+    cJobRunStep.remove("not exists (select job_ins_id from rdc_job_ins where rdc_job_ins.job_ins_id= rdc_job_run_step.job_ins_id)", true);
+    cJobRunApp.remove("not exists (select job_ins_id from rdc_job_ins where rdc_job_ins.job_ins_id= rdc_job_run_step_app.job_ins_id)", true);
+    // 删除冗余schedule
+    // 因要对每个jobid做判断麻烦，放在jobsheduleprocess做
+}
+
+void CSrmRdcMgrImpl::GetJobVacationList(int32 iJobId, CRdcJobVacationList &rjobVacationList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcJobVacationList> cKernel(*db, m_schemeName);
+    CRdcJobVacation cCond;
+    cCond.set_jobId(iJobId);
+    cKernel.select_all(rjobVacationList, cCond);
+}
+
+void CSrmRdcMgrImpl::GetJobSteps(CRdcJobRunStep cStepCond, CRdcJobRunStepList &rStepList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcJobRunStepList> cKernel(*db, m_schemeName);
+    cKernel.select_all(rStepList, cStepCond);
+}
+
+}
+

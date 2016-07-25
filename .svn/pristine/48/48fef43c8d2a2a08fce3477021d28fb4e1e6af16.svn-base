@@ -1,0 +1,19 @@
+#include "nr_api.h"
+#include "nr_api_impl.h"
+
+namespace MDbe
+{
+
+CNrApi::CNrApi()
+{}
+
+CNrApi::~CNrApi()
+{}
+
+CNrApi * CNrApi::CreateNr()
+{
+	static CNrApiImpl cNrApiImpl;
+	return &cNrApiImpl;
+}
+
+}

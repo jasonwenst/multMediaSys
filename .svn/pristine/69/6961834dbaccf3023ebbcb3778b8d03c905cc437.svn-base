@@ -1,0 +1,176 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：time_frame.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：jinxin）
+/// date		（文件创建日期，eg：2012-4-24）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#ifndef _TIME_FRAME_H
+#define _TIME_FRAME_H
+
+#include "common/base/od_system_interface.h"
+#include "public/common/base/synobj.h"
+#include "public/app_intf/app_config/app_config.h"
+#include "public/common/communicate/communicate.h"
+#include "msg_dispatch_mgr.h"
+
+namespace MDbe {
+/**
+ * @brief
+ * 配置文件读取类
+ * 用于读取配置xml文件中list里每个item结构
+ */
+class CTimeConfig
+{
+public:
+    int32 m_iMsgType;
+    uint64 m_ui64Interval;
+APP_READ_CONFIG_BEGIN
+    APP_READ_VALUE(m_ui64Interval, "time_interval", -1, NAMESPACE_OD_APP_CFG emValueOptional)
+    APP_READ_VALUE(m_iMsgType, "time_msg_type", -1, NAMESPACE_OD_APP_CFG emValueOptional)
+APP_READ_CONFIG_END
+};
+
+/**
+ * @brief
+ * 配置文件读取类
+ * 用于读取配置xml文件中list的结构
+ */
+class CTimeLsConfig
+{
+public:
+    CTimeConfig m_objTimeConfig;
+APP_READ_CONFIG_BEGIN
+    //读取一个对象使用APP_READ_OBJ
+    APP_READ_OBJ(m_objTimeConfig, "time", NAMESPACE_OD_APP_CFG emValueRequire)
+APP_READ_CONFIG_END
+};
+
+//读取list的约定，需要定义CConfigList对象
+typedef NAMESPACE_OD_APP_CFG CConfigList< CTimeLsConfig > CTimeLsConfigList;
+
+/**
+ * @brief
+ * 配置文件读取类
+ * 用于读取配置xml文件中func_config的结构
+ */
+class CMyTimeConfig : public NAMESPACE_OD_APP_CFG CAppConfigBase
+{
+public:
+	CTimeLsConfigList m_lstTimeLsConfigList;
+	int32 m_iDumpSendObbstream;
+APP_READ_CONFIG_BEGIN
+    //读取一个列表用APP_READ_OBJ
+    APP_READ_OBJ(m_lstTimeLsConfigList, "time_list", NAMESPACE_OD_APP_CFG emValueRequire)
+	APP_READ_VALUE(m_iDumpSendObbstream, "dump_send_obbstream", 1, NAMESPACE_OD_APP_CFG emValueOptional)
+APP_READ_CONFIG_END
+};
+
+/**
+ * @brief
+ * 定时器触发信息保存类
+ * 用于保存定时器触发所需要的上一次操作时间和定时步长
+ */
+class CTimerInfo
+{
+public:
+    //上一次操作时间
+    od_system:: CTimeCmp m_cSaveTime;
+    // 定时步长(单位：s)
+    uint64 m_ui64TimeInterval;
+};
+
+//按消息类型排序
+typedef AISTD map<int32 /*msg_type*/,CTimerInfo> CInt32TimeInfoMap;
+
+/**
+ * @brief
+ * 定时器框架类
+ * 用于调用定时器
+ */
+class CTimerThread
+    : public od_frame:: CThread
+{
+public:
+    CTimerThread();
+    ~CTimerThread();
+
+    /**
+     * 框架初始化
+     * @param NULL
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+    virtual int32 init();
+
+    /**
+     * 框架销毁
+     * @param NULL
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+    virtual int32 destroy();
+
+    /**
+     * 框架定时调用
+     * @param p		od_frame:: CData类型，框架在接收到数据时立即调用，
+     *              或者每2秒没数据时触发一个p=NULL的调用
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+    virtual int32 run(od_frame:: CData *p);
+    //virtual int32 stop();
+
+private:
+    CTimerThread(const CTimerThread& rh);
+    CTimerThread& operator=(const CTimerThread& rh);
+
+    /**
+     * 定时触发器
+     * @param NULL
+     * @return NULL
+     */
+    void Timer();
+
+    /**
+     * 根据配置组合定时器信息
+     * @param NULL
+     * @return NULL
+     */
+    void ReadTimerInfo();
+
+    /**
+     * 更新定时器中指定的信息
+     * @param iMsg 被定时的消息类型
+     * @param ui64TimeInterval 步长，默认为-1代表永不触发
+     * @return 0:操作成功 非0：找不到需要更新的项
+     */
+    int32 UpdateTimerInfo(int32 iMsg, uint64 ui64TimeInterval = -1);
+
+    //配置文件
+    CMyTimeConfig   m_cMyTimeConfig;
+    //消息辅助
+    CMsgHelper* m_pcMsgHelper;
+    //定时器信息
+    CInt32TimeInfoMap  m_cInt32TimeInfoMap;
+    //锁
+    CLock m_cLock;
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+od_frame:: CThread *create_timerInstance();
+#ifdef __cplusplus
+}
+#endif
+}//end namespace
+
+#endif

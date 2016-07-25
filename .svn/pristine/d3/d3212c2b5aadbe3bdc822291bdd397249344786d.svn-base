@@ -1,0 +1,84 @@
+#pragma once
+#include "IlocalQue.h"
+#include <stdlib.h>
+#include <vector>
+#define _QueueMaxSizePerFile 1024*1024*100//多余的消息覆盖旧的 
+#define _QueueMaxFileNum    40 //最大文件个数固定为， 单文件大小可调
+#include "hwmutex.h"
+#include "HwBuffer.h"
+#include <stdio.h>
+
+class CLocalQueue:public IlocalQue
+{
+public:
+	struct SMsgHead
+	{
+		int headFlag;//固定为  0x13140000 //如果是尾的话则为0x14130000 这时候不取数据 ,直接跳转下一个文件,文件序号为下一个文件，直接推断
+		//unsigned int msgId; 为效率起见，去掉
+		int msgLen;
+		long long  insertTime;
+	};
+	CLocalQueue();
+	~CLocalQueue();
+	 int push(const void* data, int len) ;
+	 virtual int fetch(char* buf, int & bufLen);//读取一条记录，但不将其取出
+	 virtual int  commit();//将fetch读的记录取出,若果不commit，下次fetch依然是同一条记录
+
+	 int fetch(SMsgHead & head,void* cache, int &len);
+	 int commitFetch();
+	 int setRootDir(const char* rootDir);
+//	 virtual void setPreTackSpace(bool b);
+	 void setMaxFileSize(int n);
+	// void setMaxFileNum(int n);
+	 void setCoverOld(bool b);
+	 int  init();
+	 bool isCoverOld();
+	 virtual int destroy(); 
+	 void printcontrol();
+private:
+	int readMoreToReadCache(int len);//读取更多数据到cachebuf
+	int fetchHead(SMsgHead &head);
+	int changeDataFile();
+	int saveControlInfo();
+	int saveWriteInfo();//更新写信息
+	int saveReadInfo();//更新读信息
+	int loadControlInfo();//由于是单线程的，所以只需要读取一次，后面以内存中的为准
+	std::string getControlFile();
+	std::string getDataFile(int index);
+	int enlargeFile(const char* fileName, int sizeToEnlarge);//填充一个文件到指定大小，如果该文件已存在，则无任何操作，否则填充。
+//单实例运行 不需要锁，放到一个线程里面完成，从而达到互斥效果
+	//data文件名规则 , rootQueue_Idx.data
+private:
+	struct SContolInfo//控制信息
+	{
+		int iWriteFile;
+		int iWritePos;//当前写的位移
+		int iReadFile;//
+		int iReadPos;
+		int iMaxFileSize;
+		char endian;//大小端
+		char bCoverOld;//当新消息入来，空间不够时是否覆盖老消息。  按文件抛弃 //true
+		//用bool来表示不够用，不能表示其值是初还是 被赋值   0 表示为赋值， 'y' 'n'
+		void printinfo()
+		{
+			printf(" writefile: %d pos:%d \n readfile: %d pos %d\n maxfilesize :%d \n",
+				iWriteFile, iWritePos, iReadFile, iReadPos, iMaxFileSize);
+		}
+	};
+
+
+	SContolInfo m_controlInfo;
+	bool m_bHasInit;
+	FILE* m_fdFileWrite;//写入的文件句柄信息
+	FILE* m_fdFileRead;//读文件的文件句柄信息
+	FILE* m_fdFileControl;//控制文件句柄
+	std::string m_sRootDir;
+	int m_iToCommit;//读出但没复位的缓存
+	bool m_bPreTakeSpace;//预申请空间
+	CHwMutex m_lock;
+	CHwBuffer m_bufRead;//经测算，读的效率低，不能小块数据的碎片的读，得用缓冲
+
+
+
+};
+

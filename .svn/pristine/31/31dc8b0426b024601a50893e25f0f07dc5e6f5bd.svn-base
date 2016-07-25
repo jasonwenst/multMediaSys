@@ -1,0 +1,55 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_communicate_write.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Nov 6, 2012）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_COMMUNICATE_WRITE_H___
+#define __DBE2_COMMUNICATE_WRITE_H___
+
+#include <public/odframe/frame_interface.h>
+#include "dbe2_lock.h"
+
+namespace MDbe
+{
+
+#define DBE2_CA_WRITE_LOCK_NUM      1024
+
+class CDbe2CommunicateWrite
+ : public od_frame::CThread
+{
+public:
+        virtual int32 init();
+        virtual int32 destroy();
+
+        virtual int32 run(NAMESPACE_OD_FRAME CData *p);
+
+        CDbe2CommunicateWrite();
+        ~CDbe2CommunicateWrite();
+private:
+        CDbe2CommunicateWrite(const CDbe2CommunicateWrite& rh);
+        CDbe2CommunicateWrite& operator=(const CDbe2CommunicateWrite& rh);
+
+protected:
+        int32 WriteMsg(CCommunicateApi * pCommunicateApi, od_frame::CCommData * pCommData);
+
+private:
+        static CLock m_lstLock[DBE2_CA_WRITE_LOCK_NUM];
+};
+
+} // namespace MDbe
+
+
+#endif /* __DBE2_COMMUNICATE_WRITE_H___ */

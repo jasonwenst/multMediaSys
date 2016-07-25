@@ -1,0 +1,45 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_record_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_RECORD_MGR_IMPL_H___
+#define __SRM_RECORD_MGR_IMPL_H___
+
+#include "srm_record_mgr.h"
+#include "rdc_table_def_sdl_c.h"
+#include "dbe2_auto_db.h"
+
+namespace MDbe
+{
+
+class CSrmRecordMgrImpl : public ISrmRecordMgr
+{
+protected:
+	CSrmRecordMgrImpl();
+	friend class ISrmRecordMgr;
+public:
+	void Init(CMgrInitHelper & cMgrInitHelper);
+	void UpdateVmAndProcoInfo(SSrmVmProcStatus &rcVmProcState);
+	void DeleteRedundantData();
+	void WriteRecordToDb();
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_RECORD_MGR_IMPL_H___ */

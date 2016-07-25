@@ -1,0 +1,197 @@
+#include "epa_info_impl.h"
+
+namespace epa{
+
+
+Epa_Info* Epa_Info::m_pInstance = NULL;
+locker Epa_Info::s_lock;
+
+
+#define WRITE_CONTENT(a,b,c,d)	 std::string strFileContent = strPid; \
+			strFileContent += FormatString("%s%s%d\n%s%s%s\n%s%s%d\n%s%s%s\n", \
+			"init_progress", SEPARATOR, a, \
+			"init_error_info", SEPARATOR, b, \
+			"stop_progress", SEPARATOR, c,\
+			"stop_error_info", SEPARATOR, d\
+			);
+
+
+std::string FormatString(const char * format, ...)
+{
+    char buf[4096];
+   	std::string strRet;
+    if ( format != 0 )
+    {
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buf, sizeof(buf), format, args);
+        buf[sizeof(buf) - 1] = 0;
+        va_end(args);
+        strRet = buf;
+    }
+    return strRet;
+}
+
+int SetInitInfo(
+		int iInitValue, 
+		std::string strInitErrorInfo)
+{
+	Epa_Info* sEpa_Info = Epa_Info::GetInstance();
+	if(NULL != sEpa_Info)
+	{
+		sEpa_Info->SetInitInfo(iInitValue, strInitErrorInfo);
+		return 0;
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+int SetStopInfo(
+		int iStopProgress,
+		std::string strStopErrorInfo)
+{
+	Epa_Info* sEpa_Info = Epa_Info::GetInstance();
+	if(NULL != sEpa_Info)
+	{
+		sEpa_Info->SetStopInfo(iStopProgress, strStopErrorInfo);
+		return 0;
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+int SetShellInitInfo(
+		int iInitValue, 
+		std::string strInitErrorInfo)
+{
+	Epa_Info* sEpa_Info = Epa_Info::GetInstance();
+	if(NULL != sEpa_Info)
+	{
+		sEpa_Info->setPPid();
+		sEpa_Info->SetInitInfo(iInitValue, strInitErrorInfo);
+		return 0;
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+int SetShellStopInfo(
+		int iStopProgress,
+		std::string strStopErrorInfo)
+{
+	Epa_Info* sEpa_Info = Epa_Info::GetInstance();
+	if(NULL != sEpa_Info)
+	{
+		sEpa_Info->setPPid();
+		sEpa_Info->SetStopInfo(iStopProgress, strStopErrorInfo);
+		return 0;
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+
+
+int Epa_Info::WriteToFile(const char *szFileName, const char *szFileContent)
+{
+	CAutoLock Lock(s_lock); 
+	if (NULL == szFileName || NULL == szFileContent) 
+	{
+		return -1;
+	}
+
+	FILE *fd = fopen(szFileName, "w");
+	if(!fd)
+	{
+		return -1;
+	}
+	
+	int iRet = fwrite(szFileContent, strlen(szFileContent), 1, fd);
+	if(1 != iRet)
+	{
+		fclose(fd);
+		return -1;
+	}
+
+	fclose(fd);
+	return 0;
+}
+
+
+int Epa_Info::Init()
+{
+	int iRet = 0; 
+
+	if((NULL == getenv("CPF_WORK_DIR"))
+		||(NULL == opendir( getenv("CPF_WORK_DIR") )))
+	{
+		printf("get root path error or invalid path \n");
+		return -1;
+	}
+
+	if(NULL == getenv("CPF_FLOW_ID")
+		|| NULL == getenv("CPF_SRV_ID")
+		|| NULL == getenv("CPF_PROC_ID")
+	  )
+	{
+		printf("get the env value error \n");
+		return -1;
+	}
+
+	// m_strRootPath = FormatString("%s/%s_%s_%s", getenv("CPF_WORK_DIR"),
+	// 		getenv("CPF_FLOW_ID"), getenv("CPF_SRV_ID"), getenv("CPF_PROC_ID"));
+	m_strRootPath = getenv("CPF_WORK_DIR");
+	if(NULL == opendir(m_strRootPath.c_str()))
+	{
+		mkdir(m_strRootPath.c_str(), FILE_PERMISSION);
+	}
+
+	m_strFileCfg = FormatString("%s/%s_%s_%s.info", 
+			m_strRootPath.c_str(),
+			getenv("CPF_FLOW_ID"), getenv("CPF_SRV_ID"), getenv("CPF_PROC_ID"));
+
+	strPid = FormatString("%s%s%d\n", "pid", SEPARATOR, getpid());
+
+	WRITE_CONTENT("", "", 0, "")
+
+	iRet = WriteToFile(m_strFileCfg.c_str(), strFileContent.c_str());
+	
+	return iRet;
+}
+
+
+int Epa_Info::SetInitInfo(
+	int iInitValue, std::string strInitErrorInfo)
+{
+	m_iInitValue = iInitValue;
+	m_strInitErrorInfo = strInitErrorInfo;
+
+	WRITE_CONTENT(iInitValue, strInitErrorInfo.c_str(), 0, "")
+	int iRet = WriteToFile(m_strFileCfg.c_str(), strFileContent.c_str());
+	
+	return iRet;
+}
+
+int Epa_Info::SetStopInfo(
+		int iStopProgress, std::string strStopErrorInfo)
+{
+	m_iStopProgress = iStopProgress;
+
+	// 写入结束信息默认启动成功 m_iInitValue = 1
+	WRITE_CONTENT(1, m_strInitErrorInfo.c_str(), iStopProgress, strStopErrorInfo.c_str())
+
+	int iRet = WriteToFile(m_strFileCfg.c_str(), strFileContent.c_str());
+	
+	return iRet;
+}
+
+
+}

@@ -1,0 +1,157 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_vm_adjust_mgr_impl_cpp)
+{
+	//Fuction: CSrmVmAdjustMgrImpl :: CSrmVmAdjustMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_CSrmVmAdjustMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: AdjustVmBalance ( )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_AdjustVmBalance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmVmAdjustMgrImpl :: CheckSrvCanMigrate ( CSrvKeyResource & rSBaseSrvKey )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_CheckSrvCanMigrate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: CheckVmBalance ( CRdcVmStateRecordList & rVmStateRecordList , CInt32Vec & rsint32List )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_CheckVmBalance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: DeploySrvInfoListMigrate ( SDpeloySrvInfoList & rDpeloySrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_DeploySrvInfoListMigrate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: FindMaxResSrv ( CSrvKeyResourceMap & rSrvResMap , CSrvKeyResource & rSBaseSrvKey )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_FindMaxResSrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: MigrateLua ( SDpeloySrvInfoList & rDpeloySrvInfoList , SLuaReturnSrvInfoList & rSLuaReturnSrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_MigrateLua)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: MigrateVMRelySrv ( int32 iSrvId , SDpeloySrvInfoList & rDeploySrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_MigrateVMRelySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: PackMaxResSrvToMigrateList ( CSrvKeyResource & rSrvKeyResource , SDpeloySrvInfoList & rDeploySrvInfoList , SToLuaVmInfoList & rToLuaVmInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_PackMaxResSrvToMigrateList)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: PackTransEverySrv ( SDpeloySrvInfoList & rDpeloySrvInfoList , SLuaReturnSrvInfoList & rSLuaReturnSrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_PackTransEverySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmVmAdjustMgrImpl :: SelectSuitableVmId ( int32 iSrvId , int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_SelectSuitableVmId)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmVmAdjustMgrImpl :: SrvMigrate ( int32 iSrvId , CRdcProcTransOperateList & rProcTransOperateList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_SrvMigrate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: DealVMRelySrv ( int32 iSrvId , CRdcFlowSrvList & rFlowSrvList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_DealVMRelySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: GetSrvRecord ( int32 iSrvId , CRdcFlowSrv & rFlowSrv )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_GetSrvRecord)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: MigrateVmRelySrv ( int32 iSrvId , SMigrateSrvInfoList & rDeploySrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_MigrateVmRelySrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: PackAdjustVmSrvInfo ( CInt32Vec & rVmIdList , SToLuaVmInfoList & rToLuaVmInfoList , SMigrateSrv & rSMigrateSrv , SMigrateSrvInfoList & rDeploySrvInfoList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_PackAdjustVmSrvInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: RequestAvailableVmInfo ( CRdcVmStateRecordList & rVmStateRecordList )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_RequestAvailableVmInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmVmAdjustMgrImpl :: Init ( CMgrInitHelper & cMgrInitHelper )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_Init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmVmAdjustMgrImpl :: VmMigrate ( int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmVmAdjustMgrImpl_VmMigrate)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

@@ -1,0 +1,67 @@
+
+#ifndef _CRON_TOOL_H
+#define _CRON_TOOL_H
+#include "cron_define.h"
+#include "cron_struct.h"
+#include "cron_util.h"
+
+NAMESPACE_OD_CRON_BEGIN
+
+class CCronTool
+{
+public:
+	CCronTool()
+	{
+	}
+	virtual ~CCronTool()
+	{
+	}
+
+private:
+	CCronTool(const CCronTool& rh);
+	CCronTool& operator=(const CCronTool& rh);
+
+public:
+	/**
+	 * 根据type取tmInput结构值
+	 * 
+	 */
+	int32 GetValue(struct tm &tmInput, VALUE_TYPE em);
+	int32 SetValue(struct tm &tmInput, int32 iValue, VALUE_TYPE em);
+	int32 SetCarryValue(struct tm &tmInput, VALUE_TYPE em);
+	
+	int32 ChangeValueMapTool(ItemValueMap& rItemValueMap);
+	
+private:
+	int32 ParseDayPart(const char* szExpress, ItemValueMap &mapItemValue, struct tm &tmInput);
+	int32 ParseWeekPart(const char* szExpress, ItemValueMap &mapItemValue, struct tm &tmInput);
+	
+	int32 GetNextWeek(int32 iStartWDay, int32 iTargWDay, int32 iDayMax,
+		AISTD vector<int32> &rNumberVec, int32 iWeekInterval = 1);
+public:
+	/**
+	 * 分发cron表达式解析
+	 * 
+	 */
+	bool DispatchCronExpression(const char* szExpress, VALUE_TYPE em, struct tm &tmInput);
+private:
+	/**
+	 * 秒，分，时，日，月，年 统一解析
+	 * 对象  * 
+	 */
+	int32 ParseSimilarPart(const char* szExpress, ItemValueMap &mapItemValue,VALUE_TYPE em,struct tm &tmInput);
+	/**
+	 * ParseSimilarPart 的分函数
+	 * 对象  /  ,  -
+	 */
+	int32 SubParseSimilar(const char* szExpress,int32 iBaseValue,int32 iMaxValue,VALUE_TYPE em,ItemValueMap &mapItemValue,struct tm &tmInput);
+
+public:
+	int32 m_iCarry;
+	ItemValueMap m_mapItemValue;
+
+};
+
+NAMESPACE_OD_CRON_END
+
+#endif

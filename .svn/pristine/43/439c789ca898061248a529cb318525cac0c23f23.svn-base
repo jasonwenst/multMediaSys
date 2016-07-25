@@ -1,0 +1,35 @@
+#ifndef __NRM_WARN_MGR_IMPL_H__
+#define __NRM_WARN_MGR_IMPL_H__
+
+#include "nrm_warn_mgr.h"
+
+
+namespace MDbe
+{
+
+class CNrmWarnMgrImpl: public INrmWarnMgr
+{
+protected:
+	CNrmWarnMgrImpl();
+
+	~ CNrmWarnMgrImpl();
+
+	friend class INrmWarnMgr;
+
+public:
+	virtual int	GetWarnInfo(std::vector<SDbmWarnInfo>& vecDbmWarnInfo);
+
+	virtual int DealMsg(
+		const std::string& strMsg, 
+		std::vector<std::string>& vecStrMsg);
+	
+	virtual int ChangeWarnInfo(
+		const std::vector<std::string>& vecRecord,
+		SDbmWarnInfo& sDbmWarnInfo);
+
+};
+
+
+}
+
+#endif

@@ -1,0 +1,180 @@
+/* $Id: */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：util.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Jul 26, 2013）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#include <stdio.h>
+#include <stdarg.h>
+#include <sys/time.h>
+#include "util.h"
+
+namespace cpf
+{
+
+
+aistring FormatString(const char * format, ...)
+{
+    char buf[4096];
+    aistring strRet;
+    if ( format != 0 )
+    {
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buf, sizeof(buf), format, args);
+        buf[sizeof(buf) - 1] = 0;
+        va_end(args);
+        strRet = buf;
+    }
+    return strRet;
+}
+
+int64 GetMicroSecTime()
+{
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
+int64 GetSecTime()
+{
+	struct timeval tv;
+	gettimeofday(&tv, 0);
+	return tv.tv_sec;
+}
+
+int64 GetMilliSecTime()
+{
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+int32 DeleteQuoteStr(aistring & str)
+{
+    if(str.length() > 2)
+    {
+        if((str[0] == '"') && (str[str.length() - 1] == '"'))
+        {
+            str.erase(0, 1);
+            str.erase(str.length() - 1, 1);
+        }
+    }
+
+    return 0;
+}
+
+void Trim(char * str)
+{
+    char * ptail, *p;
+    p = str;
+    while(*p && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n'))
+        p++;
+
+    if(!*p)
+    {
+        *str = 0;
+        return;
+    }
+    ptail = p + strlen(p) - 1;
+    while(ptail > p && (*ptail == ' ' || *ptail == '\t' || *ptail == '\n' || *ptail == '\r'))
+    {
+        *ptail = 0;
+        ptail--;
+    }
+    size_t L = strlen(p);
+    memmove(str, p, L);
+    str[L] = 0;
+}
+
+aistring TrimStr(const aistring strSrc)
+{
+    char * pstr = new char[strSrc.length() + 1];
+    memset(pstr, 0, strSrc.length() + 1);
+    memcpy(pstr, strSrc.c_str(), strSrc.length());
+    Trim(pstr);
+    aistring strDest = pstr;
+    delete [] pstr;
+    pstr = 0;
+    return strDest;
+}
+
+
+int32 BaseDivideStrEx(const aistring & strInStr, const aistring & strInDivideStr,
+        CStringList * lstOut, const char cFlag)
+{
+    aistring            strBuf = strInStr, sDiv;
+    if(!lstOut->empty())
+        lstOut->clear();
+
+    if(strInStr.empty())
+        return 0;
+
+    if(strInDivideStr.empty())
+    {
+        lstOut->push_back(strInStr);
+        return 1;
+    }
+    sDiv = strInDivideStr;
+    size_t iPos1, iPos2, iPos3;
+    do
+    {
+        iPos1 = strBuf.find(sDiv);
+        iPos2 = strBuf.find(cFlag);
+        if (iPos1 == aistring::npos)
+        {
+            strBuf = TrimStr(strBuf);
+            DeleteQuoteStr(strBuf);
+            lstOut->push_back(strBuf);
+            break;
+        }
+
+        aistring strTemp1;
+
+        if ((iPos2 != aistring::npos) && (iPos2 < iPos1))
+        {
+            iPos3 = strBuf.find(cFlag, iPos2 + 1);
+            if (iPos3 != aistring::npos)
+            {
+                if (iPos3 > iPos1)
+                {
+                    strTemp1 = strBuf.substr(iPos2 + 1, iPos3 - iPos2 - 1);
+                    iPos1 = strBuf.find(sDiv, iPos3);
+                    if (iPos1 == aistring::npos)
+                    {
+                        DeleteQuoteStr(strTemp1);
+                        lstOut->push_back(strTemp1);
+                        break;
+                    }
+                    strBuf.erase(0, iPos3 + 1);
+                    iPos1 = strBuf.find(sDiv);
+                }
+            }
+        }
+
+        aistring strTemp2 = strTemp1 + strBuf.substr(0, iPos1);
+        strTemp2 = TrimStr(strTemp2);
+        DeleteQuoteStr(strTemp2);
+        lstOut->push_back(strTemp2);
+        strBuf.erase(0, iPos1 + sDiv.length());
+    }
+    while (strBuf.length() > 0);
+    return (int32)lstOut->size();
+}
+
+
+}
+

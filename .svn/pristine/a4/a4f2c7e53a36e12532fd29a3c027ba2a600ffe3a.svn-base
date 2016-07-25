@@ -1,0 +1,28 @@
+CPPFLAGS+= -g -std=c++0x 
+LINKFILE= -lpthread -ldl -L~/lib 
+TARGET = pushdata 
+INCLUDE  = -I. -I../warnApiClient/include -I../warnApiClient/warnclient -I../warnApiClient/pub
+#JSONOBJECTS = json/lib_json/json_writer.o \
+# json/lib_json/json_reader.o \
+#json/lib_json/json_value.o 
+
+#SQLITEOBJECTS = mysqlite/MySqlite.o mysqlite/sqlite3.o 
+#MYPUBOBJECTS = pub/pubtools.o 
+
+MYOBJECTS =test.o 
+
+OBJECTS =  $(MYOBJECTS) 
+CC=g++ $(CPPFLAGS) $(LINKFILE) $(INCLUDE)
+%.o:%.cpp
+	$(CC) -c $<  -o $@	
+%.o:%.c
+	gcc  $(INCLUDE)    -c $<  -o $@	
+	
+ALL:$(OBJECTS)
+	$(CC) $(CPPFLAGS) $(LINKFILE) $(INCLUDE)  $(OBJECTS)  ../warnApiClient/libwarnClient.so -o  $(TARGET)
+	$(CC) $(CPPFLAGS) $(LINKFILE) $(INCLUDE)  $(OBJECTS)  ../warnApiClient/libwarnClient.so -o showque
+clean:
+	rm -rf  $(TARGET)
+cleanall:
+	rm -rf $(TARGET) $(OBJECTS)
+	

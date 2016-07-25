@@ -1,0 +1,82 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_other_mgr.h）
+/// brief
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-7-25）
+///
+/// version 2.1
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_OTHER_MGR_H___
+#define __SRM_OTHER_MGR_H___
+
+#include "srm_util.h"
+#include "dbe2_common_struct.h"
+#include "dbm_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include "rdc_table_def_sdl_c.h"
+const static char * UPGRADE_TIME_LIMIT = "dbe.upgradetimelimit";
+
+namespace MDbe
+{
+
+class ISrmOtherMgr : public IBaseMgr
+{
+public:
+
+    /**
+     * 获取管理类的实例
+     * @return 返回实例
+     */
+    static ISrmOtherMgr & GetInstance();
+
+    /**
+    * 发送告警信息
+    * @param rcSource 1.为null时候，rcWarnInfo中的warn_time，msg_head，warn_id，proc_key，vm_id不需要填写
+    * 2.不为null时候，warn_id不需要填写，转发NRM告警时候用
+    */
+    virtual void SendWarnInfo(SDbmWarnInfo &rcWarnInfo) = 0;
+	virtual void InsertWarnDetail(CAmWarnRecordOri &rcWarnOri)=0;
+    /**
+    * 发送告警信息
+    * @param rcSource 1.为null时候，rcWarnInfo中的warn_time，msg_head，warn_id，proc_key，vm_id不需要填写
+    * 2.不为null时候，warn_id不需要填写，转发NRM告警时候用
+    */
+    //virtual void SendWarnInfo(CAmWarnRecordOri &rcWarnOri) = 0;
+
+    /**
+    * 定時調用
+    * 询问软件升级进度
+    */
+    virtual void HandleVmUpgradeProgress(SSrmUpGradeProcess &rcUpInfo) = 0;
+
+    /**
+    * 定時調用
+    * 询问软件升级进度
+    */
+    virtual void QueryUpgradeProgress(void) = 0;
+
+    /**
+    * 转发软件升级
+    */
+    virtual int32 TransmitUpgrade(SSrmSoftWareUpdate &rcUpgrade) = 0;
+
+
+};
+
+} // namespace MDbe
+
+#endif /* __SRM_OTHER_MGR_H___ */

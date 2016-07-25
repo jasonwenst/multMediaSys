@@ -1,0 +1,173 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_job_mgr_impl_cpp)
+{
+	//Fuction: CSrmJobMgrImpl :: CSrmJobMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_CSrmJobMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: ContinueJob ( SJobContrlInfo & rcJobCtrlInfo )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_ContinueJob)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: FlowEndCallback ( SSrmFlowExe & rcSrmFlowExe )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_FlowEndCallback)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: FlowStartCallback ( SSrmFlowExe & rcSrmFlowExe )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_FlowStartCallback)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: ForceJob ( SJobContrlInfo & rcJobCtrlInfo )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_ForceJob)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: PauseJob ( SJobContrlInfo & rcJobCtrlInfo )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_PauseJob)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: StartJob ( SJobContrlInfo & rcJobCtrlInfo )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_StartJob)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: StopJob ( SJobContrlInfo & rcJobCtrlInfo )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_StopJob)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: StartStep ( SStepId & rStepId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_StartStep)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: CheckHasRuningStep ( int32 iJobId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_CheckHasRuningStep)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: CheckJobFinish ( int32 iJobId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_CheckJobFinish)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: CheckJobPaused ( int32 iJobId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_CheckJobPaused)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: CheckJobStart ( int32 iJobId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_CheckJobStart)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: CheckStepFinish ( SStepId & rcStepId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_CheckStepFinish)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: CheckStepStat ( SStepId & rcStepId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_CheckStepStat)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmJobMgrImpl :: SetJobStatus ( int32 iJobId , int32 iCurrJobStatus , int32 JobStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_SetJobStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmJobMgrImpl :: SetStepStatus ( SStepId & rcStepId , int32 iStepStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_SetStepStatus)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmJobMgrImpl :: CheckStepStart ( SStepId & rcStepId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_CheckStepStart)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmJobMgrImpl :: SendJobPrgress ( int32 iJobId )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_SendJobPrgress)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmJobMgrImpl :: ScheduleStartJob ( )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_ScheduleStartJob)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmJobMgrImpl :: JobScheduleProcess ( )
+	TEST_FIXTURE(TestFixture,TestCSrmJobMgrImpl_JobScheduleProcess)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

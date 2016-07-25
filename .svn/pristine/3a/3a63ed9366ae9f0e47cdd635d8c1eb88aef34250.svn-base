@@ -1,0 +1,24 @@
+# 生成epa_info调用的bin，供lua脚本和shell脚本使用
+
+DB=0
+DEBUG=1
+
+# define your destination
+PRODDEST=epa_info_case
+
+# PRODIDLPATH and PRODDEST must set before this include
+include $(OB_REL)/etc/Cmake
+
+# define your lib path
+PRODLIBPATH=$(OB_SRC)/lib \
+
+# define your lib
+PRODLIBS=epa_info$(BUILDTYPE) \
+
+TEST_OBJS=epa_info_case.o \
+
+test_epa_info: $(TEST_OBJS)
+	$(CXX) $^ $(LDFLAGS) -brtl -o $@
+
+install: $(PRODDEST)
+	cp -f $^ $(OB_SRC)/bin

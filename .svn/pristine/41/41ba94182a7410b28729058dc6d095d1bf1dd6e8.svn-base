@@ -1,0 +1,123 @@
+#ifndef _ADAPTER_ANALYZE_H_ 
+#define _ADAPTER_ANALYZE_H_
+
+#include <time.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#include <string>
+#include <vector>
+#include <iostream>
+#include <fstream>
+#include <fcntl.h>
+
+
+#include "xdr.h"
+#include "sockapi.h"
+#include "compile.h"
+
+#include "frame_file_interface.h"
+#include "base_func.h"
+#include "base_class.h"
+
+
+using namespace std;
+
+class CExitCode
+{
+public:
+	int32 m_iExitCode;
+
+READ_CONFIG_BEGIN
+	READ_VALUE(m_iExitCode, "exit_value", 0, NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+READ_CONFIG_END
+
+};
+
+class C3rdParams
+{
+public:
+	char m_szParams[256];
+READ_CONFIG_BEGIN
+	READ_VALUE(m_szParams, "thirdParams", "", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+READ_CONFIG_END
+};
+
+class CConfig
+{
+public:
+	std::string m_strRunCommand;
+	std::string m_strRunCommandShell;
+	std::string m_strParams;
+	std::string m_strCheckCommand;
+	std::string m_strStopCommand;
+	pid_t m_iChildPid;
+	std::string m_strProcKey;
+	std::string m_strStdOut;
+
+READ_CONFIG_BEGIN
+	char szProcKey[64];
+	char m_szParams[256];
+	char szBuf[512];
+	char stBuf[512];
+	
+	szBuf[511] = 0;
+	stBuf[511] = 0;
+	m_szParams[255] = 0;
+	szProcKey[63] = 0;
+	
+	m_strCheckCommand = std::string("check_stop_3rd.sh");
+	m_strStopCommand = std::string("stop_clear_3rd.sh");
+	
+	READ_VALUE(szBuf, "run_command", "", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+	m_strRunCommand = std::string(szBuf);
+    
+    // 获取第三方参数
+	C3rdParams cParams; 
+	READ_OBJ(cParams, "params", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+	m_strParams = cParams.m_szParams;
+
+READ_CONFIG_END
+};
+
+class CAdapterAnalyzeThread : public bs_frame_file::CProcessFileThread
+{
+public:
+	CAdapterAnalyzeThread();
+	~CAdapterAnalyzeThread();
+
+	int32 init();
+	int32 destroy();
+	int32 run(bs_frame_file::CFrameFile *pFrameFile);
+	virtual int32 control(NAMESPACE_BILLING40_FRAME CControlPkg& controlPkg);
+	
+private:
+	time_t m_lLastCheckTime;
+	CConfig m_objConfig;
+	
+	bool CheckCommand(const char* szCommand);
+	bool CheckExecutable(std::vector<std::string> vecEnvPath, std::string szFile);
+		
+	void StopSubProcess(pid_t pid);
+	// void InputLog(const char* fileName);
+	
+	int32 ExecuteCommand(const char *cszCommand);
+	string AdapterAnalyzeFormatString(const char * format, ...);
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_BILLING40_FRAME CThread* create_instanceAdapterAnalyze()
+{
+        return new CAdapterAnalyzeThread();
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+

@@ -1,0 +1,21 @@
+#!/bin/bash
+# 666 是xml中配置的proc_id
+
+TARGET=ppp
+if [ ! -f ./ppp ]; then
+	echo "make the test func ppp.\n"
+	g++ testfunc.cpp -L../../epa_info/build -lepa_infoD -o $TARGET
+fi
+
+if [ -f "pid_*" ]; then
+	echo "rm pid file.\n"
+	rm ./pid_*
+fi
+
+PROC_ID="666"
+DATE_INFO=`date '+%Y%m%d'`
+TARGET="adapter_log_"$PROC_ID"_system_"$DATE_INFO"_001"
+
+echo "rm -rf "$TARGET
+rm -rf $TARGET
+ecframe -i func_test.xml 

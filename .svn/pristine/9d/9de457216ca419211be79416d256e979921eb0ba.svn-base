@@ -1,0 +1,402 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_msg_process_inner.cpp）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "srm_msg_process_inner.h"
+#include "srm_vm_mgr.h"
+#include "srm_record_mgr.h"
+#include "srm_app_mgr.h"
+#include "srm_rdc_mgr.h"
+#include "srm_proc_mgr.h"
+#include "dbm_def_sdl_c.h"
+#include "srm_job_mgr.h"
+#include "srm_other_mgr.h"
+
+
+namespace MDbe
+{
+void CMsgProcessI11::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+		int32 iMsgType, obb_stream &cInObbStream)
+{
+	ISrmVmMgr &rVmMgr = ISrmVmMgr::GetInstance();
+    // 断开nrm的连接状态 DBM暂不处理
+    if (PROC_NRM == cSendSource.m_iSrvId)
+    {
+        rVmMgr.SetNrmNoConnect(cSendSource.m_iVmId);
+    }
+}
+
+void CMsgProcess150::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+                             int32 iMsgType, obb_stream &cInObbStream)
+{
+    // 暂时不做处理
+}
+
+
+void CMsgProcessI601::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SSrmExeCallBack cCbInfo(cInObbStream);
+    LogSdl(cCbInfo);
+    ISrmAppMgr &rAppMgr = ISrmAppMgr::GetInstance();
+    CRdcAppOperate cAppOperate;
+    bool bGetResult = rAppMgr.GetAppOperateByTrans(cCbInfo.get_appId(), cCbInfo.get_transId(), cAppOperate);
+    rAppMgr.FinishDbmOperate(cCbInfo.get_appId(), cAppOperate.get_operateType(),
+        cCbInfo.get_exeResult(), cCbInfo.get_transId());
+    if (bGetResult)
+    {
+        // 流程接口
+        SDbmConfirm cDbmConfirm;
+        cDbmConfirm.set_msgHead(GetMsgHead(6000, cAppOperate.get_sequence()));
+        cDbmConfirm.set_msgType(4111);
+        cDbmConfirm.set_result(cCbInfo.get_exeResult());
+        cDbmConfirm.set_errInfo(cCbInfo.get_errorInfo());
+        cDbmConfirm.set_appId(cCbInfo.get_appId());
+        cDbmConfirm.set_exeType(cAppOperate.get_operateType());
+        LogSdl(cDbmConfirm);
+        CSendTarget cSendDbm = GetDbmTarget();
+        obb_stream cStream = Sdl2Obbstream(cDbmConfirm);
+        cMsgHelper.Send(cSendDbm, 6000, cStream);
+    }
+}
+
+void CMsgProcessI605::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+							  int32 iMsgType, obb_stream & cInObbStream)
+{
+	SSrmExeCallBack cCbInfo(cInObbStream);
+	LogSdl(cCbInfo);
+
+	aistring param=cCbInfo.get_param();
+	int32 iVmId = atoi(param.c_str());
+	int32 iResult = cCbInfo.get_exeResult();
+	aistring strDec =cCbInfo.get_errorInfo();
+
+	//vm上的rely服务启动不成功 设置虚拟机不可用
+	ISrmVmMgr::GetInstance().VmRelyCallBack(iVmId,iResult,cCbInfo.get_transId(),strDec);
+}
+
+void CMsgProcessI606::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+							  int32 iMsgType, obb_stream & cInObbStream)
+{
+	SSrmExeCallBack cCbInfo(cInObbStream);
+	LogSdl(cCbInfo);
+
+	aistring param=cCbInfo.get_param();
+	int32 iAppId = cCbInfo.get_appId();
+	int32 iTransId = cCbInfo.get_transId();
+	aistring strInfo= cCbInfo.get_errorInfo();
+	int32 iResult = cCbInfo.get_exeResult();
+	int32 iCommondId = cCbInfo.get_msgHead().get_command();
+
+
+	if (iResult)//事务执行成功
+	{
+		DBE2_LOG(INFO_LOGGER,"%s exe sucess ,app id:%d",param.c_str(),iAppId);
+	}
+	else//失败 告警
+	{
+		aistring strMessage = FormatString("%s exe failed ,app id:%d ,trans id: %d",param.c_str(),iAppId,iTransId);
+		//根据失败的事务id 置位进程状态
+		//ISrmOtherMgr &rOtherMgr = ISrmOtherMgr::GetInstance();
+		SDbmWarnInfo cWarnInfo;
+		if (iCommondId == -606)
+		{
+			cWarnInfo.set_moniId(VM_FLOW_MIGRATE_FAIL);
+		}
+		else if (iCommondId == -608)
+		{
+			cWarnInfo.set_moniId(QUEUE_ADJUST_FAIL);
+		}
+		//对启动失败的进程描述
+		cWarnInfo.set_message(strMessage);
+		cWarnInfo.set_score(1);
+		cWarnInfo.set_description(strInfo);
+		DBE2_LOG(INFO_LOGGER,"%s,%s",strMessage.c_str(),strInfo.c_str());
+		//rOtherMgr.SendWarnInfo(cWarnInfo);
+
+	}
+}
+
+void CMsgProcessI607::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+							  int32 iMsgType, obb_stream & cInObbStream)
+{
+	SSrmExeCallBack cCbInfo(cInObbStream);
+	LogSdl(cCbInfo);
+	aistring param = cCbInfo.get_param();
+	int32 iAppId = cCbInfo.get_appId();
+	int32 iTransId = cCbInfo.get_transId();
+	aistring strInfo = cCbInfo.get_errorInfo();
+	int32 iResult = cCbInfo.get_exeResult();
+	int32 iCommondId = cCbInfo.get_msgHead().get_command();
+	if (iResult)//事务执行成功
+	{
+		CRdcApp cApp;
+		ISrmRdcMgr::GetInstance().QueryApp(iAppId, cApp);
+		cApp.set_appState(APP_START_SUCCESS);
+		ISrmRdcMgr::GetInstance().UpdateAppState(cApp);
+
+	}
+	else
+	{
+		DBE2_LOG(WARN_LOGGER, "result:%d app %s start fail  reason %s ", cCbInfo.get_exeResult(), param.c_str(), cCbInfo.get_errorInfo().c_str());
+	}
+
+	SDbmConfirm cDbmConfirm;
+	cDbmConfirm.set_msgHead(GetMsgHead(6000, atoll(cCbInfo.param().c_str())));
+	cDbmConfirm.set_msgType(4111);
+	cDbmConfirm.set_result(cCbInfo.get_exeResult());
+	cDbmConfirm.set_errInfo(cCbInfo.get_errorInfo());
+	cDbmConfirm.set_appId(cCbInfo.get_appId());
+	cDbmConfirm.set_exeType(REPAIR_APP);
+	CSendTarget cSendDbm = GetDbmTarget();
+	LogSdl(cDbmConfirm);
+	obb_stream cStream = Sdl2Obbstream(cDbmConfirm);
+	cMsgHelper.Send(cSendDbm, 6000, cStream);
+
+}
+
+void CMsgProcessI611::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SSrmExeCallBack cCbInfo(cInObbStream);
+    LogSdl(cCbInfo);
+    ISrmProcMgr &rcProcMgr = ISrmProcMgr::GetInstance();
+
+    if (ISrmRdcMgr::GetInstance().QuerySameCbParamTrans(cCbInfo.param()) > 0)
+    {
+        DBE2_LOG(TRACE_LOGGER, "have same callback param trans exsits");
+        return;
+    }
+    
+    CStringList	lstParam;
+    base_divide_str(cCbInfo.param(), "_", lstParam);
+    if (lstParam.size() < 2)
+    {
+        DBE2_LOG(ERROR_LOGGER, "wrong callback param:%s", cCbInfo.param().c_str());
+        return;
+    }
+
+    SDbmConfirm cDbmConfirm;
+    cDbmConfirm.set_msgHead(GetMsgHead(6000, atoll(lstParam[1].c_str())));
+    cDbmConfirm.set_msgType(atoi(lstParam[0].c_str()));
+    cDbmConfirm.set_result(cCbInfo.get_exeResult());
+    cDbmConfirm.set_errInfo(cCbInfo.get_errorInfo());
+    cDbmConfirm.set_appId(cCbInfo.get_appId());
+    cDbmConfirm.set_exeType(0);
+	LogSdl(cDbmConfirm);
+    CSendTarget cSendDbm = GetDbmTarget();
+    obb_stream cStream = Sdl2Obbstream(cDbmConfirm);
+    cMsgHelper.Send(cSendDbm, 6000, cStream);
+}
+
+void CMsgProcessI612::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SSrmExeCallBack cCbInfo(cInObbStream);
+    LogSdl(cCbInfo);
+    ISrmProcMgr &rcProcMgr = ISrmProcMgr::GetInstance();
+    
+    CStringList	lstParam;
+    base_divide_str(cCbInfo.param(), "_", lstParam);
+    if (lstParam.size() < 2)
+    {
+        DBE2_LOG(ERROR_LOGGER, "wrong callback param:%s", cCbInfo.param().c_str());
+        return;
+    }
+
+    SDbmConfirm cDbmConfirm;
+	cDbmConfirm.set_msgHead(GetMsgHead(6000, atoll(lstParam[1].c_str())));
+    cDbmConfirm.set_msgType(atoi(lstParam[0].c_str()));
+    cDbmConfirm.set_result(cCbInfo.get_exeResult());
+    cDbmConfirm.set_errInfo(cCbInfo.get_errorInfo());
+    cDbmConfirm.set_appId(cCbInfo.get_appId());
+    cDbmConfirm.set_exeType(0);
+    CSendTarget cSendDbm = GetDbmTarget();
+	LogSdl(cDbmConfirm);
+    obb_stream cStream = Sdl2Obbstream(cDbmConfirm);
+    cMsgHelper.Send(cSendDbm, 6000, cStream);
+}
+
+void CMsgProcessI613::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+							  int32 iMsgType, obb_stream &cInObbStream)
+{
+	SSrmExeCallBack cCbInfo(cInObbStream);
+	LogSdl(cCbInfo);
+	ISrmProcMgr &rcProcMgr = ISrmProcMgr::GetInstance();
+	
+	CStringList	lstParam;
+	base_divide_str(cCbInfo.param(), "_", lstParam);
+	if (lstParam.size() < 2)
+	{
+		DBE2_LOG(ERROR_LOGGER, "wrong callback param:%s", cCbInfo.param().c_str());
+		return;
+	}
+	int32 iVmId = atoi(lstParam[0].c_str());
+	DBE2_LOG(INFO_LOGGER, "SyncVmProc vmid:%d,check other trans on vm", iVmId);
+
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	
+	if (rcRdcMgr.CheckVmTransExistence(iVmId))
+	{
+		int32 iCount=rcRdcMgr.QuerySameCbParamTrans(cCbInfo.param());
+		if (iCount!=0)
+		{
+			DBE2_LOG(INFO_LOGGER, "SyncVmProc vmid:%d,there is %d trans on vm running", iVmId,iCount);
+			return;
+		}
+	}
+	else
+	{
+		DBE2_LOG(INFO_LOGGER, "SyncVmProc vmid:%d,there is no trans on vm", iVmId);
+	}
+
+	// 发送7007消息给NRM
+	SNrmResponseRegister cRepRegister;
+	cRepRegister.set_msgHead(GetMsgHead(7007, iVmId));
+	cRepRegister.set_regResult(NRM_STATUS_NOCLEAR_PROC);
+
+	obb_stream cStream = Sdl2Obbstream(cRepRegister);
+	CSendTarget cNrmTarget = GetNrmTarget(iVmId);
+	cMsgHelper.Send(cNrmTarget, 7007, cStream);
+
+}
+
+void CMsgProcessI901::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+
+    ISrmProcTransMgr &rcProcTransMgr = ISrmProcTransMgr::GetInstance();
+    // 事务
+    rcProcTransMgr.OperateTimeOut();
+}
+
+void CMsgProcessI903::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+							  int32 iMsgType, obb_stream &cInObbStream)
+{
+	ISrmRecordMgr &rcRecordMgr = ISrmRecordMgr::GetInstance();
+	rcRecordMgr.WriteRecordToDb();
+	ISrmProcMgr::GetInstance().WriteProcDynamicInfo();
+}
+
+void CMsgProcessI906::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+	int32 iMsgType, obb_stream &cInObbStream)
+{
+	ISrmOtherMgr &rcOtherMgr = ISrmOtherMgr::GetInstance();
+	rcOtherMgr.QueryUpgradeProgress();
+}
+
+void CMsgProcessI912::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+							  int32 iMsgType, obb_stream &cInObbStream)
+{
+	ISrmRecordMgr::GetInstance().DeleteRedundantData();
+
+}
+
+void CMsgProcessI999::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget, int32 iMsgType, obb_stream & cInObbStream)
+{
+	//vm宕机迁移参数控制
+	aistring rSysParamName("dbe.vmcrashmigrate");
+	int32 iParamValue =ISrmRdcMgr::GetInstance().GetSysParam(rSysParamName,false);
+
+	if (iParamValue==1) 
+	{
+		ISrmVmMgr::GetInstance().CheckNrmHeart();
+		return;
+	}
+	DBE2_LOG(DEBUG_LOGGER,"dbm configuration parameters:vmcrashmigrate switch off.");
+	return;
+}
+
+void CMsgProcessI603::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SSrmExeCallBack cCbInfo(cInObbStream);
+    LogSdl(cCbInfo);
+    ISrmAppMgr &rAppMgr = ISrmAppMgr::GetInstance();
+    ISrmJobMgr &rJobMgr = ISrmJobMgr::GetInstance();
+    rAppMgr.FinishDbmOperate(cCbInfo.get_appId(), START_APP, cCbInfo.get_exeResult(), 0);
+    rJobMgr.AppStartCallback(cCbInfo);
+}
+
+void CMsgProcessI604::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SSrmExeCallBack cCbInfo(cInObbStream);
+    LogSdl(cCbInfo);
+    ISrmAppMgr &rcAppMgr = ISrmAppMgr::GetInstance();
+    ISrmJobMgr &rJobMgr = ISrmJobMgr::GetInstance();
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+	aistring param = cCbInfo.get_param();
+	CStringList	out_list;
+	base_divide_str(param, "_", out_list);
+	CRdcJobIns cJobIns;
+	rcRdcMgr.GetJobInfo(atoi(out_list[0].c_str()), cJobIns);
+	if (!rcRdcMgr.CheckJobAppCompleteBySequence(cJobIns.get_jobInsSequence(),cCbInfo.get_appId()))
+	{
+		DBE2_LOG(WARN_LOGGER, "-604 proc in app not complete");
+		rcAppMgr.FinishDbmOperate(cCbInfo.get_appId(), STOP_APP, cCbInfo.get_exeResult(), 0);
+		try
+		{
+			CRdcJobRunStepApp cRdcJobRunStepApp;
+			if (rcRdcMgr.QueryJobAppInfo(cCbInfo.get_appId(), cRdcJobRunStepApp))
+			{
+				cRdcJobRunStepApp.set_appStatus(5);
+				rcRdcMgr.UpdateJobRunAppState(cRdcJobRunStepApp);
+				DBE2_LOG(TRACE_LOGGER, "updated CRdcJobRunStepApp app_state : APP_RUN_EXCEPTION_");
+				rJobMgr.AppExcptionCallback(cCbInfo);
+			}
+		}
+		catch (CAIException & e)
+		{
+			DBE2_LOG_EXCEPTION(e);
+		}
+	}
+	else
+	{
+		rcAppMgr.FinishDbmOperate(cCbInfo.get_appId(), STOP_APP, cCbInfo.get_exeResult(), 0);
+	}
+    rJobMgr.AppEndCallback(cCbInfo);
+}
+
+void CMsgProcessI609::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SSrmExeCallBack cCbInfo(cInObbStream);
+    LogSdl(cCbInfo);
+	
+    // 修复流程失败，状态不变
+    if (TRANS_SUCCESS != cCbInfo.get_exeResult()) return;
+    ISrmJobMgr::GetInstance().AppStartCallback(cCbInfo);
+}
+
+void CMsgProcessI610::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    SSrmExeCallBack cCbInfo(cInObbStream);
+    LogSdl(cCbInfo);
+    ISrmJobMgr::GetInstance().AppExcptionCallback(cCbInfo);
+}
+
+void CMsgProcessI911::Process(CMsgHelper & cMsgHelper, CSendSource & cSendSource, CSendTarget & cSendTarget,
+    int32 iMsgType, obb_stream &cInObbStream)
+{
+    ISrmJobMgr &rJobMgr = ISrmJobMgr::GetInstance();
+    //start  and update job
+    rJobMgr.JobScheduleProcess();
+}
+
+} // namespace MDbe

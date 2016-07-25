@@ -1,0 +1,257 @@
+#include "pid_info.h"
+
+#if defined(_Windows)
+#include <Psapi.h>
+#include <Tlhelp32.h>
+#else
+#include <unistd.h>
+#endif
+#include <stdio.h>
+
+#ifdef HPUX
+#include <sys/param.h>
+#include <sys/pstat.h>
+#endif
+
+#ifdef AIXV5
+#include <procinfo.h>
+#include <sys/types.h>
+/*
+extern "C"
+{
+	int getprocs64 ( struct procentry64 * ProcessBuffer,
+		int ProcessSize,
+	struct fdsinfo64 * FileBuffer,
+		int FileSize,
+		pid_t * IndexPointer,
+		int Count);
+};
+*/
+#endif
+
+#ifdef SOLARIS
+#include <procfs.h>
+#include <fcntl.h>
+#endif
+
+
+/**
+* 将数字根据大小自动转成以K、M或G为单位的字符串
+* @param iSize - 以K为单位的数字
+* @return  含单位的字符串
+*/
+AISTD string format_size(size_t iSize)
+{
+	char szTemp[32];
+	char cUnit = 'K';
+	float fSize = iSize;
+#if defined(HPUX) //match with top
+    int iConvertUnit = 1000;
+#else
+    int iConvertUnit = 1024;
+#endif
+	if (iSize > 10000)
+	{
+		fSize = fSize /	iConvertUnit;
+		cUnit = 'M';
+		if (fSize > 10000.0f)
+		{
+			fSize = fSize / iConvertUnit;
+			cUnit = 'G';
+		}
+	}
+	snprintf(szTemp, sizeof(szTemp), "%6.1f%c", fSize, cUnit);
+	szTemp[sizeof(szTemp) - 1] = 0;
+	return AISTD string(szTemp);
+}
+
+
+/**
+* @brief 实现Windows和Unix平台获取进程ID功能
+* @param 无
+* @return 当前进程ID
+*/
+pid_t get_processId()
+{
+#ifdef _Windows
+	return GetCurrentProcessId();
+#else
+	return getpid();
+#endif
+}
+
+
+/**
+* 获取进程信用上，包括CPU占用率、内存占用情况
+* @param  sPidInfo -- 进程信息结构引用<in, out>
+*		  pid -- 进程ID  <in>
+* @return  0 -- 成功
+*		  <0 -- 失败
+*		   1 -- 进程不存在  (适用于HP平台)
+* @note  - 当返回<0时可以使用chk_err()函数获取具体的错误信息
+*        - 首次调用请将sPidInfo清零,以后每次调用均需将上次返回的sPidInfo作为参数传入
+*
+*/
+int get_pidInfo(pid_t pid, SPidInfo& sPidInfo)
+{
+	int iRet;
+#if defined(HPUX)
+	struct pst_status	sPstSts;
+	size_t		iSize;
+
+	iSize  = sizeof( struct pst_status );
+
+	iRet = pstat_getproc( &sPstSts, sizeof( struct pst_status ), 0, pid );
+	if (ESRCH == iRet)
+		return iRet;
+	//chk_err("pstat_getproc error", iRet < 0);
+	else if (0 > iRet)
+		return iRet;
+
+	sPidInfo.m_iSize =	(int)(sPstSts.pst_vtsize + sPstSts.pst_vdsize+
+                            sPstSts.pst_vssize + sPstSts.pst_vshmsize+
+                            sPstSts.pst_vmmsize + sPstSts.pst_vusize+
+                            sPstSts.pst_viosize)*getpagesize()/1024;
+	sPidInfo.m_iRSize = sPstSts.pst_rssize*getpagesize()/1024;
+	sPidInfo.m_iPctCpu = (int)(10000.0 * sPstSts.pst_pctcpu);
+	sPidInfo.m_iThreadCount = sPstSts.pst_nlwps;
+	return 0;
+#elif defined(AIXV5)
+	struct procentry64 sProcInfo;
+	struct timeval64 sCurrentCpuTime;
+	struct timeval sCurrentTime;
+
+
+	//计算上次调用与本次调用之间的时间间隔
+	gettimeofday(&sCurrentTime, NULL);
+	double dTimeDiff = (sCurrentTime.tv_sec - sPidInfo.m_sLastTime.tv_sec) +
+		1.0*(sCurrentTime.tv_usec - sPidInfo.m_sLastTime.tv_usec) / uS_PER_SECOND;
+	sPidInfo.m_sLastTime = sCurrentTime;
+
+	iRet = getprocs64 ( &sProcInfo, sizeof (struct procentry64), NULL, 0, &pid, 1);
+	if (iRet < 0)
+		return iRet;
+	sPidInfo.m_iSize    = (sProcInfo.pi_tsize/4096 + sProcInfo.pi_dvm)*4;
+	sPidInfo.m_iRSize   = (sProcInfo.pi_trss + sProcInfo.pi_drss) * 4;
+
+	/* The pi_cpu value is wildly inaccurate.  The maximum value is 120, but
+	when the scheduling timer fires, the field is zeroed for all
+	processes and ramps up over a short period of time.  Instead of using
+	this weird number, manually calculate an accurate value from the
+	rusage data.  Store this run's rusage in cpu_proc[pid], and subtract
+	from old_cpu_proc.
+	*/
+
+	/* total system and user time into cpu_proc */
+	sCurrentCpuTime = sProcInfo.pi_ru.ru_utime;
+	sCurrentCpuTime.tv_sec += sProcInfo.pi_ru.ru_stime.tv_sec;
+	sCurrentCpuTime.tv_usec += sProcInfo.pi_ru.ru_stime.tv_usec;
+
+	if (sCurrentCpuTime.tv_usec > NS_PER_SEC)
+	{
+		sCurrentCpuTime.tv_sec++;
+		sCurrentCpuTime.tv_usec -= NS_PER_SEC;
+	}
+
+	/* If this process was around during the previous update, calculate
+	a true %CPU.  If not, convert the kernel's cpu value from its
+	120-max value to a 10000-max one.
+	*/
+	if (sPidInfo.m_sOldCpuTime.tv_sec == 0 && sPidInfo.m_sOldCpuTime.tv_usec == 0)
+		sPidInfo.m_iPctCpu = sProcInfo.pi_cpu * 10000 / 120;
+	else
+		sPidInfo.m_iPctCpu = ((sCurrentCpuTime.tv_sec - sPidInfo.m_sOldCpuTime.tv_sec) +
+		1.0*(sCurrentCpuTime.tv_usec - sPidInfo.m_sOldCpuTime.tv_usec) / NS_PER_SEC)/ dTimeDiff * 10000.0;
+
+	sPidInfo.m_iThreadCount = sProcInfo.pi_thcount;
+
+	sPidInfo.m_sOldCpuTime = sCurrentCpuTime;
+
+	return 0;
+
+#elif defined(SOLARIS)
+	char szFileName[512];
+	int fd;
+	psinfo_t psinfo;
+	snprintf(szFileName,511,"/proc/%d/psinfo", pid);
+	if ((fd = open (szFileName, O_RDONLY)) < 0)
+		return -1;
+
+	if (read (fd, &psinfo, sizeof(psinfo_t)) != sizeof(psinfo_t))
+	{
+		close(fd);
+		return -1;
+	}
+
+	sPidInfo.m_iSize   = psinfo.pr_size;
+	sPidInfo.m_iRSize = psinfo.pr_rssize;
+	sPidInfo.m_iPctCpu = psinfo.pr_pctcpu;
+	sPidInfo.m_iThreadCount = psinfo.pr_nlwp;
+
+	close(fd);
+	return 0;
+
+#elif defined(_Windows)
+
+	HANDLE hProcess;
+	PROCESS_MEMORY_COUNTERS pmc;
+
+	hProcess = OpenProcess(  PROCESS_QUERY_INFORMATION |
+		PROCESS_VM_READ,
+		FALSE, pid );
+	if (NULL == hProcess)
+		return -1;
+
+	if ( GetProcessMemoryInfo( hProcess, &pmc, sizeof(pmc)) == 0 )
+    {
+        CloseHandle(hProcess);
+		return -1;
+    }
+
+    LARGE_INTEGER  liCreat, liExit, liKernel, liUser;
+	if (GetProcessTimes(hProcess,(FILETIME *)&liCreat,
+        (FILETIME *)&liExit, (FILETIME *)&liKernel, (FILETIME *)&liUser) == 0)
+    {
+        CloseHandle(hProcess);
+		return -1;
+    }
+
+
+	SYSTEMTIME sCurrentTime;
+	LARGE_INTEGER  liCurrentTime;
+	GetSystemTime(&sCurrentTime);
+	SystemTimeToFileTime((SYSTEMTIME *)&sCurrentTime, (FILETIME *)&liCurrentTime);
+	int64 llDeltaCpuTime = (liKernel.QuadPart + liUser.QuadPart) - sPidInfo.m_llOldCpuTime;
+	sPidInfo.m_iPctCpu = 10000.0*(llDeltaCpuTime /
+		(liCurrentTime.QuadPart - sPidInfo.m_llLastTime));
+
+	sPidInfo.m_llLastTime = liCurrentTime.QuadPart;
+	sPidInfo.m_llOldCpuTime = liKernel.QuadPart + liUser.QuadPart;
+
+
+	sPidInfo.m_iSize = pmc.PeakWorkingSetSize / 1024;
+	sPidInfo.m_iRSize = pmc.WorkingSetSize / 1024;
+
+    CloseHandle(hProcess);
+
+	//获取线程数
+	HANDLE         hProcessSnap = NULL;
+	hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPALL,pid);
+	if (hProcessSnap == INVALID_HANDLE_VALUE)
+		return -1;
+	PROCESSENTRY32 sProcessEntry32 = {0};
+	sProcessEntry32.dwSize = sizeof(sProcessEntry32);
+	if (!Process32First(hProcessSnap, &sProcessEntry32))
+    {
+        CloseHandle(hProcessSnap);
+		return -1;
+    }
+	sPidInfo.m_iThreadCount = sProcessEntry32.cntThreads;
+
+    CloseHandle(hProcessSnap);
+	return 0;
+#endif
+}
+
+
+

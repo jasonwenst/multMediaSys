@@ -1,0 +1,64 @@
+/* $Id: */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：cpf_common_struct.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：Aug 26, 2013）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "cpf_common_struct.h"
+
+namespace cpf
+{
+
+bool CSrvKey::operator() (const CSrvKey &rSk)
+{
+    return m_iSrvId == rSk.m_iSrvId && m_iFlowId == rSk.m_iFlowId;
+}
+
+bool CSrvKey::operator< (const CSrvKey &rSk) const
+{
+    if (m_iSrvId == rSk.m_iSrvId) return m_iFlowId < rSk.m_iFlowId;
+    return m_iSrvId < rSk.m_iSrvId;
+}
+
+bool CSrvKey::operator== (const CSrvKey& rSk) const
+{
+    return (m_iSrvId == rSk.m_iSrvId && m_iFlowId == rSk.m_iFlowId);
+}
+
+bool CProcKey::operator()(const CProcKey &rPk) const
+{
+    return (m_objSKey.m_iSrvId == rPk.m_objSKey.m_iSrvId &&
+        m_objSKey.m_iFlowId == rPk.m_objSKey.m_iFlowId &&
+        m_iProcId == rPk.m_iProcId);
+}
+
+bool CProcKey::operator< (const CProcKey &rPk) const
+{
+    if (m_objSKey == rPk.m_objSKey) return m_iProcId < rPk.m_iProcId;
+    return m_objSKey < rPk.m_objSKey;
+}
+
+bool CProcKey::operator==(const CProcKey &rPk) const
+{
+    return (m_objSKey == rPk.m_objSKey
+        && m_iProcId == rPk.m_iProcId);
+}
+bool CProcKey::operator!=(const CProcKey &rPk) const
+{
+    return ! (rPk == *this);
+}
+
+};

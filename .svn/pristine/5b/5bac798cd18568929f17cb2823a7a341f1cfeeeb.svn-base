@@ -1,0 +1,287 @@
+#include <unittest_cp_dbe2_srm_main.h>
+#include "../mgr_impl/srm_rdc_mgr_impl.h"
+#include "public/ob_kernel/ob_kernel.h"
+#include "rdc_table_def_sdl_c.h"
+#include "dbe2_util.h"
+#include "dbe2_log.h"
+#include "srm_error_code.h"
+
+using namespace MDbe;
+SUITE(SUITE___mgr_impl_srm_rdc_job_mgr_impl_cpp)
+{
+	//Fuction: bool CSrmRdcMgrImpl :: CheckIfJobFlowSrv ( int32 iflowId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_CheckIfJobFlowSrv)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetHeadSteps ( int32 iJobInsId , SStepIdList & rStepIdList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetHeadSteps)
+	{
+		/*codes for test start here*/
+		SStepIdList  rStepIdList;
+		ISrmRdcMgr::GetInstance().GetHeadSteps(100, rStepIdList);
+		SStepIdList::iterator it=rStepIdList.begin();
+		printf("TEST GetHeadSteps  size:%d \n",rStepIdList.size());
+		for(;it!=rStepIdList.end();++it)
+		{
+			printf("GetHeadSteps::head step:%d\n",it->stepinsId());
+
+		}
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetJobFlowByStatus ( int32 iJobId , SJobFlowIdList & rcJobFlowIdList , int32 iFlowStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetJobFlowByStatus)
+	{
+		/*codes for test start here*/
+		SJobFlowIdList  rcJobFlowIdList;
+		ISrmRdcMgr::GetInstance().GetJobFlowByStatus(100,rcJobFlowIdList);
+		printf("TEST GetJobFlowByStatus  size:%d \n",rcJobFlowIdList.size());
+		SJobFlowIdList::iterator it=rcJobFlowIdList.begin();
+		for(;it!=rcJobFlowIdList.end();++it)
+		{
+			printf("GetJobFlowByStatus::flow_id:%d\n",it->flowId());
+
+		}
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetJobInfo ( int32 iJobInsId , CRdcJobIns & rcJobInfo )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetJobInfo)
+	{
+		/*codes for test start here*/
+		int32 iJobId=100;
+		CRdcJobIns cJobInfo;
+		ISrmRdcMgr::GetInstance().GetJobInfo(iJobId, cJobInfo);
+		printf("TEST GetJobInfo \n job_optype :%d \n",cJobInfo.get_jobInsOperType());
+
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetJobStepByStatus ( int32 iJobId , SStepIdList & rcStepIdList , int32 iStepStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetJobStepByStatus)
+	{
+		/*codes for test start here*/
+		int32 iJobId=100;
+		SStepIdList cStepIdList;
+		ISrmRdcMgr::GetInstance().GetJobStepByStatus(iJobId, cStepIdList);
+		printf("TEST GetJobStepByStatus::size :%d\n",cStepIdList.size());
+		SStepIdList::iterator it=cStepIdList.begin();
+		for(;it!=cStepIdList.end();++it)
+		{
+			printf("GetJobStepByStatus::stepid:%d\n",it->get_stepinsId());
+		}
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetNextSteps ( SStepId & rcStepId , SStepIdSet & rcStepIdSet )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetNextSteps)
+	{
+		/*codes for test start here*/
+		SStepId  rcStepId ;
+		rcStepId.set_jobinsId(100);
+		rcStepId.set_stepinsId(1);
+		SStepIdSet  rcStepIdSet;
+		ISrmRdcMgr::GetInstance().GetNextSteps(rcStepId,rcStepIdSet);
+		printf("TETS GetNextSteps::size :%d\n",rcStepIdSet.size());
+		SStepIdSet::iterator it=rcStepIdSet.begin();
+		for(;it!=rcStepIdSet.end();++it)
+		{
+			printf("GetNextSteps::next stepid:%d\n",it->get_stepinsId());
+		}
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetPreSteps ( SStepId & rcStepId , SStepIdSet & rcStepIdSet )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetPreSteps)
+	{
+		/*codes for test start here*/
+		SStepId  rcStepId ;
+		rcStepId.set_jobinsId(100);
+		rcStepId.set_stepinsId(2);
+		SStepIdSet  rcStepIdSet;
+		ISrmRdcMgr::GetInstance().GetPreSteps(rcStepId,rcStepIdSet);
+		printf("TEST GetPreSteps::size :%d\n",rcStepIdSet.size());
+		SStepIdSet::iterator it=rcStepIdSet.begin();
+		for(;it!=rcStepIdSet.end();++it)
+		{
+			printf("GetPreSteps::pre stepid:%d\n",it->get_stepinsId());
+		}
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetStepFlowByStatus ( int32 iJobId , SJobFlowIdList & rcJobFlowIdList , int32 iFlowStatus )
+	//(MDbe::SStepId&, MDbe::CRdcJobRunStepFlowList&, int32)
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetStepFlowByStatus)
+	{
+		/*codes for test start here*/
+
+		SStepId  rcStepId ;
+		rcStepId.set_jobinsId(100);
+		rcStepId.set_stepinsId(1);
+		SJobFlowIdList  rcJobFlowList;
+
+		ISrmRdcMgr::GetInstance().GetStepFlowByStatus(rcStepId,rcJobFlowList);
+		printf("TEST GetStepFlowByStatus  size:%d \n",rcJobFlowList.size());
+		SJobFlowIdList::iterator it=rcJobFlowList.begin();
+		for(;it!=rcJobFlowList.end();++it)
+		{
+			printf("GetStepFlowByStatus::flow_id:%d\n",it->flowId());
+
+		}
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl ::SetJobInfo(CRdcJobIns& rcData, CRdcJobIns& rcCond)
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetJobStatus)
+	{
+		/*codes for test start here*/
+		CRdcJobIns rcData, rcCond;
+		rcData.set_jobInsStatus(3);
+		rcCond.set_jobInsId(100);
+
+		ISrmRdcMgr::GetInstance().SetJobInfo(rcData, rcCond);
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: SetStepInfo(CRdcJobRunStep& rcData, CRdcJobRunStep& rcCond)
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetStepStatus)
+	{
+		/*codes for test start here*/
+
+		CRdcJobRunStep rcData,rcCond;
+		rcData.set_stepStatus(3);
+		rcCond.set_jobInsId(100);
+		rcCond.set_jobRunStepId(1);
+		ISrmRdcMgr::GetInstance().SetStepInfo(rcData,rcCond);
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetStepInfo ( SStepId & rcStepId , CRdcJobRunStep & rcRdcJobRunStep )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetStepInfo)
+	{
+		/*codes for test start here*/
+		SStepId  rcStepId;
+		rcStepId.set_jobinsId(100);
+		rcStepId.set_stepinsId(1);
+		CRdcJobRunStep  rcRdcJobRunStep;
+		ISrmRdcMgr::GetInstance().GetStepInfo(rcStepId,rcRdcJobRunStep);
+		printf("TEST GetStepInfo::flow_id:%d status:%d\n",rcRdcJobRunStep.get_jobRunStepId(),rcRdcJobRunStep.get_stepStatus());
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: GetFlowsByStep ( SStepId & rcStepId , SJobFlowIdList & rcJobFlowIdList )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetFlowsByStep)
+	{
+		/*codes for test start here*/
+//		SStepId  rcStepId;
+//		rcStepId.set_jobinsId(100);
+//		rcStepId.set_stepinsId(100);
+//		SJobFlowIdList  rcJobFlowIdList;
+//		//ISrmRdcMgr::GetInstance().GetFlowsByStep(rcStepId,rcJobFlowIdList);
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: SetJobFlowStatus ( SJobFlowId & rcJobFlowId , int32 iJobFlowStatus )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetJobFlowStatus)
+	{
+		/*codes for test start here*/
+		SJobFlowId  rcJobFlowId ;
+		rcJobFlowId.set_jobinsId(100);
+		rcJobFlowId.set_stepinsId(1);
+		rcJobFlowId.set_flowId(1001);
+		ISrmRdcMgr::GetInstance().SetJobFlowStatus(rcJobFlowId,FLOW_START_);
+
+		/*codes for test stop here*/
+	}
+
+	//Fuction: void CSrmRdcMgrImpl :: RefreshJobInfo ( int32 iJobInsId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_RefreshJobInfo)
+	{
+		/*codes for test start here*/
+		ISrmRdcMgr::GetInstance().RefreshJobInfo(100);
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: SetJobInfo ( CRdcJobIns & rcData , CRdcJobIns & rcCond )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetJobInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: SetStepInfo ( CRdcJobRunStep & rcData , CRdcJobRunStep & rcCond )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_SetStepInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetJobFlowInfo ( SJobFlowId & rcFlowId , CRdcJobRunStepFlow & rcRdcJobFlow )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetJobFlowInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: GetJobSchedule ( std :: list < int32 > & listJobId )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_GetJobSchedule)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: UpdateJobSchedule ( )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateJobSchedule)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: parse_time ( aistring szCronTime , time_t time_in , time_t & time_out )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_parse_time)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: AppendShedule ( CRdcJobScheduleList & rJobScheduleList , int32 count )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_AppendShedule)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: AutoAddJobSchedule ( )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_AutoAddJobSchedule)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmRdcMgrImpl :: ParaseTime ( aistring szCronTime , time_t time_in , time_t & time_out )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_ParaseTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmRdcMgrImpl :: UpdateShedule ( CRdcJobSchedule & rApdJobSchedule , CRdcJobSchedule & rmCond )
+	TEST_FIXTURE(TestFixture,TestCSrmRdcMgrImpl_UpdateShedule)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

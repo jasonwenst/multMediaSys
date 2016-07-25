@@ -1,0 +1,13 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_job_mgr_cpp)
+{
+	//Fuction: ISrmJobMgr & ISrmJobMgr :: GetInstance ( )
+	TEST_FIXTURE(TestFixture,TestISrmJobMgr_GetInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

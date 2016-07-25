@@ -1,0 +1,243 @@
+/* $Id: cbs_mutex.h 219322 2012-10-18 12:38:37Z shiym $  */
+#ifndef PUBLIC_COMMON_BASE_CBS_MUTEX_H_
+#define PUBLIC_COMMON_BASE_CBS_MUTEX_H_
+
+#ifdef _Windows
+    #include <windows.h>
+#else    
+    #include <pthread.h>
+#endif    
+
+//*****************************************************************************
+//*         Class CBSMutexLock
+//*****************************************************************************
+
+/** @defgroup group_public public 
+*	public 子系统 	
+*	@{
+*/
+	/** @defgroup  group_public_common common
+	* common 模块
+	* @{
+	*/
+	/** @defgroup group_public_common_base base
+	* base 子模块
+	* @{
+	*/
+/** @defgroup group_public_common_base_CBSMutexLock CBSMutexLock
+* CBSMutexLock 组件
+ * header file: "common/base/cbs_mutex.h"
+ *  @{
+ */
+//! class CBSMutexLock
+class CBSMutexLock
+{
+#ifdef _Windows
+protected:
+	HANDLE m_lock;
+public:	
+    /*! \brief default constructor */
+	CBSMutexLock()  { m_lock = CreateMutex(0, false, 0); }
+	/*! \fn CBSMutexLock()
+		\exception .
+		\return .
+	*/
+	
+    /*! \brief  destructor */	
+	~CBSMutexLock() { CloseHandle(m_lock); }
+	/*! \fn ~CBSMutexLock()
+		\exception .
+		\return .
+	*/
+	
+    /*! \brief try to get lock */
+	void acquire() { WaitForSingleObject(m_lock, INFINITE); }
+	/*! \fn void acquire()
+		\exception .
+		\return .
+	*/
+	
+    /*! \brief release lock */
+	void release() { ReleaseMutex(m_lock); }
+	/*! \fn void release()
+		\exception .
+		\return .
+	*/
+	/*! \brief get mutex object */
+	HANDLE& mutex_object()
+	{
+		return m_lock;
+	}
+	/*! \fn HANDLE& mutex_object()
+		\exception .
+		\return .
+	*/
+#else // !defined(_Windows)
+protected:
+	pthread_mutex_t m_lock;
+public:
+    /*! \brief default constructor */
+	CBSMutexLock()  { pthread_mutex_init(&m_lock, NULL); }
+	/*! \fn CBSMutexLock()
+		\exception .
+		\return .
+	*/
+	
+    /*! \brief destructor */
+	~CBSMutexLock() { pthread_mutex_destroy(&m_lock); }
+/*! \fn ~CBSMutexLock()
+		\exception .
+		\return .
+	*/
+    /*! \brief try to get lock */
+	void acquire() { pthread_mutex_lock(&m_lock); }
+/*! \fn void acquire()
+		\exception .
+		\return .
+	*/	
+    /*! \brief release lock */
+	void release() { pthread_mutex_unlock(&m_lock); }
+/*! \fn void release()
+		\exception .
+		\return .
+	*/		
+	/*! \brief get mutex object */
+	pthread_mutex_t& mutex_object()
+	{
+		return m_lock;
+	}
+/*! \fn pthread_mutex_t& mutex_object()
+		\exception .
+		\return .
+	*/		
+#endif // _Windows
+};
+/** @} */
+//*****************************************************************************
+//*         Class CBSLockGuard
+//*****************************************************************************
+//! more easy to use mutex
+/** @defgroup group_public_common_base_Mutex_CBSLockGuard CBSLockGuard
+* CBSLockGuard 组件
+ * header file: "common/base/cbs_mutex.h"
+ *  @{
+ */
+template <class T>
+class CBSLockGuard
+{
+protected:
+	T * m_lock;
+public:
+	/*! \brief constructor */
+	CBSLockGuard(T& lock)
+	{
+		m_lock = &lock;
+		m_lock->acquire();
+	}
+/*! \fn CBSLockGuard(T& lock)
+		\param .
+		\exception .
+		\return .
+	*/	
+	
+	/*! \brief destructor */
+	~CBSLockGuard() { m_lock->release(); }
+/*! \fn ~CBSLockGuard()
+		\param .
+		\exception .
+		\return .
+	*/		
+};
+/** @} */
+#ifndef _Windows
+/** @defgroup group_public_common_base_Mutex_CBSRwMutexLock CBSRwMutexLock
+ * CBSLockGuard 组件
+ * header file: "common/base/cbs_mutex.h"
+ *  @{
+ */
+class CBSRwMutexLock
+{
+protected:
+	pthread_rwlock_t	m_tLock;
+public:
+	/*! \brief default constructor */
+	CBSRwMutexLock()  { pthread_rwlock_init(&m_tLock, NULL); }
+/*! \fn CBSRwMutexLock()
+		\exception .
+		\return .
+	*/		
+	/*! \brief destructor */
+	~CBSRwMutexLock() { pthread_rwlock_destroy(&m_tLock); }
+/*! \fn ~CBSRwMutexLock() 
+		\exception .
+		\return .
+	*/	
+	/*! \brief try to get lock as reader */
+	void acquire_asReader() { pthread_rwlock_rdlock(&m_tLock); }
+/*! \fn void acquire_asReader()
+		\exception .
+		\return .
+	*/		
+	/*! \brief try to get lock as writer */
+	void acquire_asWriter() { pthread_rwlock_wrlock(&m_tLock); }
+/*! \fn void acquire_asWriter()
+		\exception .
+		\return .
+	*/		
+	/*! \brief release lock */
+	void release() { pthread_rwlock_unlock(&m_tLock); }
+/*! \fn void release()
+		\exception .
+		\return .
+	*/		
+	/*! \brief get mutex object */
+	pthread_rwlock_t& mutex_object()
+	{
+		return m_tLock;
+	}
+/*! \fn pthread_rwlock_t& mutex_object()
+		\exception .
+		\return .
+	*/	
+};
+/** @} */
+#endif // _Windows
+
+//! more easy to use mutex
+/** @defgroup group_public_common_base_Mutex_CBSRwLockGuard CBSRwLockGuard
+ * CBSRwLockGuard 组件
+ * header file: "common/base/cbs_mutex.h"
+ *  @{
+ */
+template <class T>
+class CBSRwLockGuard
+{
+protected:
+	T * m_lock;
+public:
+	/*! \brief constructor */
+	CBSRwLockGuard(T& lock, bool bAsReader)
+	{
+		m_lock = &lock;
+		if ( bAsReader ) m_lock->acquire_asReader();
+		else m_lock->acquire_asWriter();
+	}
+/*! \fn CBSRwLockGuard(T& lock, bool bAsReader)
+		\param .
+		\param .
+		\exception .
+		\return .
+	*/	
+	/*! \brief destructor */
+	~CBSRwLockGuard() { m_lock->release(); }
+/*! \fn ~CBSRwLockGuard() 
+		\param .
+		\param .
+		\exception .
+		\return .
+	*/		
+};
+
+/** @} */
+
+#endif // PUBLIC_COMMON_BASE_CBS_MUTEX_H_

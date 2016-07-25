@@ -1,0 +1,328 @@
+package Cpf_console_flowmanage;
+use strict;
+use warnings;
+use Ca;
+use SrmSdl;
+
+sub new {        
+    my ($class)= shift;
+    my ($flowid,$type,$ca);    
+    if(@_!=0 and @_==3){
+        $flowid =shift;
+       # print "flowid:$flowid\n";
+        $type =shift;
+       # print "type:$type\n";
+        $ca   =shift;
+       # print "ca:$ca\n";
+     }
+     else{
+         die "[fatal]:FlowManage param num error!@_\n";
+     }
+
+    #$ca->set_data; 
+    my $self = {
+            _FlowId   =>$flowid,
+            _Type     =>$type,
+            _Ca       =>$ca,
+    };  
+    return bless($self,$class);
+}
+
+sub set_data{
+    my $self =shift;
+    print "Enter the flow id :\n";
+    chomp($self->{_FlowId}=<STDIN>);
+    print "Enter flow type  $self->{_FlowId}:\n";
+    chomp($self->{_Type}=<STDIN>);
+}
+
+sub run{
+    my $self = shift;
+    my $sock   = $self->{"_Ca"};
+   
+    my $seqid  = time();
+    print "seq id:$seqid\n";
+#    my $obbStr =&packObbStr($self->{"_FlowId"},$self->{"_Type"},$seqid);
+#    $sock->send_msg(4111,$obbStr);
+#    my $robbstr = $sock->rece_msg(4111,$seqid);
+#    parseObbstr($robbstr);
+
+    start_stop_flow($self->{"_FlowId"},$self->{"_Type"},$seqid,$sock);
+}
+
+######发送消息+接收消息+数据整理########
+sub start_stop_flow{
+    my ($flowid,$type,$seqid,$handle) = @_;
+    my $obbStr =&packObbStr($flowid,$type,$seqid);
+    ###发送4111#####
+    $handle->send_msg(4111,$obbStr);
+    ###等待消息以seqid收集
+    my $prmsg =SrmSdl->new_flowmsg;
+    print "\r","===>>0%";
+    while(1){
+        select(undef,undef,undef,0.1);
+        my $obbstr =$handle->collectMsg(0,$seqid);
+        if( collectObbstr($obbstr,$prmsg))
+        {
+        		printprogress(100);
+        		print "\n";
+            last;
+        }
+        my $prog = int(getprogress($prmsg));
+	    printprogress($prog);
+    }
+	$prmsg->display;
+}
+sub printprogress{
+		my $count = shift;
+		my $flag  = "";
+		my $i;
+		for($i=6;$i<$count;$i++){
+			$flag = $flag."=";
+		}
+		print "\r",$flag,">>$count%";
+}
+
+sub collectObbstr{
+    my($obbstr,$prmsg) =@_;
+    return 0 if($obbstr eq "");
+   
+    my $command =0;
+    if($obbstr =~ m#"int32_3_COMMAND" : (.*?),.*#s){
+        $command = $1;
+    }
+    
+    if($command == 5037){
+        deal5037($obbstr,$prmsg);
+        return 0;
+    }
+    if($command == 5023){
+		deal5023($obbstr,$prmsg);
+        return 0;
+    }
+    if($command == 6000){
+		deal6000($obbstr,$prmsg);
+        return 1;
+    }
+
+    return 0;
+}
+
+sub getprogress{
+    my($prmsg)=@_;
+    
+    my $p5037 = $prmsg->get("5037");
+    return 0 if (!defined $p5037);
+    my $total = @$p5037 ;
+    return 0 if($total == 0);
+    
+    my $p5023  = $prmsg->get("5023");
+    return 0 if (!defined $p5023);
+    my $curNum = @$p5023;
+    return 0 if($curNum == 0);
+
+    my $progress = ($curNum *100)/$total;  
+    return $progress;
+}
+sub deal5037{
+    my($obbstr,$prmsg) =@_;
+    my @obbstr = split /\n/,$obbstr;
+
+    my @flow = grep (/FLOW_ID/,@obbstr);
+    my @srv  = grep (/SRV_ID/,@obbstr);
+    my @proc = grep (/PROC_ID/,@obbstr);
+    
+    #print @flow,"\n",@srv,"\n",@proc,"\n------------------------\n";
+    my $i;   
+    for ($i=0;$i<@flow;$i++){
+         my ($flowid,$srvid,$procid);
+        #if(@flow[$i] =~  m#"int32_3_FLOW_ID" : (.*?),.*#s){
+        if($flow[$i] =~  m#FLOW_ID" : ([0-9]*)[^0-9]*#s){
+            $flowid = $1;
+         #   print "\n flow_id :$1 \n";
+        }
+        
+        if($srv[$i] =~ m#SRV_ID" : ([0-9]*)[^0-9]*#s){
+          #  print "\n srv_id :$1 \n";
+            $srvid = $1;
+        }
+
+        if($proc[$i] =~ m#PROC_ID" : ([0-9]*)[^0-9]*#s){
+            $procid = $1;
+          # print "\n proc_id :$1 \n";
+        }
+        my $node =SrmSdl->new_prockey($flowid,$srvid,$procid);
+        $prmsg->set("5037",$node);
+     }
+}
+
+sub deal5023{
+    my($obbstr,$prmsg) =@_;
+    my ($flowid,$srvid,$procid,$result,$exetype);
+    my $errinfo="";
+#    int32_3_FLOW_ID
+    if($obbstr =~ m#FLOW_ID" : ([0-9]*)[^0-9]*#s){
+         $flowid = $1;
+        # print "\n flow_id :$1 \n";
+    }
+#    int32_4_SRV_ID
+     if($obbstr=~ m#SRV_ID" : ([0-9]*)[^0-9]*#s){
+    #      print "\n srv_id :$1 \n";
+           $srvid = $1;
+     }
+#    int32_4_PROC_ID
+    if($obbstr =~ m#PROC_ID" : ([0-9]*)[^0-9]*#s){
+         $procid = $1;
+       #  print "\n proc_id :$1 \n";
+    }
+#   int32_5_RESULT  
+    if($obbstr =~ m#RESULT" : ([0-9]*)[^0-9]*#s){
+        $result =$1;
+      #  print "result :$1 \n";
+    }
+
+#    int32_7_EXE_TYPE
+    if($obbstr =~ m#EXE_TYPE" : ([0-9]*)[^0-9]*#s){
+        $exetype = $1;
+    #    print "exetype: $1 \n";
+    }
+#    string_6_ERR_INFO
+    if($obbstr =~ m#ERR_INFO" : "(.*)",.*#s){
+        $errinfo =$1;
+        chomp($errinfo);
+     #   print "error: $1\n";
+    }
+    
+    my $node = SrmSdl->new_5023($flowid,$srvid,$procid,$result,$exetype,$errinfo);
+    $prmsg->set("5023",$node);
+}
+
+sub deal6000{
+    my($obbstr,$prmsg) =@_;
+    my ($flowid,$result,$exetype);
+    my $errInfo ="";
+#    int32_7_FLOW_ID
+    if($obbstr =~ m#FLOW_ID" : ([0-9]*)[^0-9]*#s){
+        $flowid = $1;
+    }
+
+    if($obbstr =~ m#RESULT" : ([0-9]*)[^0-9]*#s){
+        $result =$1;
+    }
+#   int32_8_EXE_TYPE
+    if($obbstr =~ m#EXE_TYPE" : ([0-9]*)[^0-9]*#s){
+        $exetype =$1;
+    }
+    if($obbstr =~ m#ERR_INFO" : "(.*?)",.*#s)
+    {
+         $errInfo = $1;
+    }
+    my $item =SrmSdl->new_6000($flowid,$result,$exetype,$errInfo);
+	$prmsg->set("6000",$item);
+}
+
+sub parseObbstr{
+    my $obbstr = shift;
+    my ($result,$errInfo);
+    if($obbstr =~ m#"int32_5_RESULT" : (.*?),.*#s)
+    {
+        $result =$1;
+    }
+    
+    if((!defined $result) and ($obbstr =~ m#"int32_5_RESULT" : (.*?) .*#s))
+    {   
+        $result = $1; 
+    }
+
+    if($obbstr =~ m#"string_6_ERR_INFO" : "(.*?)",.*#s)
+    {
+         $errInfo = $1;
+    }
+  
+#    if($obbstr =~ m#"int32_5_RESULT" : (.*?),.*"string_6_ERR_INFO" : "(.*?)",#s)
+#    {
+#        $errInfo = $2;
+#        $result = $1;
+#    }
+#    elsif($obbstr =~ m#"string_6_ERR_INFO" : "(.*?)",.*"int32_5_RESULT" : (.*?),#s)
+#   {
+#        $errInfo = $1;
+#        $result = $2;
+#    }
+
+    print "can not get result\n" if !(defined $result);
+    if($result==1){
+        print "run ok!\n";
+    }
+    elsif($result ==0){
+        if (defined $errInfo){
+            print "result:$result\nerr_info:$errInfo\n";
+        }
+    }
+}
+
+sub packObbStr{
+    my ($flowid ,$type,$seq)= @_;
+    my $obb_content= <<END_OF_STRING;
+obbs:J:1.3:{
+         "struct_1_sFlowExe" : {
+             "int16_0__MarkerNum" : 1,
+                 "int64_1__UsedMarker" : "7",
+                 "int64_2__Marker" : "7",
+                 "struct_3_MSG_HEAD" : {
+                     "int16_0__MarkerNum" : 1,
+                     "int64_1__UsedMarker" : "7",
+                     "int64_2__Marker" : "7",
+                     "int32_3_COMMAND" : 4111,
+                     "int64_4_SEQUENCE" : "$seq",
+                     "int64_5_ID" : "123456"
+                 },
+                 "int32_4_FLOW_ID" : $flowid,
+                 "int32_5_EXE_TYPE" : $type
+         }
+     }
+END_OF_STRING
+    return $obb_content;
+}
+
+sub usage_note{
+my $poper =shift;
+$poper->{'start_flow'}->{'type'}=1;
+$poper->{'start_flow'}->{'lib'} ="Cpf_console_flowmanage";
+$poper->{'start_flow'}->{'num'} =1;
+$poper->{'start_flow'}->{'help'}="start_flow flow_id";
+
+$poper->{'stop_flow'}->{'type'}=0;
+$poper->{'stop_flow'}->{'lib'} ="Cpf_console_flowmanage";
+$poper->{'stop_flow'}->{'num'} =1; 
+$poper->{'stop_flow'}->{'help'}="stop_flow flow_id";
+
+$poper->{'forcestop_flow'}->{'type'}=2;
+$poper->{'forcestop_flow'}->{'lib'} ="Cpf_console_flowmanage";
+$poper->{'forcestop_flow'}->{'num'} =1; 
+$poper->{'forcestop_flow'}->{'help'}="forcestop_flow flow_id";
+
+$poper->{'repair_flow'}->{'type'}=3;
+$poper->{'repair_flow'}->{'lib'} ="Cpf_console_flowmanage";
+$poper->{'repair_flow'}->{'num'} =1;
+$poper->{'repair_flow'}->{'help'}="repair_flow flow_id";
+
+my $usage_note = <<END_OF_STRING;
+|--------------------------------------------------------------------------------------------------
+|Command                |describe
+|--------------------------------------------------------------------------------------------------
+|start_flow     123456  |start flow, id  123456
+|--------------------------------------------------------------------------------------------------
+|stop_flow      123456  |stop  flow, id  123456
+|--------------------------------------------------------------------------------------------------
+|forcestop_flow 123456  |force stop flow , id 123456 
+|--------------------------------------------------------------------------------------------------
+|repair_flow    123456  |repair flow, id 123456
+|--------------------------------------------------------------------------------------------------
+|help Command           |view command,such as help start_flow
+|--------------------------------------------------------------------------------------------------
+END_OF_STRING
+return $usage_note;
+}
+
+1;

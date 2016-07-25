@@ -1,0 +1,69 @@
+#ifndef _NR_COMMON_TOOL_H_
+#define _NR_COMMON_TOOL_H_
+#include "nr_common_struct.h"
+
+namespace MDbe
+{
+const static int32 FILE_PERMISSION = 0770;
+const static int32 DEFAULT_FILE_LEN = 1024;
+
+enum BakType
+{
+	NR_PATH = 1,
+	NR_BAK_PATH = 2,
+};
+/**
+ * 检查目录是否存在，不存在则创建目录
+ * @return 返回值：0:初始化成功；< 0:初始化失败
+*/
+int32 MakeDirExist(const char *szDirPath);
+
+/**
+ * 检查目录是否存在，不存在则创建目录
+ * @return 返回值：0:初始化成功；< 0:初始化失败
+*/
+int32 TestDir(const char *szDirPath);
+
+/**
+ * 获取进程NR目录
+ * @return nr目录
+*/
+aistring GetDirByProcKey(MDbe:: CProcKey& rProcKey, int32 iType = NR_PATH);
+
+/**
+ * 获取进程NR文件
+ * @return nr目录
+*/
+aistring GetNrFileByPk(CProcKey& rProcKey, const char *szFileName);
+
+/**
+ * 文件内容写入(无锁)
+ * @return 返回值：0:写入成功；< 0:写入失败
+*/
+int32 WriteFileNoLock(MDbe::CProcKey &rPk, const char *szFileName,
+	const char *szFileContent);
+/**
+ * 文件内容写入(加锁)
+ * @return 返回值：0:写入成功；< 0:写入失败
+*/
+int32 WriteToFile(MDbe::CProcKey &rPk, const char *szFileName, const char *szFileContent);
+
+/**
+ * 移除文件夹
+ * @return 返回值：0:写入成功；< 0:写入失败
+*/
+int32 RemoveDirectory(const char *szDirPath);
+
+/**
+ * 文件内容读入
+ * @return 返回值：0:读入成功；< 0:读入失败
+*/
+int32 ReadNrRecord(MDbe::CProcKey &rPk, aistring &rstrFile, MapNrRecord &rMapNrRecord, aistring &rstrKey);
+
+/**
+ * 获取整个nr目录
+ * @return 返回值：0:读入成功；< 0:读入失败
+*/
+int32 GetNrList(const char *nrPath, CProcKeyVec& rNrPocKeyList);
+}//end namespace
+#endif	//_NR_COMMON_TOOL_H_

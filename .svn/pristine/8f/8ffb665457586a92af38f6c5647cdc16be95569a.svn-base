@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "Begin"
+
+ecfram -i frame.xml &
+
+ecfram -i frame2.xml &
+

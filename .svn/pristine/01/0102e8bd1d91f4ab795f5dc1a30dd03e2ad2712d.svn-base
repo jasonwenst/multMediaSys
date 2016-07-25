@@ -1,0 +1,542 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_rdc_mgr_impl.h）
+/// brief
+///
+///
+///
+/// version 2.1
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+#ifndef __SRM_RDC_MGR_IMPL_H___
+#define __SRM_RDC_MGR_IMPL_H___
+
+#include "srm_rdc_mgr.h"
+#include "rdc_table_def_sdl_c.h"
+#include "dbe2_auto_db.h"
+
+#include "srm_define.h"
+#include "dbe2_util.h"
+#include "dbe2_log.h"
+#include "srm_error_code.h"
+
+#include "dbe2_lock.h"
+#include "rdc_def_sdl_c.h"
+#include "srm_def_sdl_c.h"
+#include "../common/cron/cron_main.h"
+#include "dbe2_log.h"
+#include "public/common/base/aiconfig.h"
+#include "public/app_intf/app_config_test/app_config_test_lib.h"
+#include <public/common/security/tdes.h>
+
+
+namespace MDbe
+{
+
+typedef enum
+{
+    APP_STOP_FAIL_ 	    = -2,
+    APP_START_FAIL_	    = -1,
+    APP_READY_ 		    = 0,
+    APP_START_ 		    = 1,
+    APP_STOPING_		= 2,
+    APP_STOP_			= 3,
+    APP_COMPLETE_		= 4,
+    APP_RUN_EXCEPTION_  = 5,
+    APP_STARTING_		= 6,
+} APP_STATUS;
+
+typedef enum
+{
+    JOB_FAIL_		  = -1,
+    JOB_READY_		  = 0,
+    JOB_START_		  = 1,
+    JOB_STOP_		  = 2,
+    JOB_PAUSE_		  = 3,
+    JOB_COMPLETE_	  = 4,
+    JOB_STARTING_	  = 5,
+    JOB_STOPING_	  = 6,
+    JOB_PAUSING_	  = 7,
+    JOB_FORCESTOPING_ = 8,
+    JOB_UNCONFIRMED   = 11
+} JOB_STATUS;
+
+typedef enum
+{
+    STEP_FAIL_		   = -1,
+    STEP_READY_ 	   = 0,
+    STEP_START_ 	   = 1,
+    STEP_STOP_		   = 2,
+    STEP_PAUSE_ 	   = 3,
+    STEP_COMPLETE_	   = 4,
+    STEP_STARTING_	   = 5,
+    STEP_UNCONFIRMED   = 11 // 添加待确认状态
+} STEP_STATUS;
+
+class CSrmDbConfig
+{
+public:
+    CSrmDbConfig()
+    {
+        memset(m_szAlias, 0, sizeof(m_szAlias));
+        memset(m_szName, 0, sizeof(m_szName));
+        memset(m_szUid, 0, sizeof(m_szUid));
+        memset(m_szPwd, 0, sizeof(m_szPwd));
+    }
+    virtual ~CSrmDbConfig()
+    {}
+
+    READ_CONFIG_BEGIN
+    READ_VALUE2(m_szAlias, "alias", "", NAMESPACE_OD_APP_CFG emValueRequire);
+    READ_VALUE2(m_szName, "name", "", NAMESPACE_OD_APP_CFG emValueRequire);
+    READ_VALUE2(m_szUid, "uid", "", NAMESPACE_OD_APP_CFG emValueOptional);
+    READ_VALUE2(m_szPwd, "pwd", "", NAMESPACE_OD_APP_CFG emValueOptional);
+    if (0 == m_szPwd[0])
+    {
+        READ_VALUE2(m_szUid, "user_name", "", NAMESPACE_OD_APP_CFG emValueRequire);
+        READ_VALUE2(m_szPwd, "password", "", NAMESPACE_OD_APP_CFG emValueRequire);
+        decipher2(PASSWORDKEY/*"781296-5e32-89122"*/, m_szPwd, m_szPwd, strlen(m_szPwd));
+    }
+    READ_CONFIG_END
+
+public:
+    char  m_szAlias[128];
+    char  m_szName[128];
+    char  m_szUid[32];
+    char  m_szPwd[64];
+};
+typedef NAMESPACE_OD_APP_CFG CConfigList<CSrmDbConfig>	SrmDbConfigs;
+
+
+typedef AISTD map<int32, AISTD set<int32> > CAppProcNumMap;
+//全局唯一
+class CAppProcNum
+{
+public:
+    //取proc_id flag为1时 取出当前最大的id
+    //flag 为0 时 返回的是当前最大的id 并且map 内存的id+1
+    int32 GetProcNum(int32 iAppId, int32 iflag)
+    {
+        CAutoLock cAutoLock(m_Lock);
+        int32 iMaxNum = 0;
+
+        if(m_AppProcNumMap.count(iAppId) && m_AppProcNumMap[iAppId].size() > 0)
+        {
+
+            iMaxNum = *(--(m_AppProcNumMap[iAppId].end()));
+            if (!iflag)
+            {
+                m_AppProcNumMap[iAppId].insert(iMaxNum + 1);
+            }
+            return iMaxNum;
+        }
+
+        if (!iflag)
+        {
+            m_AppProcNumMap[iAppId].insert(1);
+        }
+
+        return 0;
+    }
+
+    void DelProcNum(int32 iAppId, int32 iProcNum)
+    {
+        CAutoLock cAutoLock(m_Lock);
+        if(m_AppProcNumMap.count(iAppId))
+        {
+            m_AppProcNumMap[iAppId].erase(iProcNum);
+        }
+
+        if (m_AppProcNumMap[iAppId].size() == 0)
+        {
+            m_AppProcNumMap.erase(iAppId);
+        }
+    }
+
+    void GetProcNumSet(int32 iAppId, AISTD set<int32>& iProcSet)
+    {
+        CAutoLock cAutoLock(m_Lock);
+        iProcSet.insert(m_AppProcNumMap[iAppId].begin(), m_AppProcNumMap[iAppId].end());
+    }
+
+    void Init(aistring& r_strDbName)
+    {
+        CAutoLock cAutoLock(m_Lock);
+        //表里面加载各个proc数据
+        CAutoDb db(r_strDbName);
+        ob_kernel <CRdcProcList> cKernel(*db);
+
+        CRdcProcList cProcList;
+        cKernel.select_all(cProcList, "1= 1");
+
+        CRdcProcList::iterator itPL = cProcList.begin();
+        for (; itPL != cProcList.end(); ++itPL)
+        {
+            m_AppProcNumMap[itPL->get_appId()].insert(itPL->get_procId());
+        }
+        //每次init时 做一次打印
+        DBE2_LOG(INFO_LOGGER, "load proc info form db,>>>>>>>>>>>>>>>>begin>>>>>>>>>>>>>>>>>>");
+        CAppProcNumMap::iterator itSP = m_AppProcNumMap.begin();
+        for (; itSP != m_AppProcNumMap.end(); ++itSP)
+        {
+            aistring strMessage = FormatString("app id[%d]: ", itSP->first);
+            AISTD set<int32>::iterator it = (itSP->second).begin();
+            for (; it != (itSP->second).end(); ++it)
+            {
+                strMessage += FormatString("%d ", *it);
+            }
+            DBE2_LOG(INFO_LOGGER, "app proc num info %s", strMessage.c_str());
+        }
+
+        DBE2_LOG(INFO_LOGGER, "load proc info form db,<<<<<<<<<<<<<<<<<<end<<<<<<<<<<<<<<<<<<<<");
+    }
+
+private:
+    CAppProcNumMap m_AppProcNumMap;
+    CLock m_Lock;
+};
+class CSrmRdcMgrImpl : public ISrmRdcMgr
+{
+protected:
+    CSrmRdcMgrImpl();
+    friend class ISrmRdcMgr;
+    aistring m_strDbName;
+    int32  m_iSiteId;
+private:
+    //插入srm 信息
+    void InsertSrmLoginRecord();
+    //获取srm 主备锁
+    bool GetSrmLock();
+    //创建心跳线程
+    void StarHeartbeatThread();
+    bool CheckSiteId(int32 iSiteId);
+public:
+    bool UpdateHostHeartbeat() ;
+    //更新别的srm的logout 时间
+    void InsertHostLogout();
+private:
+    void InitVmConnectState();
+    void InitVmModifyLog(CPdcVmList& rVmList);
+private:
+    //主机名字
+    aistring m_strHostName;
+    //用户名字
+    aistring m_strUserName;
+    //srm IP
+    aistring m_srtSrmIp;
+    //srm port
+    int32  m_iSrmPort;
+    pthread_t m_HostHeartTid;
+    bool m_isStop;
+public:
+    /**
+     * 初始化
+     * @exception 初始化异常
+     */
+    void Init(CMgrInitHelper & cMgrInitHelper);
+    /**
+     * 销毁
+     */
+    void Destroy();
+    bool IsStop();
+    /**
+     * 按照APP ID查询信息
+     */
+    virtual bool QueryApp(int32 iAppId, CRdcApp &rcApp);
+
+    /**
+     * 查询app配置
+     */
+    virtual bool QueryAppConfig(int32 iAppId, aistring &rstrConfig);
+
+    virtual bool QueryAppParamConfig(int32 iAppId, aistring &rstrConfig);
+
+    /**
+     * 更新App状态
+     */
+    virtual bool UpdateAppState(CRdcApp &rcApp);
+    virtual bool UpdateJobRunAppState(CRdcJobRunStepApp &cRdcJobRunStepApp);
+    /**
+     * 按照APP ID查找相关的进程信息
+     */
+    virtual void QueryProcByApp(int32 iAppId, CRdcProcList &rlstProc);
+
+    /**
+     * 插入App操作
+     */
+    virtual void InsertAppOperate(CRdcAppOperate &rcAppOperate);
+
+    /**
+     * 插入流历史操作
+     */
+    virtual void InsertAppOperateHis(CRdcAppOperateHis &rcAppOperateHis);
+
+    /**
+     * 获得APP的操作信息
+     */
+    virtual bool QueryAppOperate(int32 iAppId, int32 iTransId, CRdcAppOperate &rcAppOperate);
+
+    /**
+     * 获得APP的操作信息
+     */
+    virtual bool QueryAppOperateByProc(SBaseExeProc &rcExeProc, int32 iVmId, CRdcAppOperate &rcAppOperate);
+
+    /**
+     * 删除APP操作信息
+     */
+    virtual bool DeleteAppOperate(int32 iAppId, int32 iTransId);
+
+    /**
+     * 生成一个事务编号
+     */
+    virtual int32 GetProcTransId(void);
+
+    /**
+     * 插入事务操作信息
+     */
+    virtual void InsertTransInfo(SRdcCreateTrans &rcCreateTrans);
+
+    /**
+     * 更新事务信息
+     */
+    virtual void UpdateTransInfo(CRdcProcTrans &cUpProcTrans);
+
+    /**
+     * 按照事务ID删除事务以及相关的事务操作
+     * 并且将数据加入到历史表
+     */
+    virtual void DeleteTransInfo(int32 iTransId);
+
+    /**
+     * 只更新操作启动时候信息
+     */
+    virtual void UpdateProcOperate(CRdcProcTransOperateList &rcProcOperateList);
+
+    /**
+     * 查询中RDC中App相关的事务列表
+     */
+    virtual void QueryTransByApp(int32 iAppId, CRdcProcTransList &rlstProcTrans);
+
+    /**
+     * 更新事务操作，并且查询统一优先级以及更低优先的事务操作
+     * 并且接口实现按照优先级排序，高优先级的操作在前
+     */
+    virtual void UpdateAndQueryOperate(CRdcProcTransOperate &rcProcOperate, CRdcProcTransOperateList &rlstProcOperate);
+
+    /**
+     * 根据当前的事务ID查询事务详细信息
+     */
+    virtual bool QueryTransById(int32 iTransId, CRdcProcTrans &rcProcTrans);
+
+    /**
+     * 根据当前的事务ID查询事务操作详细信息
+     */
+    virtual void QueryTransOperateById(int32 iTransId, CRdcProcTransOperateList &rcProcTransOperateList);
+
+    /**
+     * 查询是否有超时的操作
+     */
+    virtual void QueryTimeOutOperate(const CBSDateTime &rcCompareTime,
+                                     CRdcProcTransOperateList &rlstProcOperate);
+
+    /**
+     * 清除冗余的事务操作
+     */
+    virtual void DeleteRedundantProcOperate(int32 iAppId);
+
+    /**
+     * 增加事务错误信息
+     */
+    virtual void MergeTransErrorInfo(int32 iTransId, aistring &rstrError);
+
+    /**
+     * 按照app ID查询流程详细信息
+     */
+    virtual void QueryAppList(CInt32Set &rcAppIdSet, CRdcAppList &rcAppList);
+
+    /**
+     * 插入进程信息
+     */
+    virtual void InsertProcInfo(CRdcProc &rcProc);
+
+    /**
+     * 更新进程信息
+     */
+    virtual void UpdateProcInfo(CRdcProc &rcProc);
+    virtual void UpdateProcListState(CRdcProcList& rProcList, int32 iState);
+    virtual bool CheckJobAppCompleteBySequence(int64 jobInsSequence, int32 appId);
+
+    /**
+     * 按照进程key查询进程信息
+     */
+    virtual bool QueryProcInfobyProc(SBaseProcKey &rcProcKey, CRdcProc &rcProc);
+    virtual bool QueryProcHisInfobyProc(SBaseProcKey &rcProcKey, int32 rcPid, CRdcProcHis &rcProcHis);
+    /**
+     * 删除进程信息
+     */
+    virtual void DeleteProcInfo(int32 iAppId, int32 iProcId, int32 iVmId);
+
+    /**
+     * 更新进程信息并且查询同服务的进程信息
+     */
+    virtual void UpdateAndQueryProcInfo(CRdcProc &rcProc, CRdcProcList &rcProcList);
+
+    /**
+     * 查询中RDC中进程对应的操作
+     */
+    virtual bool QueryProcOperate(SBaseProcKey &rcProcKey, int32 iVmId, int32 iOperateType, CRdcProcTransOperate &rcProcOperate);
+
+    virtual void InsertProcBackLog(CRdcProcBacklogList &rlstInsertInfo);
+
+    virtual void InsertProcHandleRate(CRdcProcHandleRateList &rlstRateInfo);
+
+    virtual int32 QuerySameCbParamTrans(aistring strCbParam);
+
+    virtual void InsertWarnDetail(CAmWarnRecordDetail &rcDetail);
+
+    virtual bool QueryWarnRecord(CAmWarnRecord &rWarnRecord, CAmWarnRecord &rWarnCond);
+
+    virtual int64 InsertWarnOri(CAmWarnRecordOri &rWarnOri);
+    virtual int64 InsertWarnRecord(CAmWarnRecord &rWarnRecord);
+
+    virtual bool QueryFirstWarnDetail(CAmWarnRecordDetail &cWarnDetail, int64 iRecordId);
+    virtual void UpdateWarnRecord(CAmWarnRecord &rUpdateInfo, int64 iRecordId);
+
+    virtual bool QueryMergeInfo(CAmWarnMergerHis &cMergeInfo, int64 iRecordId);
+    virtual void UpdateMergeInfo(CAmWarnMergerHis &cMergeInfo, int64 iMergeId);
+    virtual void InsertMergeDetail(CAmWarnMergerHisDetail &cMergeDetail);
+
+    virtual void InsertMergeDetail(CAmWarnMergerHisDetailList &listMergeDetail);
+    virtual int64 InsertMergeInfo(CAmWarnMergerHis &cMergeInfo);
+	virtual bool GetWarnLevelDefine(int32 rcWarnLevelId, CAmWarnLevelDefine& cWarnLevel);
+	virtual bool GetWarnInsDefine(int32 rcWarnId, CAmWarnInsDefine& cWarnIns);
+	virtual void InsertWarnSmsDetail(CAmWarnSmsDetail &cWarnSmsDetail);
+public:
+    /**
+     * 根据vmid 查询虚拟机记录
+     */
+    virtual bool GetPdcVm(int32 iVmId, CPdcVm& rcPdcVm);
+    /**
+     * 更新虚拟机静态信息
+     */
+    virtual void UpdateVmStaticInfo(CPdcVm& rcPdcVm);
+    /**
+     * 更新虚拟机轨迹
+     */
+    virtual void InsertVmStateModifyLog(CRdcVmStateModifyLog& rModifyLog);
+    virtual bool GetVmList(int32 iNrmConnectState, int32 iVmState, CPdcVmList& lstVmList);
+    virtual bool GetLuaScript(AISTD string& rScriptName, AISTD string& rScritpContent);
+    virtual void GetClusterVmRelationByVm(int32 iVmId, CPdcClusterVmRelationList &rClusterVmRelationList);
+    virtual bool GetClusterVmRelation(int32 iClusterId, CPdcClusterVmRelationList &rClusterVmRelationList);
+    virtual bool CheckVmTransExistence(int32 iVmId);
+    bool GetProcByVm(int32 iVmId, CRdcProcList& rRdcProcList);
+    void GetClusterRelyApp(int32 iClusterId, CPdcClusterAppRelationList& rClusterAppRelationList);
+    int32 GetAppMaxProcId(int32 iAppId, int32 iflag = 0);
+public:
+    //缓存
+    virtual bool GetVmStateRecord(int32 iVmId, CRdcVmStateRecord& rVmStateRecord);
+    virtual void InsertVmDynamicInfo(CRdcVmStateRecord& rcVmStateRecord);
+    virtual void InsertVmProcInfo(int32 iVmId, CRdcProcStateRecordList& rcProcStateRecordList);
+    void DeleteVmProcCache(int32 iVmId);
+
+    virtual bool GetProcStateRecord(int32 iVmId, CRdcProcStateRecordList& rProcStateRecorList);
+    virtual bool ClearVmUpdateTime(int32 iVmId);
+    virtual bool SetVmUpdateTime(int32 iVmId, CBSDateTime &cUpdateTime);
+    virtual bool QueryUpdateTime(int32 iVmId, CBSDateTime &cUpdateTime);
+
+    virtual void DeleteRedundantData(int32 iInterver);
+    virtual void WriteRecordToDb();
+
+    // job
+    virtual int32 GetNextJob(int32 ijobId, CRdcJobRelationList& listJobRelation);
+    virtual int32 GetPrevJob(int32 ijobId, CRdcJobRelationList& listJobRelation);
+    virtual void ModifyAppParam(SJobAppIdList rcJobAppIdList, int32 InsId, int64 SeqId);
+    virtual void RefreshJobInfo(int32 iJobInsId);
+    virtual bool BackUpJobInfo(int32 iJobInsId);
+    virtual void GetAppsByStep(SStepId& rcStepId, SJobAppIdList& rcJobAppIdList);
+    virtual void SetJobInfo(CRdcJobIns& rcData, CRdcJobIns& rcCond);
+    virtual void SetStepInfo(CRdcJobRunStep& rcData, CRdcJobRunStep& rcCond);
+    virtual void GetNextSteps(SStepId& rcStepId, SStepIdSet& rcStepIdSet);
+    virtual void GetPreSteps(SStepId& rcStepId, SStepIdSet& rcStepIdSet) ;
+    virtual void GetJobSchedule(CRdcJobScheduleList& rJobScheduleList);
+    virtual void GetLastSchedule(int32 iJobInsId, CRdcJobSchedule& rJobSchedule);
+    virtual void AutoAddJobSchedule();
+    virtual void UpdateShedule(CRdcJobSchedule& rApdJobSchedule, CRdcJobSchedule& rmCond, CBSDateTime validTime, CBSDateTime expiryTime);
+    virtual void ParaseTime(aistring szCronTime, time_t time_in, time_t& time_out);
+    virtual void DeleteInvalidJobData();
+    virtual void GetJobVacationList(int32 iJobId, CRdcJobVacationList &rjobVacationList);
+    virtual void GetJobSteps(CRdcJobRunStep cStepCond, CRdcJobRunStepList &rStepList);
+    virtual void GetJobInfo(int32 iJobInsId, CRdcJobIns& rcJobInfo);
+    virtual void GetStepInfo(SStepId& rcStepId, CRdcJobRunStep& rcRdcJobRunStep);
+    virtual void GetJobAppInfo(SJobAppId& rcAppId, CRdcJobRunStepApp& rcRdcJobApp);
+    virtual void GetJobAppInfoByApp(SBaseProcKey& rcProcKey, CRdcJobRunStepApp& rcRdcJobApp);
+	virtual bool GetStep(int32 rcStepId, CSoStep& cStep);
+    virtual bool QueryJobAppInfo(int32 iAppId, CRdcJobRunStepApp& rcRdcJobApp);
+    virtual void GetHeadSteps(int32 iJobInsId, SStepIdList& rStepIdList);
+    virtual void SetJobAppInfo(CRdcJobRunStepApp& rcJobApp, CRdcJobRunStepApp& rcCond);
+
+    virtual void GetJobStepByStatus(int32 iJobId, SStepIdList& rcStepIdList, int32 iStepStatus = ALL_STATUS_);
+    virtual void GetJobStepByStatus(int32 iJobId, CRdcJobRunStepList& rcSteplist, int32 iStepStatus = ALL_STATUS_);
+    virtual void GetJobAppByStatus(int32 iJobId, SJobAppIdList& rcJobAppIdList, int32 iAppStatus = ALL_STATUS_);
+    virtual void GetStepAppByStatus(SStepId& rcStepId, SJobAppIdList& rcJobAppIdList, int32 iAppStatus = ALL_STATUS_);
+    virtual void GetStepAppByStatus(SStepId& rcStepId, CRdcJobRunStepAppList& rcJobRunStepAppList, int32 iAppStatus = ALL_STATUS_);
+
+    bool GetSysParam(aistring& sParamName, bool bDefaultValue) ;
+    int32 GetSysParam(aistring& sParamName, int32 iDefaultValue) ;
+    aistring GetSysParam(aistring& sParamName, const char * pDefaultValue);
+
+    // 产生软件升级编号
+    virtual int32 GetPuOpId(void);
+
+    // 插入升级信息
+    virtual void InsertUpgradeInfo(CRdcPuOp &rcUpOperate, CRdcPuOpDetailList &rcVmDetailList);
+
+    // 更新升级信息
+    virtual void UpdateUpgradeInfo(int32 iOpId, CRdcPuOp &rcUpOperate);
+
+    // 更新升级详细信息
+    virtual void UpdateUpgradeDetailInfo(int32 iOpId, int32 iVmId, CRdcPuOpDetail &rcUpInfo);
+
+    // 获取正在软件升级的主机信息
+    virtual void QueryUpgradeDetail(int32 iOpId, CRdcPuOpDetailList &rcVmDetailList);
+
+    // 查看正在软件的信息
+    virtual bool QueryUpgrateInfoByOpId(int32 iOpId, CRdcPuOp &rcUpOp);
+
+    // 查看正在软件的信息
+    virtual void GetCurrentUpgrateInfo(CRdcPuOpList &rcUpOpList);
+
+    // 查看正在软件的信息
+    virtual bool UpdateVmVersion(CPdcPuVmVersion &rcVmVersion);
+
+    // 删除主机版本信息
+    virtual bool DeleteVmVersion(CPdcPuVmVersion &rcVmVersion);
+public:
+    void QueryProcByVmOrder(int32 iVmId, CRdcProcList &rProcList);
+    void QueryProcListByCond(CRdcProc rcCond, CRdcProcList &rcProcList);
+
+private:
+    void InsertProcHis(CRdcProc &cProc);
+    void UpdateProcHis(CRdcProc &cProc);
+    //取系统参数
+    bool SelectSysParam(aistring& sParamName, CPdcSystemParam& rSysParam);
+private:
+    aistring m_schemeName;
+    aistring m_transSchemeName;
+    CLock m_Translock;
+    CAppProcNum m_AppProcNumCache;
+    //key:vmId, value:update time
+    CObjCache<int32, SBaseDateTimeMap, SBaseDateTime> m_cVmUpdateMap;
+    CObjCache<int32, CRdcVmStateRecordMap, CRdcVmStateRecord> m_cVmStateRecordCache;
+    CObjCache<int32, CRdcProcStateRecordListMap, CRdcProcStateRecordList> m_cProcStateRecordCache;
+};
+
+} // namespace MDbe
+#endif /* __SRM_PDC_MGR_IMPL_H___ */

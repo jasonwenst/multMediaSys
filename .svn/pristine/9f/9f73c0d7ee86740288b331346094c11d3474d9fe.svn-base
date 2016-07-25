@@ -1,0 +1,46 @@
+//////////////////////////////////////////////////////////////////////////  								
+///	COPYRIGHT NOTICE  							
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）  							
+///	All rights reserved.
+///  
+/// \file	cron_base.h
+/// \brief	预编译头文件，宏定义
+/// 
+///
+/// \version 1.0	
+/// \author		jinxin2
+/// \date		2011-11-21
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+#ifndef _CRON_DEFINE_H
+#define _CRON_DEFINE_H
+#include <compile.h>
+#include <odframe/frame_interface.h>
+#include "common/log/ailog_interface.h"
+#include "common/log/oderr.h"
+#define NAMESPACE_OD_CRON Mdbe::
+#ifndef NAMESPACE_OD_CRON_BEGIN
+#define NAMESPACE_OD_CRON_BEGIN namespace MDbe {
+#endif
+
+#ifndef NAMESPACE_OD_CRON_END
+#define NAMESPACE_OD_CRON_END }//end namespace
+#endif
+
+
+#ifndef _CRON_CPF_OPEN 
+#define _CRON_CPF_OPEN
+#endif
+
+#ifdef _CRON_CPF_OPEN 
+#include "dbe2_base_error_code.h"
+#endif
+
+NAMESPACE_OD_CRON_BEGIN
+
+
+NAMESPACE_OD_CRON_END
+
+#endif

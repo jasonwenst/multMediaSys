@@ -1,0 +1,85 @@
+#include <unittest_cp_dbe2_base_main.h>
+
+SUITE(SUITE___cron_cron_tool_cpp)
+{
+	//Fuction: int32 CCronTool :: ChangeValueMapTool ( ItemValueMap & rItemValueMap )
+	TEST_FIXTURE(TestFixture,TestCCronTool_ChangeValueMapTool)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CCronTool :: DispatchCronExpression ( const char * szExpress , VALUE_TYPE em , struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronTool_DispatchCronExpression)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronTool :: GetNextWeek ( int32 iStartWDay , int32 iTargWDay , int32 iDayMax , AISTD vector < int32 > & rNumberVec , int32 iWeekInterval )
+	TEST_FIXTURE(TestFixture,TestCCronTool_GetNextWeek)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronTool :: GetValue ( struct tm & tmInput , VALUE_TYPE em )
+	TEST_FIXTURE(TestFixture,TestCCronTool_GetValue)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronTool :: ParseDayPart ( const char * szExpressDay , ItemValueMap & mapItemValue , struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronTool_ParseDayPart)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronTool :: ParseSimilarPart ( const char * szExpress , ItemValueMap & mapItemValue , VALUE_TYPE em , struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronTool_ParseSimilarPart)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronTool :: ParseWeekPart ( const char * szExpressWeek , ItemValueMap & mapItemValue , struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronTool_ParseWeekPart)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronTool :: SetCarryValue ( struct tm & tmInput , VALUE_TYPE em )
+	TEST_FIXTURE(TestFixture,TestCCronTool_SetCarryValue)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronTool :: SetValue ( struct tm & tmInput , int32 iValue , VALUE_TYPE em )
+	TEST_FIXTURE(TestFixture,TestCCronTool_SetValue)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronTool :: SubParseSimilar ( const char * szExpress , int32 iBaseValue , int32 iMaxValue , VALUE_TYPE em , ItemValueMap & mapItemValue , struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronTool_SubParseSimilar)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

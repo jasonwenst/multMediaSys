@@ -1,0 +1,294 @@
+#include <unittest_cp_dbe2_base_main.h>
+#include <stdio.h>
+#include <string.h>
+#include <string>
+#include <stdlib.h>
+#include "compile.h"
+#include "cron_main.h"
+
+SUITE(SUITE___cron_cron_main_cpp)
+{
+	//Fuction: int32 CCronMain :: CheckExpress ( const char * szExpress )
+	TEST_FIXTURE(TestFixture,TestCCronMain_CheckExpress)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/ 
+    }
+   
+   //Fuction: bool CCronMain :: CheckSpecialTimeErr ( struct tm & tmInput ) 
+    TEST_FIXTURE(TestFixture,TestCCronMain_CheckSpecialTimeErr)
+    {
+        /*codes for test start here
+        MDbe::CCronMain objCronExper;
+        struct tm tmInput;
+        tmInput.tm_year = 2016;
+        tmInput.tm_mon  = 1;
+        tmInput.tm_mday =29;
+        bool bRet = CheckSpecialTimeErr(tmInput);
+        CHECK_EQUAL(true, bRet);
+
+        tmInput.tm_year = 2016;
+        tmInput.tm_mon  = 3;
+        tmInput.tm_mday =31;
+        bRet = CheckSpecialTimeErr(tmInput);
+        CHECK_EQUAL(false, bRet);
+
+		codes for test stop here*/
+	}
+	//Fuction: int32 CCronMain :: GetNearTime ( time_t & tCurrentTime , time_t & tNextTime )
+	TEST_FIXTURE(TestFixture,TestCCronMain_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_CRON_BEGIN int32 CCronMain :: InitCron ( )
+	TEST_FIXTURE(TestFixture,TestCCronMain_InitCron)
+	{
+		/*codes for test start here*/
+         MDbe::CCronMain objCronExper;
+         objCronExper.InitCron();
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronMain :: ParseExpress ( const char * szExpress )
+	TEST_FIXTURE(TestFixture,TestCCronMain_ParseExpress)
+	{
+		/*codes for test start here*/
+        MDbe::CCronMain objCronExper;
+        objCronExper.InitCron();
+        objCronExper.ParseExpress("0  0  0  1L 5,6,7,12 ? *");
+        
+		/*codes for test stop here*/
+	}
+    
+    TEST_FIXTURE(TestFixture,TestCCronMain_CASE)
+    {
+		MDbe::CCronMain objCronExper;
+        objCronExper.InitCron();
+         
+		time_t time_out = 0;
+		time_t time_in = 1456675199;//2016年2月28日 23:59:59;
+        //表达式校验
+        int32 iRet = objCronExper.ParseExpress("/ *  *  * * ? *");
+        CHECK_EQUAL(-1, iRet);
+
+       	//指定时间
+		iRet = objCronExper.ParseExpress("0 0 0 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		 
+		//*号解析
+		time_in = 1456675199;//2016年2月28日 23:59:59;
+		
+		iRet = objCronExper.ParseExpress("* 0 0 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		iRet = objCronExper.ParseExpress("* * 0 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		iRet = objCronExper.ParseExpress("* * * 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		iRet = objCronExper.ParseExpress("* * * * 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		iRet = objCronExper.ParseExpress("* * * * * ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		iRet = objCronExper.ParseExpress("* * * * * ? *");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		    // / 解析
+		time_in = 1456675199;//2016年2月28日 23:59:59;
+		
+		iRet = objCronExper.ParseExpress("1/2 0 0 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675201, time_out);
+		
+		iRet = objCronExper.ParseExpress("0/2 0/2 0 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		iRet = objCronExper.ParseExpress("0/2 0/2 0/2 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		iRet = objCronExper.ParseExpress("0/2 0/2 0/2  1/10 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		//CHECK_EQUAL(1456675200, time_out);
+		
+		iRet = objCronExper.ParseExpress("0/2 0/2 12/2  1/2 1/2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456804800, time_out);//2016年3月1日 12:00:00
+		    
+		// - 解析
+		time_in = 1456675199;//2016年2月28日 23:59:59;
+		iRet = objCronExper.ParseExpress("0-2 0 0 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+		
+		time_in = 1456675200;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675201, time_out);
+		
+		time_in = 1456675201;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675202, time_out);
+		
+		time_in = 1456675199;//2016年2月28日 23:59:59;
+		iRet = objCronExper.ParseExpress("0 1-2 0 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675260, time_out);//2016年2月29日 0:01:00
+		
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675320, time_out);//2016年2月29日 0:02:00
+
+		time_in = 1456675199;//2016年2月28日 23:59:59;
+		iRet = objCronExper.ParseExpress("0 0 1-2 29 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456678800, time_out);//2016年2月29日 1:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456682400, time_out);//2016年2月29日 2:00:00
+		
+		time_in = 1456675199;//2016年2月28日 23:59:59;
+		iRet = objCronExper.ParseExpress("0 0 0 28-31 2 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+	
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);
+
+
+		time_in = 1456675199;//2016年2月28日 23:59:59;
+		iRet = objCronExper.ParseExpress("0 0 0 28-31 2-3 ? 2016");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1456675200, time_out);//2016年2月29日 0:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1459094400, time_out);//2016年3月28日 0:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1459180800, time_out);//2016年3月29日 0:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1459267200, time_out);//2016年3月30日 0:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1459353600, time_out);//2016年3月31日 0:00:00
+
+         // ，解析
+		time_in = 1361894400;//2013年2月27日 00:00:00;
+		iRet = objCronExper.ParseExpress("1,30 0 0 * * ? *");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1361894401, time_out);//2013年2月27日 0:00:01
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1361894430, time_out);////2013年2月27日 0:00:30
+
+		
+		time_in = 1361980800;//2013年2月28日 00:00:00;
+		iRet = objCronExper.ParseExpress("0 0 12,23 3,28,29,30 * ? *");
+		CHECK_EQUAL(0, iRet);
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1362024000, time_out);//2013年2月28日 12:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1362063600, time_out);//2013年2月28日 23:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1362283200, time_out);//2013年3月3日 12:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+		CHECK_EQUAL(1362322800, time_out);//2013年3月3日 23:00:00
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+
+		time_in = time_out;
+		time_out = 0;
+		objCronExper.GetNearTime(time_in, time_out);
+
+		CHECK_EQUAL(1364569200, time_out);//2013年3月29日 23:00:00
+
+    }
+
+}

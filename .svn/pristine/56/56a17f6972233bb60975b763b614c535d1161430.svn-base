@@ -1,0 +1,1619 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_rdc_mgr_impl.cpp）
+/// brief	 
+///
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#include "srm_util.h"
+#include "srm_rdc_mgr_impl.h"
+#include "public/ob_kernel/ob_kernel.h"
+#include "public/sal/sal.h"
+#include "srm_proc_mgr.h"
+#include "dbe2_util.h"
+#include "dbe2_log.h"
+#include "dbe2_common_struct.h"
+#include "msg_dispatch_mgr.h"
+#include "public/odframe/frame_interface.h"
+#include "public/common/base/od_system_interface.h"
+
+
+namespace MDbe
+{
+
+dbapi *g_pDbApi = NULL;
+
+void * HostHeartThread(void* arg)
+{
+	od_system::set_threadId(pthread_self()); 
+
+	DBE2_LOG(INFO_LOGGER,"start  srm host heart!");
+	ISrmRdcMgr &rcRdcMgr = ISrmRdcMgr::GetInstance();
+
+	try
+	{
+		while(!rcRdcMgr.IsStop())
+		{
+			if(!rcRdcMgr.UpdateHostHeartbeat())
+			{
+				DBE2_LOG(FATAL_LOGGER, "Host srm wrote heartbeat failed, Process will exit !");
+				_exit(0);
+			}
+
+			aistring rSysParamName("dbe.hostheartbeat");
+			int32 iSleepSec = rcRdcMgr.GetSysParam(rSysParamName, 10);
+			sleep(iSleepSec);
+		}
+	}
+	catch(err_info_service::CAIException & exception) 
+	{
+		DBE2_LOG_EXCEPTION(exception); 
+		DBE2_LOG(FATAL_LOGGER, "Host srm DB exception, will exit !");
+		_exit(-1);
+	}
+	catch(...) 
+	{
+		DBE2_LOG(FATAL_LOGGER, "Host srm:catch unknown exception,will exit !!");
+		_exit(-1);
+	}
+
+	DBE2_LOG(FATAL_LOGGER, "srm Process  exit,bring about HostHeart thread exit !");
+	pthread_exit(NULL);
+	return NULL;
+}
+class CRdcConfig
+{
+public:
+    CRdcConfig()
+    {
+        memset(m_szDbAlias, 0, 256);
+    }
+    virtual ~CRdcConfig()
+    {}
+
+READ_CONFIG_BEGIN
+	READ_VALUE2(m_szDbAlias, "db_alias", "rdcdb", NAMESPACE_XML_CONFIG emValueOptional)
+	READ_VALUE2(m_iDebugInsertData, "debug_insert_data", 1, NAMESPACE_XML_CONFIG emValueOptional)
+	READ_VALUE2(m_iSiteId, "site_id", 0, NAMESPACE_XML_CONFIG emValueOptional)
+	APP_READ_OBJ(this->m_cSrmDbConfigs, "databases", NAMESPACE_OD_APP_CFG emValueRequire);
+READ_CONFIG_END
+
+public:
+    char m_szDbAlias[256];
+    int32 m_iDebugInsertData;
+	int32 m_iSiteId;
+	SrmDbConfigs m_cSrmDbConfigs;
+};
+
+bool NeedUpdateHisState(int32 iState)
+{
+    return (PROC_START_SUCCESS == iState || PROC_START_FAIL == iState || PROC_STOP_FAIL == iState || PROC_RUN_EXCETION == iState || PROC_NOT_START == iState);
+}
+
+void CSrmRdcMgrImpl::Init(CMgrInitHelper & cMgrInitHelper)
+{
+	CThreadValueHolder cThreadValueHolder;
+	int32 iRet = NAMESPACE_OD_APP_CFG SetAppDOMLevelMap(cMgrInitHelper.GetDomMap());
+	// 增加数据库scheme配置
+	m_schemeName = "ID";
+	m_transSchemeName = "ID";
+	ob_kernelBase::TransScheme(m_transSchemeName);
+	DBE2_LOG(DEBUG_LOGGER, "srm scheme name is:%s,trans name is:%s.ret = %d",
+		m_schemeName.c_str(), m_transSchemeName.c_str(), iRet);
+
+	CRdcConfig cRdcConfig;
+	cMgrInitHelper.ReadConfig(cRdcConfig);
+	m_strDbName = cRdcConfig.m_szDbAlias;
+	m_iSiteId = cRdcConfig.m_iSiteId;
+
+	DBE2_LOG(INFO_LOGGER, "rdc db alias :%s", m_strDbName.c_str());
+	DBE2_LOG(INFO_LOGGER, "debug insert data :%d", cRdcConfig.m_iDebugInsertData);
+	DBE2_LOG(INFO_LOGGER, "srm site id  :%d", cRdcConfig.m_iSiteId);
+	ob_kernelBase::l_bDebugInsertingData = (cRdcConfig.m_iDebugInsertData == 1);	
+
+	//获取 主机名字
+	MDbe::ExecShell("uname -a | awk '{ print $2 }'", true, m_strHostName);
+	//用户名字
+	MDbe::ExecShell("echo $USER | awk '{ print $1 }'", true, m_strUserName);
+	//ip
+	m_srtSrmIp =getenv("SRM_IP") == NULL?"":getenv("SRM_IP"); 
+	//port
+	m_iSrmPort =getenv("SRM_PORT") == NULL?0:atoi(getenv("SRM_PORT"));
+
+	//此处备机会挂起等待
+	InsertSrmLoginRecord();
+	m_AppProcNumCache.Init(m_strDbName);
+	InitVmConnectState();
+}
+void CSrmRdcMgrImpl::Destroy()
+{
+	DBE2_LOG(INFO_LOGGER, "srm process will exit,set stop status bit .");
+	m_isStop = true;
+}
+
+bool CSrmRdcMgrImpl::IsStop()
+{
+	return m_isStop;
+}
+
+CSrmRdcMgrImpl::CSrmRdcMgrImpl():m_isStop(false)
+{
+
+}
+
+void CSrmRdcMgrImpl::InsertSrmLoginRecord()
+{
+	if (!CheckSiteId(m_iSiteId))
+	{
+		DBE2_LOG(FATAL_LOGGER, "base date no modify,please check table:rdc_srm_lock,current srm  process site %d",m_iSiteId);
+		exit(0);
+	}
+
+	bool bWailt = true;
+	while(bWailt)
+	{
+		if (GetSrmLock())
+		{
+			//更新别人的logout信息
+			InsertHostLogout();
+			//插入本机信息
+			CAutoDb db(m_strDbName);
+			ob_kernel<CRdcSrmLoginLogList> cKernel(*db, m_schemeName);
+
+			ob_whereCond cWhereCond;
+			cWhereCond<< OCS("insert into ") << OCS(m_transSchemeName) <<
+				OCS(".rdc_srm_login_log (HOST_NAME ,LOGIN_TIME,HOST_IP,OS_USER,HOST_PROT) values (")
+				<< m_strHostName
+				<< OCS(" , sysdate ,")
+				<< m_srtSrmIp
+				<< OCS(" , ")
+				<< m_strUserName
+				<< OCS(" , ")
+				<< m_iSrmPort
+				<< OCS("  )");
+			cKernel.direct_execExt(cWhereCond, true);
+			bWailt = false;
+			//开个线程定时去更新lock表
+			StarHeartbeatThread();
+			break;
+		}
+
+		aistring rSysParamName("dbe.standbycheckinterval");
+		int32 iSleepSec =GetSysParam(rSysParamName,10);
+		sleep(iSleepSec);
+
+		DBE2_LOG(WARN_LOGGER,"Standby SRM is waiting for Host SRM Disabled , but the Host is ok  ...");
+	}
+
+	DBE2_LOG(WARN_LOGGER,"srm ip %s ,srm port %d , host name %s , user name %s ,login DB is the host !",
+		m_srtSrmIp.c_str(),
+		m_iSrmPort,
+		m_strHostName.c_str(),
+		m_strUserName.c_str()
+		);
+	return;
+}
+
+bool CSrmRdcMgrImpl::CheckSiteId(int32 iSiteId)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel<CRdcSrmLockList> cKernel(*db, m_schemeName);
+
+	CRdcSrmLock rCond;
+	rCond.set_siteId(iSiteId);
+
+	CRdcSrmLockList cSrmList;
+	cKernel.select_all(cSrmList, rCond);
+	if(0 == cSrmList.size()) return false;
+	return true;
+}
+
+//一旦获得锁则更新了自己的记录 锁表的记录
+bool CSrmRdcMgrImpl::GetSrmLock()
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel<CRdcSrmLockList> cKernel(*db, m_schemeName);
+
+	aistring rSysParamName("dbe.hostheartdead");
+	int32 iHostDead =GetSysParam(rSysParamName,60);
+
+	aistring rSysParamName1("dbe.standbychangingover");
+	int32 iChangingOver =GetSysParam(rSysParamName1,70);
+
+	ob_whereCond cExeCond;
+	cExeCond << OCS("update ") << OCS(m_transSchemeName) 
+		<< OCS(".RDC_SRM_LOCK set LAST_UPDATE_TIME = sysdate ,HOST_NAME = ")
+		<< m_strHostName
+		<< OCS(" ,OS_USER =")
+		<< m_strUserName
+		<< OCS(" ,SITE_ID = ")
+		<< m_iSiteId
+		<< OCS(" where ( HOST_NAME = ")
+		<< m_strHostName
+		<< OCS(" and OS_USER =")
+		<< m_strUserName
+		<< OCS(" and (((sysdate - LAST_UPDATE_TIME) * 1*24*60*60) < ")
+		<< iHostDead
+		<< OCS(") or (((sysdate - LAST_UPDATE_TIME) * 1*24*60*60) > ")
+		<< iChangingOver
+		<< OCS("))")
+		<< OCS(" and SITE_ID =")
+		<< m_iSiteId;
+
+	int32 iCount = cKernel.direct_execExt(cExeCond, true);
+
+	if (iCount ==1) return true;
+
+	return false;
+}
+bool CSrmRdcMgrImpl::UpdateHostHeartbeat()
+{
+	DBE2_LOG(TRACE_LOGGER,"host srm update heartbeat ...");
+
+	bool bRet =false;
+	for (int32 iTryCount =1;iTryCount!=11;++iTryCount)
+	{
+		try
+		{
+			bRet =GetSrmLock();
+			if (bRet)
+			{
+				return true;
+			}
+		}
+		catch(err_info_service::CAIException & exception) 
+		{
+			DBE2_LOG_EXCEPTION(exception); 
+			DBE2_LOG(WARN_LOGGER, "Host srm DB exception, Retry connection number: %d !",iTryCount);
+			if (iTryCount ==10)
+			{
+				THROW_CAIEXCEPTION(DBE2_SRM_DETECT_DB_EXIT,"Host srm DB exception  will exit immediately , ?")
+					<< exception.get_message() ;
+			}
+		}
+		catch(...) 
+		{
+			DBE2_LOG(WARN_LOGGER, "Host srm:catch unknown exception, Retry connection number: %d !",iTryCount);
+		}
+
+		::usleep(100000);		
+	}
+	return bRet;	
+}
+void CSrmRdcMgrImpl::InsertHostLogout()
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel<CRdcSrmLoginLogList> cKernel (*db, m_schemeName);
+
+	ob_whereCond cExeCond;
+	cExeCond << OCS("update  ") << OCS(m_transSchemeName) <<
+		OCS(".rdc_srm_login_log set logout_time = sysdate where login_time =  ") <<
+		OCS(" (select login_time from  (select * from ") << OCS(m_transSchemeName) <<
+		OCS(".RDC_SRM_LOGIN_LOG  order by login_time desc )   where rownum = 1) ") ;
+
+	int32 iCount = cKernel.direct_execExt(cExeCond, true);
+}
+void CSrmRdcMgrImpl::StarHeartbeatThread()
+{
+	DBE2_LOG(INFO_LOGGER,"creat HostHeartThread!");
+	//创建监控线程
+	pthread_create(&m_HostHeartTid,NULL,HostHeartThread,NULL);
+
+}
+
+void CSrmRdcMgrImpl::InitVmConnectState()
+{
+	aistring rSysParamName("dbe.migratewaitinit");
+	int32 iMigTimeWait =GetSysParam(rSysParamName,300);
+	CBSDateTime cTime;
+	CAutoDb db(m_strDbName);
+	ob_kernel <CPdcVmList> cKernel(*db, m_schemeName);
+
+	CPdcVm rUsed;
+	CPdcVmList cAllUserVmList;
+	rUsed.set_vmState(1);//VM_USABLE
+	cKernel.select_all(cAllUserVmList,rUsed);
+
+	cTime.setTime_t(GetCurrentTime().toTimet() +iMigTimeWait);
+	DBE2_LOG(INFO_LOGGER, "host srm initial stage ,migrate wait init time [%lld],current time[%lld] .",cTime.toTimet(),GetCurrentTime().toTimet());
+	CPdcVmList::iterator itCPVL = cAllUserVmList.begin();
+	for (;itCPVL!= cAllUserVmList.end();++itCPVL)
+	{
+		SetVmUpdateTime(itCPVL->get_vmId(),cTime);
+	}
+
+	CPdcVm cUpInfo;
+	CPdcVm rCond;
+
+	//VM_NO_CONNET
+	cUpInfo.set_vmConnectState(0);
+	cUpInfo.set_vmStateDes("vm state reset at initial stage.");
+	cUpInfo.set_vmDisconnectTime(GetCurrentTime());
+	cKernel.update(cUpInfo,rCond,true);
+
+	CPdcVm rLog;
+	CPdcVmList cVmLogList;
+	rUsed.set_vmState(1);//VM_USABLE
+	cKernel.select_all(cVmLogList,rLog);
+
+	InitVmModifyLog(cVmLogList);
+}
+void  CSrmRdcMgrImpl::InitVmModifyLog(CPdcVmList& rVmList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcVmStateModifyLogList> cKernel(*db, m_schemeName);	
+
+	CRdcVmStateModifyLogList objLogList;
+	CRdcVmStateModifyLog cVmModifyLog;
+	CPdcVmList::iterator itPV = rVmList.begin();
+	for (;itPV!=rVmList.end();++itPV)
+	{
+		cVmModifyLog.Clear();
+		cVmModifyLog.set_vmId(itPV->get_vmId());
+		cVmModifyLog.set_vmIp(itPV->get_vmIp());
+		cVmModifyLog.set_vmName(itPV->get_vmName());
+		cVmModifyLog.set_vmState(itPV->get_vmState());
+		cVmModifyLog.set_vmConnectState(itPV->get_vmConnectState());
+		cVmModifyLog.set_vmModifyTime(GetCurrentTime());
+		cVmModifyLog.set_vmModifyDesc(itPV->get_vmStateDes());
+
+		objLogList.push_back(cVmModifyLog);
+	}
+	if (objLogList.size() ==0) return;	
+	cKernel.insert(objLogList,true);
+}
+
+bool CSrmRdcMgrImpl::QueryApp(int32 iAppId, CRdcApp &rcApp)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcAppList> cKernel(*db, m_schemeName);
+    CRdcAppList cRdcAppList;
+    CRdcApp cCondition;
+    cCondition.set_appId(iAppId);
+    cKernel.select_all(cRdcAppList, cCondition);
+    if (0 == cRdcAppList.size())
+    {
+        return false;
+    }
+    rcApp = cRdcAppList[0];
+    return true;
+}
+
+bool CSrmRdcMgrImpl::QueryAppConfig(int32 iAppId, aistring &rstrConfig)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcAppList> cKernel(*db, m_schemeName);
+    ob_whereCond cCond;
+    cCond << OCS("select APP_CONFIG FROM ") << OCS(m_transSchemeName) 
+        << OCS(".RDC_APP_CONFIG WHERE APP_ID = ") << iAppId;
+    ob_dataRows lstRow;
+    cKernel.direct_select(lstRow, cCond);
+    for (int32 i=0; i<lstRow.size(); ++i)
+    {
+        rstrConfig = lstRow[i][0].get_asString();
+    }
+}
+
+
+bool CSrmRdcMgrImpl::QueryAppParamConfig(int32 iAppId, aistring &rstrConfig)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcAppList> cKernel(*db, m_schemeName);
+    ob_whereCond cCond;
+    cCond << OCS("select APP_PARAM FROM ") << OCS(m_transSchemeName) 
+        << OCS(".RDC_APP WHERE APP_ID = ") << iAppId;
+    ob_dataRows lstRow;
+    cKernel.direct_select(lstRow, cCond);
+    for (int32 i=0; i<lstRow.size(); ++i)
+    {
+        rstrConfig = lstRow[i][0].get_asString();
+    }
+}
+
+
+bool CSrmRdcMgrImpl::UpdateAppState(CRdcApp &rcApp)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcAppList> cKernel(*db, m_schemeName);
+    CRdcApp cCondition;
+    cCondition.set_appId(rcApp.get_appId());
+    int32 iNum = cKernel.update(rcApp, cCondition, true);
+    return (1 == iNum);
+}
+bool CSrmRdcMgrImpl::UpdateJobRunAppState(CRdcJobRunStepApp &cRdcJobRunStepApp)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel<CRdcJobRunStepAppList> cKernel(*db, m_schemeName);
+	CRdcJobRunStepApp cCondition;
+	cCondition.set_appId(cRdcJobRunStepApp.get_appId());
+	int32 iNum = cKernel.update(cRdcJobRunStepApp, cCondition, true);
+	return (1 == iNum);
+}
+
+void CSrmRdcMgrImpl::QueryProcByApp(int32 iAppId, CRdcProcList &rlstProc)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcList> cKernel(*db, m_schemeName);
+    CRdcProc cCondition;
+    cCondition.set_appId(iAppId);
+    cKernel.select_all(rlstProc, cCondition);
+}
+
+void CSrmRdcMgrImpl::InsertAppOperate(CRdcAppOperate &rcAppOperate)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcAppOperateList> cKernel(*db, m_schemeName);
+    CRdcAppOperateList cAppOperateList;
+    cAppOperateList.push_back(rcAppOperate);
+    cKernel.insert(cAppOperateList, true);
+}
+
+void CSrmRdcMgrImpl::InsertAppOperateHis(CRdcAppOperateHis &rcAppOperateHis)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcAppOperateHisList> cKernel(*db, m_schemeName);
+    cKernel.insert(rcAppOperateHis, true);
+}
+
+bool CSrmRdcMgrImpl::QueryAppOperate(int32 iAppId, int32 iTransId, CRdcAppOperate &rcAppOperate)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcAppOperateList> cKernel(*db, m_schemeName);
+    CRdcAppOperateList cAppOperateList;
+    CRdcAppOperate cCond;
+    cCond.set_appId(iAppId);
+    cCond.set_transId(iTransId);
+    cKernel.select_all(cAppOperateList, cCond);
+    if (0 == cAppOperateList.size())
+    {
+        return false;
+    }
+    rcAppOperate = cAppOperateList[0];
+    return true;
+}
+
+bool CSrmRdcMgrImpl::QueryAppOperateByProc(SBaseExeProc &rcExeProc, int32 iVmId, CRdcAppOperate &rcAppOperate)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcAppOperateList> cKernel(*db, m_schemeName);
+    CRdcAppOperateList cAppOperateList;
+    ob_whereCond cWhereCond;
+    cWhereCond << OCS("(APP_ID, TRANS_ID) IN"
+        " (SELECT B.APP_ID, B.TRANS_ID FROM RDC_PROC_TRANS_OPERATE A," 
+        " RDC_PROC_TRANS B WHERE A.TRANS_ID = B.TRANS_ID");
+    cWhereCond << OCS(" AND A.VM_ID = ") << iVmId;
+    cWhereCond << OCS(" AND A.OPERATE_TYPE = ") << rcExeProc.get_flag();
+    cWhereCond << OCS(" AND A.PROC_ID = ") << rcExeProc.baseProcKey().get_procId();
+    cWhereCond << OCS(" AND A.APP_ID = ") << rcExeProc.baseProcKey().get_appId();
+    cWhereCond << OCS(")");
+    cKernel.select_allExt(cAppOperateList, cWhereCond);
+    if (0 == cAppOperateList.size())
+    {
+        return false;
+    }
+    rcAppOperate = cAppOperateList[0];
+    return true;
+}
+
+bool CSrmRdcMgrImpl::DeleteAppOperate(int32 iAppId, int32 iTransId)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcAppOperateList> cKernel(*db, m_schemeName);
+    ob_whereCond cHisCond;
+    cHisCond << OCS("INSERT INTO ") << OCS(m_transSchemeName) << OCS(".RDC_APP_OPERATE_HIS ") 
+        << OCS("(SELECT B.* FROM ") << OCS(m_transSchemeName) << OCS(".RDC_APP_OPERATE B WHERE ")
+        << OCS("B.APP_ID = ") <<iAppId << OCS(" AND B.TRANS_ID = ") << iTransId
+        << OCS(")");
+    cKernel.direct_execExt(cHisCond, false);
+
+    CRdcAppOperate cCond;
+    cCond.set_appId(iAppId);
+    cCond.set_transId(iTransId);
+    int32 iCount = cKernel.remove(cCond, false);
+    db.commit();
+    return iCount > 0;
+}
+
+int32 CSrmRdcMgrImpl::GetProcTransId(void)
+{
+    CAutoDb db(m_strDbName);
+    aistring strSeqName = m_schemeName + ".RDC_TRANS_ID_SEQ";
+    return (int32)ob_kernelBase::get_sequence_value(strSeqName, &(*db));
+}
+
+void CSrmRdcMgrImpl::InsertTransInfo(SRdcCreateTrans &rcCreateTrans)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransList> cKernelTrans(*db, m_schemeName);
+    cKernelTrans.insert(rcCreateTrans.procTrans(), false);
+    ob_kernel<CRdcProcTransOperateList> cKernelOper(*db, m_schemeName);
+    cKernelOper.insert(rcCreateTrans.procOperateList(), false);
+    db.commit();
+}
+
+void CSrmRdcMgrImpl::UpdateTransInfo(CRdcProcTrans &cUpProcTrans)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransList> cKernelTrans(*db, m_schemeName);
+    CRdcProcTrans cCondition;
+    cCondition.set_transId(cUpProcTrans.get_transId());
+    cKernelTrans.update(cUpProcTrans, cCondition, true);
+}
+
+void CSrmRdcMgrImpl::DeleteTransInfo(int32 iTransId)
+{
+    CAutoDb db(m_strDbName);
+
+    // 事务操作信息存放到历史表
+    ob_kernel<CRdcProcTransOperateList> cOperateKernel(*db, m_schemeName);
+    ob_whereCond cOperateHisCond;
+    cOperateHisCond << OCS("INSERT INTO ") << OCS(m_transSchemeName) << OCS(".RDC_PROC_TRANS_OPERATE_HIS") 
+        << OCS("(SELECT B.* FROM ") << OCS(m_transSchemeName) << OCS(".RDC_PROC_TRANS_OPERATE B WHERE B.TRANS_ID = ")
+        << iTransId << OCS(")");
+    cOperateKernel.direct_execExt(cOperateHisCond, false);
+
+    // 清除事务操作信息
+    CRdcProcTransOperate cOperateCondition;
+    cOperateCondition.set_transId(iTransId);
+    cOperateKernel.remove(cOperateCondition, false);
+
+    ob_kernel<CRdcProcTransList> cTransKernel(*db, m_schemeName);
+    // 事务操作信息存放到历史表
+    ob_whereCond cTransHisCond;
+    cTransHisCond << OCS("INSERT INTO ") << OCS(m_transSchemeName) << OCS(".RDC_PROC_TRANS_HIS") 
+        << OCS("(SELECT * from  ") << OCS(m_transSchemeName) << OCS(".RDC_PROC_TRANS WHERE TRANS_ID = ")
+        << iTransId << OCS(")");
+    cTransKernel.direct_execExt(cTransHisCond, false);
+
+    // 清除事务信息
+    CRdcProcTrans cTransCondition;
+    cTransCondition.set_transId(iTransId);
+    cTransKernel.remove(cTransCondition, false);
+    db.commit();
+}
+
+void CSrmRdcMgrImpl::UpdateProcOperate(CRdcProcTransOperateList &rcProcOperateList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransOperateList> cKernel(*db, m_schemeName);
+    CRdcProcTransOperateList::iterator itOperate;
+    for (itOperate = rcProcOperateList.begin(); itOperate != rcProcOperateList.end();
+        ++itOperate)
+    {
+        // 设置更新条件，一下几个属性构成主键
+        CRdcProcTransOperate cCondition;
+        cCondition.set_appId(itOperate->get_appId());
+        cCondition.set_procId(itOperate->get_procId());
+        cCondition.set_vmId(itOperate->get_vmId());
+        cCondition.set_operateType(itOperate->get_operateType());
+        CRdcProcTransOperate cUpData;
+        cUpData.set_operateStartTime(itOperate->get_operateStartTime());
+        cUpData.set_operateResult(itOperate->get_operateResult());
+        cUpData.set_operateTimeoutTime(itOperate->get_operateTimeoutTime());
+        cUpData.set_operateRetryCount(itOperate->get_operateRetryCount());
+        cKernel.update(cUpData, cCondition, false);
+    }
+    db.commit();
+}
+
+void CSrmRdcMgrImpl::QueryTransByApp(int32 iAppId, CRdcProcTransList &rlstProcTrans)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransList> cKernel(*db, m_schemeName);
+    CRdcProcTrans cCondition;
+    cCondition.set_appId(iAppId);
+    cKernel.select_all(rlstProcTrans, cCondition);
+}
+
+void CSrmRdcMgrImpl::UpdateAndQueryOperate(CRdcProcTransOperate &rcProcOperate, CRdcProcTransOperateList &rlstProcOperate)
+{
+    // 防止多个进程同时执行完成时候，导致出错
+    CAutoLock cTransLock(m_Translock);
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransOperateList> cKernel(*db, m_schemeName);
+    // 设置更新条件，一下几个属性构成主键
+    CRdcProcTransOperate cUpdCondition;
+    cUpdCondition.set_appId(rcProcOperate.get_appId());
+    cUpdCondition.set_procId(rcProcOperate.get_procId());
+    cUpdCondition.set_vmId(rcProcOperate.get_vmId());
+    cUpdCondition.set_operateType(rcProcOperate.get_operateType());
+    cKernel.update(rcProcOperate, cUpdCondition, true);
+
+    ob_whereCond cSelectCondition;
+    cSelectCondition << OCS("OPERATE_LEVEL >= ") << rcProcOperate.get_operateLevel();
+    cSelectCondition << OCS("AND TRANS_ID = ") << rcProcOperate.get_transId();
+    cSelectCondition << OCS("ORDER BY OPERATE_LEVEL ASC");
+    cKernel.select_allExt(rlstProcOperate, cSelectCondition);
+}
+
+bool CSrmRdcMgrImpl::QueryTransById(int32 iTransId, CRdcProcTrans &rcProcTrans)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransList> cKernel(*db, m_schemeName);
+    CRdcProcTransList cProcTransList;
+    CRdcProcTrans cCondition;
+    cCondition.set_transId(iTransId);
+    cKernel.select_all(cProcTransList, cCondition);
+    if (0 == cProcTransList.size())
+    {
+        return false;
+    }
+    rcProcTrans = cProcTransList[0];
+    return true;
+}
+
+void CSrmRdcMgrImpl::QueryTransOperateById(int32 iTransId, CRdcProcTransOperateList &rcProcTransOperateList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransOperateList> cKernel(*db, m_schemeName);
+    CRdcProcTransOperate cCondition;
+    cCondition.set_transId(iTransId);
+    cKernel.select_all(rcProcTransOperateList, cCondition);
+}
+
+void CSrmRdcMgrImpl::QueryTimeOutOperate(const CBSDateTime &rcCompareTime, CRdcProcTransOperateList &rlstProcOperate)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransOperateList> cKernel(*db, m_schemeName);
+    ob_whereCond cCondition;
+    cCondition << OCS("OPERATE_TIMEOUT_TIME <= ") << rcCompareTime;
+    cCondition << OCS(" AND OPERATE_RESULT = 2");
+    cKernel.select_allExt(rlstProcOperate, cCondition);
+}
+
+void CSrmRdcMgrImpl::DeleteRedundantProcOperate(int32 iAppId)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransOperateList> cKernel(*db, m_schemeName);
+    ob_whereCond cCond;
+    cCond << OCS("TRANS_ID NOT IN (SELECT B.TRANS_ID FROM RDC_PROC_TRANS B) AND APP_ID = ") << iAppId;
+    CRdcProcTransOperateList cProcOperateList;
+    cKernel.select_allExt(cProcOperateList, cCond);
+    if (0 < cProcOperateList.size())
+    {
+        DBE2_LOG(WARN_LOGGER, "delete redundant proc operate");
+        LogSdl(cProcOperateList);
+        cKernel.remove_ext(cCond, true);
+    }
+}
+
+void CSrmRdcMgrImpl::MergeTransErrorInfo(int32 iTransId, aistring &rstrError)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransList> cKernelTrans(*db, m_schemeName);
+    ob_whereCond cCondition;
+    cCondition << OCS("UPDATE ") << OCS(m_transSchemeName) <<
+        OCS(".RDC_PROC_TRANS SET TRANS_ERROR_INFO = TRANS_ERROR_INFO || ")
+        << rstrError << OCS(" WHERE TRANS_ID = ") << iTransId;
+
+    cKernelTrans.direct_execExt(cCondition, true);
+}
+
+bool CSrmRdcMgrImpl::GetPdcVm(int32 iVmId,CPdcVm& rcPdcVm)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CPdcVmList> cKernel(*db, m_schemeName);
+    CPdcVm rCond;
+    CPdcVmList objVmList;
+    rCond.set_vmId(iVmId);
+    cKernel.select_all(objVmList,rCond);
+    if(0==objVmList.size())
+    {
+        DBE2_LOG(WARN_LOGGER,"There is no record in PDC_VM ,VmId:%d",iVmId);
+        return false;
+    }
+    rcPdcVm=objVmList[0];
+    return true;
+}
+
+void CSrmRdcMgrImpl::QueryAppList(CInt32Set &rcAppIdSet, CRdcAppList &rcAppList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcAppList> cKernel(*db, m_schemeName);
+    CInt32Set::iterator itSetInt;
+    ob_whereCond cAppSql;
+    cAppSql << OCS("1=2");
+    for (itSetInt = rcAppIdSet.begin(); itSetInt != rcAppIdSet.end(); ++itSetInt)
+    {
+        cAppSql << OCS(" OR ") << OCS("APP_ID = ") << *itSetInt;
+    }
+    cKernel.select_allExt(rcAppList, cAppSql);
+}
+
+void CSrmRdcMgrImpl::InsertProcInfo(CRdcProc &rcProc)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcProcList> cKernel(*db, m_schemeName);
+    CRdcProc cCond; 
+    cCond.set_appId(rcProc.get_appId());
+    cCond.set_procId(rcProc.get_procId());
+    int32 iCount = cKernel.update(rcProc, cCond, true);
+    if (iCount < 1) cKernel.insert(rcProc, true);
+
+    InsertProcHis(rcProc);
+}
+
+void CSrmRdcMgrImpl::UpdateProcInfo(CRdcProc &rcProc)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcProcList> cKernel(*db, m_schemeName);
+    CRdcProc cCond;
+    cCond.set_appId(rcProc.get_appId());
+    cCond.set_procId(rcProc.get_procId());
+    cCond.set_vmId(rcProc.get_vmId());
+    cKernel.update(rcProc, cCond, true);
+
+    if (NeedUpdateHisState(rcProc.procState())) UpdateProcHis(rcProc);
+}
+
+void CSrmRdcMgrImpl::UpdateProcListState(CRdcProcList& rProcList,int32 iState)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcProcList> cKernel(*db, m_schemeName);
+
+    CRdcProcList::iterator itPL = rProcList.begin();
+    for (;itPL!=rProcList.end();++itPL)
+    {
+        itPL->set_procState(iState);
+        CRdcProc cCond;
+        CRdcProc cProc;
+        cProc.set_procState(iState);
+        cCond.set_appId(itPL->get_appId());
+        cCond.set_procId(itPL->get_procId());
+        cKernel.update(cProc, cCond, true);
+        if (NeedUpdateHisState(itPL->procState())) UpdateProcHis(*itPL);
+    }
+}
+
+bool CSrmRdcMgrImpl::QueryProcInfobyProc(SBaseProcKey &rcProcKey, CRdcProc &rcProc)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcProcList> cKernel(*db, m_schemeName);
+    CRdcProc cCond;
+    cCond.set_appId(rcProcKey.get_appId());
+    cCond.set_procId(rcProcKey.get_procId());
+    CRdcProcList cProcList;
+    cKernel.select_all(cProcList, cCond);
+    if (0 == cProcList.size()) return false;
+    rcProc = cProcList[0];
+    return true;
+}
+bool CSrmRdcMgrImpl::QueryProcHisInfobyProc(SBaseProcKey &rcProcKey,int32 rcPid,CRdcProcHis &rcProcHis)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcProcHisList> cKernel(*db, m_schemeName);
+	CRdcProcHis cCond;
+	cCond.set_appId(rcProcKey.get_appId());
+	cCond.set_procId(rcProcKey.get_procId());
+	cCond.set_pid(rcPid);
+	CRdcProcHisList cProcHisList;
+	cKernel.select_all(cProcHisList, cCond);
+	if (0 == cProcHisList.size()) return false;
+	rcProcHis = cProcHisList[0];
+	for (int32 i = 0; i != cProcHisList.get_size();i++)
+	{
+		if (rcProcHis.logId()<cProcHisList[i].logId())
+		{
+			rcProcHis = cProcHisList[i];
+		}
+	}
+	return true;
+}
+void CSrmRdcMgrImpl::DeleteProcInfo(int32 iAppId, int32 iProcId, int32 iVmId)
+{
+	ISrmRdcMgr& rcRdcMgr = ISrmRdcMgr::GetInstance();
+	SBaseProcKey rcSBaseProcKey;
+	rcSBaseProcKey.set_appId(iAppId);
+	rcSBaseProcKey.set_procId(iProcId);
+	CRdcProc cRdcProc;
+	if (!rcRdcMgr.QueryProcInfobyProc(rcSBaseProcKey, cRdcProc))
+	{
+		DBE2_LOG(WARN_LOGGER, "can not find rdc_proc to delete");
+	}
+	
+
+	CAutoDb db(m_strDbName);
+    ob_kernel <CRdcProcList> cKernel(*db, m_schemeName);
+    CRdcProc cCond; 
+    cCond.set_appId(iAppId);
+    cCond.set_procId(iProcId);
+    cCond.set_vmId(iVmId);
+    cKernel.remove(cCond, true);
+
+    cCond.set_procState(PROC_NOT_START);
+    UpdateProcHis(cCond);
+
+	//del cache
+	m_AppProcNumCache.DelProcNum(iAppId,iProcId);
+
+	CRdcProcHis cRdcProcHis;
+	if (rcRdcMgr.QueryProcHisInfobyProc(rcSBaseProcKey, cRdcProc.get_pid(), cRdcProcHis))
+	{
+		//DBE2_LOG(WARN_LOGGER, "update rdc_proc_his");
+		cRdcProcHis.set_procEndTime(GetCurrentTime());
+		ob_kernel <CRdcProcHisList> cProcHisKernel(*db, m_schemeName);
+		CRdcProcHis cCondProcHis;
+		cCondProcHis.set_appId(iAppId);
+		cCondProcHis.set_procId(iProcId);
+		cCondProcHis.set_pid(cRdcProc.get_pid());
+		cCondProcHis.set_logId(cRdcProcHis.logId());
+		if (cRdcProcHis.jobInsSequence()!=NULL)
+		{
+			cCondProcHis.set_jobInsSequence(cRdcProcHis.jobInsSequence());
+		}
+		cProcHisKernel.update(cRdcProcHis, cCondProcHis, true);
+	}
+	db->commit();
+}
+
+void CSrmRdcMgrImpl::UpdateAndQueryProcInfo(CRdcProc &rcProc, CRdcProcList &rcProcList)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcProcList> cKernel(*db, m_schemeName);
+    CRdcProc cCond;
+    cCond.set_appId(rcProc.get_appId());
+    cCond.set_procId(rcProc.get_procId());
+    cKernel.update(rcProc, cCond, true);
+    if (NeedUpdateHisState(rcProc.procState())) UpdateProcHis(rcProc);
+
+    CRdcProc cSelectCond;
+    cSelectCond.set_appId(rcProc.get_appId());
+    cKernel.select_all(rcProcList, cSelectCond);
+}
+
+void CSrmRdcMgrImpl::InsertProcHis(CRdcProc &rcProc)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcProcHisList> cKernel(*db, m_schemeName);
+    CRdcProcHis cProcHis;
+    cProcHis.set_appId(rcProc.appId());
+    cProcHis.set_procId(rcProc.procId());
+    cProcHis.set_vmId(rcProc.vmId());
+    cProcHis.set_procStartTime(rcProc.procStartTime());
+    cProcHis.set_logPath(rcProc.logPath());
+    cProcHis.set_procState(rcProc.procState());
+	cProcHis.set_inputPath(rcProc.inputPath());
+	cProcHis.set_shellLog(rcProc.shellLog());
+	cProcHis.set_statPath(rcProc.statPath());
+    CRdcProcHis cCond;
+    cCond.set_appId(rcProc.appId());
+    cCond.set_procId(rcProc.procId());
+
+	CRdcJobRunStepApp cJobStepApp;
+	if (ISrmRdcMgr::GetInstance().QueryJobAppInfo(rcProc.appId(), cJobStepApp))
+	{
+		cProcHis.set_jobInsId(cJobStepApp.get_jobInsId());
+		cProcHis.set_jobInsSequence(cJobStepApp.get_jobInsSequence());
+		cProcHis.set_stepId(cJobStepApp.get_jobRunStepId());
+		cCond.set_jobInsSequence(cJobStepApp.get_jobInsSequence());
+	}
+	
+    int32 iCount = cKernel.update(cProcHis, cCond, true);
+    if (iCount < 1) 
+    {
+        aistring strSeqName = m_schemeName + ".RDC_PROC_HIS_ID_SEQ";
+        cProcHis.set_logId((int32)ob_kernelBase::get_sequence_value(strSeqName, &(*db)));
+        cKernel.insert(cProcHis, true);
+    }
+}
+
+void CSrmRdcMgrImpl::UpdateProcHis(CRdcProc &rcProc)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel <CRdcProcHisList> cKernel(*db, m_schemeName);
+
+    ob_whereCond cExeCond;
+    if (0 != rcProc.pid())
+    {
+        cExeCond << OCS("UPDATE ") << OCS(m_transSchemeName) << 
+            OCS(".RDC_PROC_HIS SET PROC_STATE =  ") << rcProc.procState() << 
+            OCS(",PID = ") << rcProc.pid() <<
+            OCS(" WHERE LOG_ID = (SELECT MAX(LOG_ID)"
+            " FROM ") << OCS(m_transSchemeName) << OCS(".RDC_PROC_HIS") <<
+            OCS(" WHERE PROC_ID = ") << rcProc.procId() <<
+            OCS(" AND APP_ID = ") << rcProc.appId() << 
+            OCS(")");
+    }
+    else
+    {
+        cExeCond << OCS("UPDATE ") << OCS(m_transSchemeName) << 
+            OCS(".RDC_PROC_HIS SET PROC_STATE =  ") << rcProc.procState() << 
+            OCS(" WHERE LOG_ID = (SELECT MAX(LOG_ID)"
+            " FROM ") << OCS(m_transSchemeName) << OCS(".RDC_PROC_HIS") <<
+            OCS(" WHERE PROC_ID = ") << rcProc.procId() <<
+            OCS(" AND APP_ID = ") << rcProc.appId() << 
+            OCS(")");
+    }
+    cKernel.direct_execExt(cExeCond, true);
+}
+
+bool CSrmRdcMgrImpl::QueryProcOperate(SBaseProcKey &rcProcKey, int32 iVmId, int32 iOperateType,
+    CRdcProcTransOperate &rcProcOperate)
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransOperateList> cKernel(*db, m_schemeName);
+    CRdcProcTransOperateList lstProcOperate;
+    CRdcProcTransOperate cCondition;
+    cCondition.set_appId(rcProcKey.get_appId());
+    cCondition.set_procId(rcProcKey.get_procId());
+    cCondition.set_vmId(iVmId);
+    cCondition.set_operateType(iOperateType);
+    cKernel.select_all(lstProcOperate, cCondition);
+    if (0 == lstProcOperate.size())
+    {
+        return false;
+    }
+    rcProcOperate = lstProcOperate[0];
+    return true;
+}
+
+void CSrmRdcMgrImpl::InsertProcBackLog( CRdcProcBacklogList &rlstInsertInfo )
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcBacklogList> cKernel(*db, m_schemeName);
+    cKernel.insert(rlstInsertInfo, true);
+}
+
+void CSrmRdcMgrImpl::InsertProcHandleRate( CRdcProcHandleRateList &rlstRateInfo )
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcHandleRateList> cKernel(*db, m_schemeName);
+    cKernel.insert(rlstRateInfo, true);
+}
+
+void CSrmRdcMgrImpl::UpdateVmStaticInfo(CPdcVm& rcPdcVm)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CPdcVmList> cKernel(*db, m_schemeName);
+	CPdcVm rCond;
+	rCond.set_vmId(rcPdcVm.vmId());
+	CPdcVmList objVmList;
+	cKernel.select_all(objVmList,rCond);
+	if(0==objVmList.size())
+	{
+		cKernel.insert(rcPdcVm, true);
+		return;
+	}
+	cKernel.update(rcPdcVm,rCond,true);
+}
+
+void CSrmRdcMgrImpl::InsertVmStateModifyLog(CRdcVmStateModifyLog& rModifyLog)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcVmStateModifyLogList> cKernel(*db, m_schemeName);
+	cKernel.insert(rModifyLog, true);
+}
+
+bool CSrmRdcMgrImpl::GetVmList(int32 iNrmConnectState,int32 iVmState,CPdcVmList& lstVmList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CPdcVmList> cKernel(*db, m_schemeName);
+	CPdcVm rCond;
+	if (iNrmConnectState!=-1)
+	{
+		rCond.set_vmConnectState(iNrmConnectState);
+	}
+	rCond.set_vmState(iVmState);
+	cKernel.select_all(lstVmList,rCond);
+
+	if(0==lstVmList.size())
+	{
+		return false;
+	}
+	return true;
+}
+
+bool CSrmRdcMgrImpl::GetLuaScript(AISTD string& rScriptName,AISTD string& rScritpContent)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <SToLuaVmInfoList> cKernel(*db, m_schemeName);
+	ob_dataRows lstRow;
+	ob_whereCond cSql;
+	cSql << OCS("select SCRIPT_CONTENT from ") << OCS(m_transSchemeName) << 
+		OCS(".PDC_SCRIPTS where SCRIPT_NAME=")<<rScriptName.c_str();
+	cKernel.direct_select(lstRow,cSql);
+
+	if (lstRow.size()==0) return false;
+
+	rScritpContent=lstRow[0][0].get_asString();
+	return true;
+}
+
+bool CSrmRdcMgrImpl::GetClusterVmRelation(int32 iClusterId,CPdcClusterVmRelationList &rClusterVmRelationList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CPdcClusterVmRelationList> cKernel(*db, m_schemeName);
+	CPdcClusterVmRelation rCond;
+	rCond.set_clusterId(iClusterId);
+	cKernel.select_all(rClusterVmRelationList,rCond);
+	if(0==rClusterVmRelationList.size())
+	{
+		DBE2_LOG(WARN_LOGGER,"There is no record in PDC_CLUSTER_VM_RELATION ,iClusterId:%d",iClusterId);
+		return false;
+	}
+	return true;
+}
+void CSrmRdcMgrImpl::GetClusterVmRelationByVm(int32 iVmId,CPdcClusterVmRelationList &rClusterVmRelationList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CPdcClusterVmRelationList> cKernel(*db, m_schemeName);
+	CPdcClusterVmRelation rCond;
+	rCond.set_vmId(iVmId);
+	cKernel.select_all(rClusterVmRelationList,rCond);
+}
+//缓存
+bool CSrmRdcMgrImpl::GetVmStateRecord(int32 iVmId,CRdcVmStateRecord& rVmStateRecord)
+{
+	return m_cVmStateRecordCache.GetRecord(iVmId,rVmStateRecord);
+}
+
+void CSrmRdcMgrImpl::InsertVmDynamicInfo(CRdcVmStateRecord& rcVmStateRecord)
+{
+	m_cVmStateRecordCache.SetRecord(rcVmStateRecord.get_vmId(), rcVmStateRecord);
+}
+
+void CSrmRdcMgrImpl::InsertVmProcInfo(int32 iVmId, CRdcProcStateRecordList& rcProcStateRecordList)
+{
+	m_cProcStateRecordCache.SetRecord(iVmId, rcProcStateRecordList);
+}
+
+void CSrmRdcMgrImpl::DeleteVmProcCache(int32 iVmId)
+{
+	m_cProcStateRecordCache.DelRecord(iVmId);
+}
+
+bool CSrmRdcMgrImpl::GetProcStateRecord(int32 iVmId,CRdcProcStateRecordList& rProcStateRecorList)
+{
+	return m_cProcStateRecordCache.GetRecord(iVmId,rProcStateRecorList);
+}
+
+bool CSrmRdcMgrImpl::SetVmUpdateTime( int32 iVmId, CBSDateTime &cUpdateTime )
+{
+	SBaseDateTime cDateTime ;
+	cDateTime.set_dataTime(cUpdateTime);
+	m_cVmUpdateMap.SetRecord(iVmId, cDateTime);
+	return true;
+}
+
+bool CSrmRdcMgrImpl::ClearVmUpdateTime( int32 iVmId )
+{
+	m_cVmUpdateMap.DelRecord(iVmId);
+	return true;
+}
+
+bool CSrmRdcMgrImpl::QueryUpdateTime( int32 iVmId, CBSDateTime &cUpdateTime )
+{
+	SBaseDateTime cDateTime ;
+	bool bRet = m_cVmUpdateMap.GetRecord(iVmId, cDateTime);
+	if (bRet)
+	{
+		cUpdateTime = cDateTime.get_dataTime();
+	}
+	return bRet;
+}
+
+void CSrmRdcMgrImpl::DeleteRedundantData(int32 iInterver)
+{
+	CAutoDb db(m_strDbName);
+
+	ob_kernel<CRdcVmStateRecordList> cKernelVmStateRecord(*db, m_schemeName);
+	ob_kernel<CRdcProcStateRecordList> cKernelProcState(*db, m_schemeName);
+
+	int64 now_time;
+	GetCurrentTime(now_time);
+	CBSDateTime condTime;
+	condTime.setTime_t(now_time-iInterver);
+	ob_whereCond cond,condTran;
+	cond<<OCS("update_time<=")<<condTime;
+
+	cKernelVmStateRecord.remove_ext(cond, true);
+	cKernelProcState.remove_ext(cond, true);
+
+	// 清理进程动态信息
+	ob_whereCond cProcCond;
+	cProcCond<<OCS("update_time <= sysdate - 0.5 or update_time > sysdate");
+
+	ob_kernel<CRdcProcBacklogList> cKernelBacklog(*db, m_schemeName);
+	cKernelBacklog.remove_ext(cProcCond, true);
+
+	ob_kernel<CRdcProcHandleRateList> cKernelRate(*db, m_schemeName);
+	cKernelRate.remove_ext(cProcCond, true);
+}
+
+void CSrmRdcMgrImpl::WriteRecordToDb()
+{
+	CAutoDb db(m_strDbName);
+	// 虚拟机动态信息
+	CRdcVmStateRecordMap cVmStatrRecordMap;
+	CRdcVmStateRecordMap::iterator itVmRecord;
+	ob_kernel<CRdcVmStateRecordList> cVmRecordKernel(*db, m_schemeName);
+	m_cVmStateRecordCache.ReturnRecordMap(cVmStatrRecordMap);
+	for (itVmRecord = cVmStatrRecordMap.begin(); itVmRecord != cVmStatrRecordMap.end(); ++itVmRecord)
+	{
+		cVmRecordKernel.insert(itVmRecord->second, false);
+	}
+	db.commit();
+
+	// 虚拟机更新时间
+	SBaseDateTimeMap cVmUpTimeMap;
+	SBaseDateTimeMap::iterator itVm;
+	ob_kernel<CPdcVmList> cVmKernel(*db, m_schemeName);
+	m_cVmUpdateMap.ReturnRecordMap(cVmUpTimeMap);
+	for (itVm = cVmUpTimeMap.begin(); itVm != cVmUpTimeMap.end(); ++itVm)
+	{
+		CPdcVm cUpInfo;
+		cUpInfo.set_vmUpdateTime(itVm->second.get_dataTime());
+		CPdcVm cUpCond;
+		cUpCond.set_vmId(itVm->first);
+		cVmKernel.update(cUpInfo, cUpCond, false);
+	}
+	db.commit();
+
+
+	//m_cProcStateRecordCache
+	CRdcProcStateRecordListMap cProcStateRecordListMap;
+	CRdcProcStateRecordListMap::iterator itProcStateRecordList;
+	ob_kernel<CRdcProcStateRecordList> cProcStateRecordKernel(*db, m_schemeName);
+	m_cProcStateRecordCache.ReturnRecordMap(cProcStateRecordListMap);
+	for (itProcStateRecordList = cProcStateRecordListMap.begin(); itProcStateRecordList != cProcStateRecordListMap.end(); ++itProcStateRecordList)
+	{
+		cProcStateRecordKernel.insert(itProcStateRecordList->second, false);
+
+	}
+	db.commit();
+}
+
+bool CSrmRdcMgrImpl::SelectSysParam(aistring& sParamName,CPdcSystemParam& rSysParam)
+{	
+	CAutoDb db(m_strDbName);
+	ob_kernel<CPdcSystemParamList> cKernel (*db, m_schemeName);
+
+	CPdcSystemParam rCond;
+	rCond.set_paramName(sParamName);
+	CPdcSystemParamList lSysParam;
+	cKernel.select_all(lSysParam, rCond);
+	if (lSysParam.size()==0) return false;
+	
+	rSysParam = lSysParam[0];
+	return true;
+}
+
+bool CSrmRdcMgrImpl::GetSysParam(aistring& sParamName,bool bDefaultValue)
+{
+	return (strcasecmp(GetSysParam(sParamName, bDefaultValue?"true":"false").c_str(), "true") == 0)? true:false;
+}
+
+int32 CSrmRdcMgrImpl::GetSysParam(aistring& sParamName, int32 iDefaultValue) 
+{
+	return atoi(GetSysParam(sParamName, itoa(iDefaultValue).c_str()).c_str());
+}
+
+aistring CSrmRdcMgrImpl::GetSysParam(aistring& sParamName, const char * pDefaultValue)
+{
+	CPdcSystemParam  rSysParam;
+	if (SelectSysParam(sParamName,rSysParam))
+	{
+		return rSysParam.get_paramValue();
+	}
+	return pDefaultValue;
+
+	// get_unconfirmed(); 获取是否确认状态函数
+}
+
+int32 CSrmRdcMgrImpl::QuerySameCbParamTrans( aistring strCbParam )
+{
+    CAutoDb db(m_strDbName);
+    ob_kernel<CRdcProcTransList> cKernel(*db, m_schemeName);
+    CRdcProcTrans cCondition;
+    CRdcProcTransList cTransList;
+    cCondition.set_callbackParam(strCbParam);
+    cKernel.select_all(cTransList, cCondition);
+    return cTransList.size();
+}
+
+bool CSrmRdcMgrImpl::CheckVmTransExistence(int32 iVmId)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcProcTransOperateList> cKernel(*db, m_schemeName);
+	CRdcProcTransOperate rCond;
+	rCond.set_vmId(iVmId);
+
+	CRdcProcTransOperateList cProcTransOperateList;
+	cKernel.select_all(cProcTransOperateList, rCond);
+
+	if (cProcTransOperateList.size()>0) return true;
+	return false;
+
+}
+
+bool  CSrmRdcMgrImpl::GetProcByVm(int32 iVmId, CRdcProcList& rRdcProcList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcProcList> cKernel(*db, m_schemeName);
+
+	CRdcProc rCond;
+	rCond.set_vmId(iVmId);
+	cKernel.select_all(rRdcProcList,rCond);	
+
+	if (rRdcProcList.size()>0) return true;
+	return false;
+
+}
+
+void CSrmRdcMgrImpl::GetClusterRelyApp(int32 iClusterId,CPdcClusterAppRelationList& rClusterAppRelationList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CPdcClusterAppRelationList> cKernel(*db, m_schemeName);
+	CPdcClusterAppRelation cCond;
+
+	cCond.set_clusterId(iClusterId);
+	cKernel.select_all(rClusterAppRelationList, cCond);
+}
+
+int32 CSrmRdcMgrImpl::GetAppMaxProcId(int32 iAppId,int32 iflag)
+{
+	return m_AppProcNumCache.GetProcNum(iAppId,iflag);
+}
+
+void CSrmRdcMgrImpl::InsertWarnDetail(CAmWarnRecordDetail &rcDetail)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnRecordDetailList> cKernel(*db, m_schemeName);
+	CAmWarnRecordDetailList cDetailList;
+	cDetailList.push_back(rcDetail);
+	cKernel.insert(cDetailList, true);
+	return;
+}
+
+
+bool CSrmRdcMgrImpl::QueryWarnRecord(CAmWarnRecord &rWarnRecord, CAmWarnRecord &rWarnCond)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnRecordList> cKernel(*db, m_schemeName);
+	CAmWarnRecordList cRecordList;
+	cKernel.select_all(cRecordList, rWarnCond);
+	if (0 == cRecordList.get_size()) return false;
+	rWarnRecord = cRecordList[0];
+	return true;
+}
+
+
+int64 CSrmRdcMgrImpl::InsertWarnOri(CAmWarnRecordOri &rWarnOri)
+{
+	CAutoDb db(m_strDbName);
+	aistring strSeqName = m_schemeName + ".AM_WARN_ORI_ID_SEQ";
+	rWarnOri.set_oriId(ob_kernelBase::get_sequence_value(strSeqName, &(*db)));
+	ob_kernel <CAmWarnRecordOriList> cKernel(*db, m_schemeName);
+	CAmWarnRecordOriList cOriList;
+	cOriList.push_back(rWarnOri);
+	cKernel.insert(cOriList, true);
+	return rWarnOri.oriId();
+}
+
+int64 CSrmRdcMgrImpl::InsertWarnRecord(CAmWarnRecord &rWarnRecord)
+{
+	CAutoDb db(m_strDbName);
+	aistring strSeqName = m_schemeName + ".AM_WARN_LOG_ID_SEQ";
+	rWarnRecord.set_logId(ob_kernelBase::get_sequence_value(strSeqName, &(*db)));
+	ob_kernel <CAmWarnRecordList> cKernel(*db, m_schemeName);
+	CAmWarnRecordList cRecordList;
+	cRecordList.push_back(rWarnRecord);
+	cKernel.insert(cRecordList, true);
+	return rWarnRecord.logId();
+}
+
+
+bool CSrmRdcMgrImpl::QueryFirstWarnDetail(CAmWarnRecordDetail &cWarnDetail, int64 iRecordId)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnRecordDetailList> cKernel(*db, m_schemeName);
+	ob_whereCond cExeCond;
+	cExeCond << OCS("LOG_ID = ") << iRecordId << OCS(" ORDER BY ORI_ID ASC");
+	CAmWarnRecordDetailList cDetailList;
+	cKernel.select_allExt(cDetailList, cExeCond);
+	if (0 == cDetailList.get_size()) return false;
+	cWarnDetail = cDetailList[0];
+	return true;
+}
+
+void CSrmRdcMgrImpl::UpdateWarnRecord(CAmWarnRecord &rUpdateInfo, int64 i64RecordId)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnRecordList> cKernel(*db, m_schemeName);
+	CAmWarnRecord cCond;
+	cCond.set_logId(i64RecordId);
+	cKernel.update(rUpdateInfo, cCond, true);
+}
+
+bool CSrmRdcMgrImpl::QueryMergeInfo(CAmWarnMergerHis &cMergeInfo, int64 iRecordId)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnMergerHisList> cKernel(*db, m_schemeName);
+	CAmWarnMergerHis cCond;
+	cCond.set_logId(iRecordId);
+	CAmWarnMergerHisList cMergeList;
+	cKernel.select_all(cMergeList, cCond);
+	if (0 == cMergeList.get_size()) return false;
+	cMergeInfo = cMergeList[0];
+	return true;
+}
+void CSrmRdcMgrImpl::UpdateMergeInfo(CAmWarnMergerHis &cMergeInfo, int64 iMergeId)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnMergerHisList> cKernel(*db, m_schemeName);
+	CAmWarnMergerHis cCond;
+	cCond.set_mergeId(iMergeId);
+	cKernel.update(cMergeInfo, cCond, true);
+}
+
+
+void CSrmRdcMgrImpl::InsertMergeDetail(CAmWarnMergerHisDetail &cMergeDetail)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnMergerHisDetailList> cKernel(*db, m_schemeName);
+	CAmWarnMergerHisDetailList cDetailList;
+	cDetailList.push_back(cMergeDetail);
+	cKernel.insert(cDetailList, true);
+	return;
+}
+
+void CSrmRdcMgrImpl::InsertMergeDetail(CAmWarnMergerHisDetailList &listMergeDetail)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnMergerHisDetailList> cKernel(*db, m_schemeName);
+	cKernel.insert(listMergeDetail, true);
+	return;
+}
+
+int64 CSrmRdcMgrImpl::InsertMergeInfo(CAmWarnMergerHis &cMergeInfo)
+{
+	CAutoDb db(m_strDbName);
+	aistring strSeqName = m_schemeName + ".AM_WARN_MERGE_ID_SEQ";
+	cMergeInfo.set_mergeId(ob_kernelBase::get_sequence_value(strSeqName, &(*db)));
+	ob_kernel <CAmWarnMergerHisList> cKernel(*db, m_schemeName);
+	CAmWarnMergerHisList cMergeList;
+	cMergeList.push_back(cMergeInfo);
+	cKernel.insert(cMergeList, true);
+	return cMergeInfo.mergeId();
+}
+
+void CSrmRdcMgrImpl::InsertWarnSmsDetail(CAmWarnSmsDetail &cWarnSmsDetail)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnSmsDetailList> cKernel(*db, m_schemeName);
+	CAmWarnSmsDetailList cWarnSmsDetailList;
+	cWarnSmsDetailList.push_back(cWarnSmsDetail);
+	cKernel.insert(cWarnSmsDetailList, true);
+	return;
+}
+
+void CSrmRdcMgrImpl::QueryProcByVmOrder(int32 iVmId, CRdcProcList &rProcList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcProcList> cKernel(*db, m_schemeName);
+	ob_whereCond cCond;
+	cCond << OCS("EXISTS (SELECT 1 FROM ") << OCS(m_transSchemeName) << OCS(".RDC_APP B WHERE B.APP_ID = APP_ID) AND VM_ID = ")
+		<< iVmId << OCS(" ORDER BY VM_ID ASC, APP_ID ASC, PROC_ID ASC");
+	cKernel.select_allExt(rProcList, cCond);
+}
+
+void CSrmRdcMgrImpl::QueryProcListByCond(CRdcProc rcCond, CRdcProcList &rcProcList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel<CRdcProcList> cKernel(*db, m_schemeName);
+	cKernel.select_all(rcProcList, rcCond);
+}
+
+bool CSrmRdcMgrImpl::CheckJobAppCompleteBySequence(int64 jobInsSequence, int32 appId)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcProcHisList> cKernel(*db, m_schemeName);
+	CRdcProcHis cCond;
+	cCond.set_jobInsSequence(jobInsSequence);
+	cCond.set_appId(appId);
+	CRdcProcHisList cProcHisList;
+	cKernel.select_all(cProcHisList, cCond);
+	if (0 == cProcHisList.size())
+	{
+		DBE2_LOG(WARN_LOGGER,"find proc by  jobInsSequence %lld is 0",jobInsSequence);
+		return false;
+	}
+	CRdcProcHis cProcHis;
+	for (int i = 0; i != cProcHisList.get_size();i++)
+	{
+		cProcHis = cProcHisList[i];
+		if (cProcHis.get_procState()==PROC_RUN_EXCETION||cProcHis.get_procState()==PROC_START_FAIL||cProcHis.get_procState()==PROC_STOP_FAIL)
+		{
+			return false;
+		}	
+	}
+	return true;
+}
+
+/********************************************软件更新模块********************************************/
+int32 CSrmRdcMgrImpl::GetPuOpId(void)
+{
+	CAutoDb db(m_strDbName);
+	aistring strSeqName = m_schemeName + ".RDC_PU_OP_ID_SEQ";
+	return (int32)ob_kernelBase::get_sequence_value(strSeqName, &(*db));
+}
+
+void CSrmRdcMgrImpl::InsertUpgradeInfo(CRdcPuOp &rcUpOperate, CRdcPuOpDetailList &rcVmDetailList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcPuOpList> cOpKernel(*db, m_schemeName);
+	ob_kernel <CRdcPuOpDetailList> cDetailKernel(*db, m_schemeName);
+
+	cOpKernel.insert(rcUpOperate, false);
+	cDetailKernel.insert(rcVmDetailList, false);
+	db.commit();
+}
+
+void CSrmRdcMgrImpl::UpdateUpgradeInfo(int32 iOpId, CRdcPuOp &rcUpOperate)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcPuOpList> cKernel(*db, m_schemeName);
+	CRdcPuOp cCond;
+	cCond.set_opId(iOpId);
+	cKernel.update(rcUpOperate, cCond, true);
+}
+
+void CSrmRdcMgrImpl::UpdateUpgradeDetailInfo(int32 iOpId, int32 iVmId, CRdcPuOpDetail &rcUpInfo)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcPuOpDetailList> cKernel(*db, m_schemeName);
+	CRdcPuOpDetail cDetailCond;
+	cDetailCond.set_opId(iOpId);
+	cDetailCond.set_vmId(iVmId);
+	
+	cKernel.update(rcUpInfo, cDetailCond, true);
+}
+
+void CSrmRdcMgrImpl::QueryUpgradeDetail(int32 iOpId, CRdcPuOpDetailList &rcVmDetailList)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcPuOpDetailList> cKernel(*db, m_schemeName);
+	CRdcPuOpDetail cDetailCond;
+	cDetailCond.set_opId(iOpId);
+
+	cKernel.select_all(rcVmDetailList, cDetailCond);
+}
+
+bool CSrmRdcMgrImpl::QueryUpgrateInfoByOpId(int32 iOpId, CRdcPuOp &rcUpOp)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcPuOpList> cKernel(*db, m_schemeName);
+	CRdcPuOp cCond;
+	cCond.set_opId(iOpId);
+	CRdcPuOpList cPuOpList;
+	cKernel.select_all(cPuOpList, cCond);
+	if(0 == cPuOpList.size()) return false;
+	rcUpOp = cPuOpList[0];
+	return true;
+}
+
+void CSrmRdcMgrImpl::GetCurrentUpgrateInfo(CRdcPuOpList &rcUpOpList )
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CRdcPuOpList> cKernel(*db, m_schemeName);
+	CRdcPuOp cCond;
+	cCond.set_exeResult(UPGRADE_DOING);
+	cKernel.select_all(rcUpOpList, cCond);
+}
+
+bool CSrmRdcMgrImpl::UpdateVmVersion(CPdcPuVmVersion &rcVmVersion)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CPdcPuVmVersionList> cKernel(*db, m_schemeName);
+	// patch
+	if (2 == rcVmVersion.type())
+	{
+		cKernel.insert(rcVmVersion, true);
+		return true;
+	}
+	
+	// version
+	CPdcPuVmVersion cUpCond;
+	cUpCond.set_productCode(rcVmVersion.productCode());
+	cUpCond.set_type(rcVmVersion.type());
+	cUpCond.set_vmId(rcVmVersion.vmId());
+	CPdcPuVmVersion cSetHis;
+	cSetHis.set_isHis(1);
+	cKernel.update(cSetHis, cUpCond, false);
+
+	cKernel.insert(rcVmVersion, false);
+	db.commit();
+}
+
+bool CSrmRdcMgrImpl::DeleteVmVersion(CPdcPuVmVersion &rcVmVersion) 
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CPdcPuVmVersionList> cKernel(*db, m_schemeName);
+	cKernel.remove(rcVmVersion, true);
+	if (1 == rcVmVersion.get_type())
+	{
+		CPdcPuVmVersion cUpLastVersion;
+		cUpLastVersion.set_vmId(rcVmVersion.vmId());
+		cUpLastVersion.set_productCode(rcVmVersion.productCode());
+		cUpLastVersion.set_type(rcVmVersion.type());
+		
+		ob_whereCond cExeCond;
+		cExeCond << OCS("UPDATE ") << OCS(m_transSchemeName) << 
+			OCS(".PDC_PU_VM_VERSION SET IS_HIS = 0 ") <<
+			OCS(" WHERE (PRODUCT_CODE, VM_ID, TYPE, VERSION_PATCH_ID) IN"
+			"(SELECT PRODUCT_CODE, VM_ID, TYPE, MAX(VERSION_PATCH_ID)"
+			" FROM ") << OCS(m_transSchemeName) << OCS(".PDC_PU_VM_VERSION") <<
+			OCS(" WHERE PRODUCT_CODE = ") << rcVmVersion.productCode() <<
+			OCS(" AND VM_ID = ") << rcVmVersion.vmId() << 
+			OCS(" AND TYPE = ") << rcVmVersion.type() <<
+			OCS(" GROUP BY PRODUCT_CODE, VM_ID, TYPE)");
+		cKernel.direct_execExt(cExeCond, true);
+	}
+}
+
+bool CSrmRdcMgrImpl::GetStep(int32 rcStepId, CSoStep& cStep)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CSoStepList> cKernel(*db, m_schemeName);
+	CSoStep rCond;
+	CSoStepList objStepList;
+	rCond.set_stepId(rcStepId);
+	cKernel.select_all(objStepList, rCond);
+	if (0 == objStepList.size())
+	{
+		DBE2_LOG(WARN_LOGGER, "There is no record in SO_STEP ,STEP_ID:%d", rcStepId);
+		return false;
+	}
+	cStep = objStepList[0];
+	return true;
+
+}
+
+bool CSrmRdcMgrImpl::GetWarnLevelDefine(int32 rcWarnLevelId, CAmWarnLevelDefine& cWarnLevel)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnLevelDefineList> cKernel(*db, m_schemeName);
+	CAmWarnLevelDefine rCond;
+	CAmWarnLevelDefineList objWarnLevelList;
+	rCond.set_levelId(rcWarnLevelId);
+	cKernel.select_all(objWarnLevelList, rCond);
+	if (0 == objWarnLevelList.size())
+	{
+		DBE2_LOG(WARN_LOGGER, "There is no record in AM_WARN_LEVEL_DEFINE ,LEVEL_ID:%d", rcWarnLevelId);
+		return false;
+	}
+	cWarnLevel = objWarnLevelList[0];
+	return true;
+
+}
+bool CSrmRdcMgrImpl::GetWarnInsDefine(int32 rcWarnId, CAmWarnInsDefine& cWarnIns)
+{
+	CAutoDb db(m_strDbName);
+	ob_kernel <CAmWarnInsDefineList> cKernel(*db, m_schemeName);
+	CAmWarnInsDefine rCond;
+	CAmWarnInsDefineList objWarnInsList;
+	rCond.set_warnId(rcWarnId);
+	cKernel.select_all(objWarnInsList, rCond);
+	if (0 == objWarnInsList.size())
+	{
+		DBE2_LOG(WARN_LOGGER, "There is no record in AM_WARN_INS_DEFINE ,WARN_ID:%d", rcWarnId);
+		return false;
+	}
+	cWarnIns = objWarnInsList[0];
+	return true;
+
+}
+
+}
+

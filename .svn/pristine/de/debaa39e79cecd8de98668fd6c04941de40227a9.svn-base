@@ -1,0 +1,199 @@
+package SrmSdl;
+
+use Exporter;
+###################################################################################################
+sub new_prockey{
+    my $class = shift;
+    my ($flowid,$srvid,$procid)=@_;
+    my $self  = { 
+        _FlowId  =>$flowid,
+        _SrvId   =>$srvid,
+        _ProcId  =>$procid,
+    };  
+    return bless($self,$class);
+}
+
+###################################################################################################
+sub new_5023{
+    my $class = shift;
+    my ($flowid,$srvid,$procid,$result,$exetype,$errorinfo)=@_;
+    my $self ={
+        _FlowId   =>$flowid,
+        _SrvId    =>$srvid,
+        _ProcId   =>$procid,
+        _Result   =>$result,
+        _ExeType  =>$exetype,
+        _ErrInfo=>$errorinfo,
+    };
+    return bless($self,$class);
+}
+
+###################################################################################################
+sub new_6000{
+    my $class = shift;
+    my ($flowid,$result,$exetype,$errorinfo)=@_;
+    my $self ={
+        _FlowId   =>$flowid,
+        _Result   =>$result,
+        _ExeType  =>$exetype,
+        _ErrInfo=>$errorinfo,
+    };  
+    return bless($self,$class);
+}
+
+###################################################################################################
+sub new_flowmsg { 
+   my $class = shift;
+   my $data={
+   #         5037 =>[],
+   #         5023 =>[],
+        };
+   our $msgs;
+   bless sub { 
+      my ($access_type, $key, $value) = @_;
+      if ($access_type eq "set"){
+         if($key == 5037 or $key == 5023){
+            push @{$data->{$key}},$value;
+            #print "@{$data->{$key}} \n";
+         }
+         else{
+            $data->{$key} = $value;  
+         }
+      }
+      elsif ($access_type eq "get"){
+         #print "---- $data->{$key}\n";
+         return $data->{$key};
+      }
+      elsif ($access_type eq "keys"){
+         return (keys %{$data});
+      }
+      elsif($access_type eq  "exists"){
+          return (exists $data->{$key});
+      }
+      elsif ($access_type eq "destroy"){
+         $msgs--;
+         return $msgs;
+      }
+      else{
+         die "Access type should be set or get";
+      }
+      #print "New msg created, we have ", ++$msgs," msgs.\n";
+  },$class;
+}
+
+sub set{
+   my ($self,$key,$value) = @_; 
+   $self->("set",$key,$value);
+}
+
+sub get{
+   my ($self,$key) = @_;
+   return $self->("get", $key);
+}
+
+sub display{
+   my $self = shift;
+   $|=1;
+   if($self->("exists","5037")){
+        my $value = $self->("get","5037");
+###################################################################################################
+my $tail5037 = <<TAIL5037;
+Process Operate List
+---------------------------------------------------------------------------------------------------
+|FlowId   |SrvId  |ProcId  
+---------------------------------------------------------------------------------------------------
+TAIL5037
+###################################################################################################
+        print $tail5037;
+        foreach $item (@$value){
+			print "$item->{'_FlowId'}       $item->{'_SrvId'}    $item->{'_ProcId'}\n";
+         }
+   }
+    
+   if($self->("exists","5023")){
+        my $value = $self->("get","5023");
+###################################################################################################
+my $tail5023 = <<TAIL5023;
+Process result list
+---------------------------------------------------------------------------------------------------
+|FlowId  |SrvId    |ProcId   |ExeType  |Result   |ErrInfo
+---------------------------------------------------------------------------------------------------
+TAIL5023
+
+format PROCRESULT=
+|@<<<<<<<|@<<<<<<<<|@<<<<<<<<|@<<<<<<<<|@<<<<<<<<|^<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+$item->{'_FlowId'},$item->{'_SrvId'},$item->{'_ProcId'},$item->{'_ExeType'},$item->{'_Result'},$item->{'_ErrInfo'}
+~~                              		  ^<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                                 									$item->{'_ErrInfo'}
+.
+###################################################################################################     
+         print $tail5023;
+         foreach $item (@$value){
+         		$~ = PROCRESULT;
+						write ;
+#			print "$item->{'_FlowId'}\t  $item->{'_SrvId'}\t\t$item->{'_ProcId'}\t";
+#			print "$item->{'_ExeType'}\t$item->{'_Result'}\t  $item->{'_ErrInfo'}\n";
+         }
+   }
+   
+   if($self->("exists","6000")){
+	my $item = $self->("get","6000");
+	my $typedes ="";
+        my $resultdes =""; 	
+###################################################################################################
+my $tail6000 = <<TAIL6000;
+Flow Operate Result
+---------------------------------------------------------------------------------------------------
+|FlowId    |ExeType    |Result   |ErrInfo
+---------------------------------------------------------------------------------------------------
+TAIL6000
+
+format FLOW=
+|@<<<<<<<<<|@<<<<<<<<<<|@<<<<<<<<|^<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+$item->{'_FlowId'},$typedes,$resultdes,$item->{'_ErrInfo'}
+~~                                ^<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                                 $item->{'_ErrInfo'}
+.
+###################################################################################################
+#		print "flowid: $item->{'_FlowId'}\texetype: $item->{'_ExeType'}\tresult: $item->{'_Result'}\t";
+#		print "errinfo: $item->{'_ErrInfo'}\n";
+	
+	print $tail6000;
+	if($item->{'_ExeType'} ==0){
+            $typedes = "stop";
+        }
+        elsif($item->{'_ExeType'}==1){
+             $typedes ="start";
+        }
+        elsif($item->{'_ExeType'}==2){
+             $typedes ="force_stop";
+        }
+        elsif($item->{'_ExeType'}==3){
+             $typedes ="repair";
+        }
+        else{
+            $typedes ="undef";
+        }
+        
+        if($item->{'_Result'}==0){
+            $resultdes ="fail";
+        }
+        elsif($item->{'_Result'}==1){
+            $resultdes ="sucess";
+        }
+        elsif($item->{'_Result'}==2){
+            $resultdes ="cancel";
+        }
+        elsif($item->{'_Result'}==3){
+             $resultdes ="forbidden";
+        }
+        else{
+            $resultdes ="undef";
+        }
+	$~ = FLOW;
+	write ;
+   }
+}
+
+
+1;

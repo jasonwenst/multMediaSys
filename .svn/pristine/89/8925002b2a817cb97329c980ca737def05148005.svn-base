@@ -1,0 +1,26 @@
+/********************************************************************************/
+/* 定义[NRM_MSG_TYPE_BEG(7001), NRM_MSG_TYPE_END(8000))内的消息			*/
+/********************************************************************************/
+
+#ifndef _CA_MSG_INTERFACE_H_
+#define _CA_MSG_INTERFACE_H_
+
+namespace MDbe
+{
+//消息
+enum
+{
+    //接收者是CAC
+    MSG_RSP_VMID = 6001,
+    //接收者是CAS
+    MSG_RSP_VM_IP_INFO = 6101,
+    MSG_REQ_VMID = 6102,
+    MSG_RSP_CAC_INFO = 6103,
+    MSG_RSP_ALL_VM_IP_INFO = 6104,
+    MSG_CAC_CONN_OTHER_CAS_CUT = 6105
+};
+
+}//end namespace
+
+#endif //_CA_MSG_INTERFACE_H_
+

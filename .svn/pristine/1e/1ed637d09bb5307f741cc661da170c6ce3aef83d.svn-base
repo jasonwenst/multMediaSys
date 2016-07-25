@@ -1,0 +1,140 @@
+#ifndef __ECFRAME_DBE_PCC_STRUCT_H__
+#define __ECFRAME_DBE_PCC_STRUCT_H__
+
+#include <compile.h>
+#include "stdlib.h"
+#include <string.h>
+#include "cpf_common_struct.h"
+
+static union { char c[4]; uint32 l; } const __system_endian_test = { { 'l', '?', '?', 'b' } };
+static const char __system_endian = (char) __system_endian_test.l;
+char system_endian()
+{	
+	return __system_endian;
+}
+
+//process communicate component
+#define NAMESPACE_DBE_CPF_BEGIN namespace cpf  {
+#define NAMESPACE_DBE_CPF_END }
+#define NAMESPACE_DBE_CPF cpf::
+NAMESPACE_DBE_CPF_BEGIN
+
+struct  PACKAGE_HEADER
+{
+	int32		size_;		//<! 包中数据长度，不包括头
+	int16		type_;		//<! 包类型
+	int16		magic_;		//<! 包标识 "OD"
+	char		flag_;		//<! 包字节序标识
+	char		encode_;	//<! 编码方式 
+	char		encrypt_;	//<! 加密方式
+	char		version_;	//<! 版本
+	int32		count_;		//<! 包中对象数目
+
+	PACKAGE_HEADER(int16 type = 0)
+		: size_(0)
+		, type_(type)
+		, magic_(*(int16 *)"OD")
+		, version_(0x10)
+		, encode_(0)
+		, encrypt_(0)
+		, flag_(system_endian())
+		, count_(0)
+	{}
+
+	struct PACKAGE_HEADER& operator = (const struct PACKAGE_HEADER& hdr)
+	{
+		memcpy(this, &hdr, sizeof(*this));
+		return *this;
+	};
+};
+
+
+class CSrmHeadData
+{
+public:
+	//消息唯一标识，需要回复的确认性消息需要设置，小于19700000为控制消息的MsgSequence
+	int64 m_llMsgSequence;
+	int32 m_iOldType;
+	/*! 子消息类型 */
+	int32 m_iDataType;
+	//产生数据源的线程Id
+	int32 m_iThreadId;
+	int32 m_iPad;
+};
+
+class CTargetData
+{
+public:
+	int32 m_iTFlowId;
+	int32 m_iTSrvId;
+	int32 m_iTProcId;
+	int32 m_iTVmId;
+	//采用服务类型当做数据路由信息，跟DBE_PROC_TYPE对应
+	int32 m_iTSrvType;
+	int32 m_iPad;
+};
+
+class CSourceData
+{
+public:
+	int32 m_iSFlowId;
+	int32 m_iSSrvId;
+	int32 m_iSProcId;
+	int32 m_iSVmId;
+	int32 m_iSSrvType;
+	int32 m_iPad;
+};
+
+class CRouteData : public CSrmHeadData, public CTargetData,
+	public CSourceData
+{
+public:
+	CRouteData()
+	{
+		m_iDataType = -1;
+		m_iThreadId = -1;
+	}
+};
+
+struct ITEM_HEADER
+{
+	int32	size_;
+	char	flag_;
+	char	type_;
+	char	sz_pad[2];
+	char	class_name[64];
+};
+
+//通讯对象信息类
+class CDbeCommApi
+{
+public:
+	CDbeCommApi():m_objPKey(), 
+		m_tmRegModifyTime(0), 
+		m_tmRegTime(0),
+		m_iProcType(0),
+		m_iThreadId(0),
+		m_iRegisterStatus(0)
+	{
+		memset(m_szIp, 0x00, sizeof(m_szIp));
+	}
+	//进程唯一标识
+	CProcKey m_objPKey;
+	// 注册超时(偏移量)
+	int64 m_tmRegModifyTime;
+	// 注册超时
+	int64 m_tmRegTime;
+	//进程类型，对应DBE_PROC_TYPE
+	int32 m_iProcType;
+	//用于连接销毁根据线程号寻找对应记录
+	int32 m_iThreadId;
+	// 注册状态对应DBE_REG_STATUS
+	int32 m_iRegisterStatus;
+	int32 m_iPad;
+	//指定ip
+	char m_szIp[16];
+};
+
+NAMESPACE_DBE_CPF_END
+#endif //_ECFRAME_PCC_STRUCT_H_
+

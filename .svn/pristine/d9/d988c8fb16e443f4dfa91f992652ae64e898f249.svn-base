@@ -1,0 +1,41 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_base_error_code.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_BASE_ERROR_CODE_H___
+#define __DBE2_BASE_ERROR_CODE_H___
+
+#include "dbe2_base_def.h"
+
+namespace MDbe
+{
+
+enum
+{
+	E_BASE_GET_DB_CONN_FAIL = DBE2_BASE_START_ERROR_CODE,
+	E_BASE_DB_COMMIT_FAIL,
+	E_BASE_MGR_MSGHELPER_IS_NULL,
+	E_BASE_MGR_SEND_SOURCE_IS_NULL,
+	E_BASE_MGR_SEND_TARGET_IS_NULL,
+	E_BASE_CRON_EXPRESS_INVAILD,
+	E_BASE_CRON_EXPRESS_PARSE_ERROR
+};
+
+} // namespace MDbe
+
+
+#endif /* __DBE2_BASE_ERROR_CODE_H___ */

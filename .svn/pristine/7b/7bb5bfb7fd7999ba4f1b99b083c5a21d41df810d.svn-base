@@ -1,0 +1,45 @@
+#pragma once
+/********************************************************************
+filename: 	SQLite.h
+created:	2015-02-10
+author:     huwei
+
+purpose:	用于本地持久化的队列
+*********************************************************************/
+
+//该队列适用于特定场景： 不支持多进程，只支持多线程。
+class IlocalQue
+{
+public:
+	IlocalQue();
+	virtual ~IlocalQue();
+
+public:
+	//设置队列的属性，在init前调用使之生效
+	virtual int setRootDir(const char* rootDir)=0;//设置存储的跟路径
+	virtual void setMaxFileSize(int n)=0;//设置单个文件的最大大小，文件个数固定为40个，100M的话总容量就是4G，根据需要决定
+	virtual void setCoverOld(bool b ) = 0;//当空间满的时候，是报错，还是覆盖未读的就旧记录，默认为不覆盖
+	
+	//初始化
+	virtual int  init()=0;//初始化函数
+
+	//写队列
+	virtual int push(const void* data, int len) = 0;
+
+	//读队列并取出
+	virtual int get( char* buf, int &len);//len ,传入为该消息的最大长度，传出为实际消息长度,一步的取
+
+	//读队列但不取出，commit取出
+	virtual int fetch(char* buf, int & bufLen) = 0;//读取一条记录，但不将其取出
+	virtual int  commit() = 0;//将fetch读的记录取出,若果不commit，下次fetch依然是同一条记录
+
+	//销毁一个队列，在调用前需设置根路径
+	virtual int destroy() = 0;
+
+
+	//获取该队列的唯一实例
+	static IlocalQue* getInstance();
+
+
+};
+

@@ -1,0 +1,159 @@
+/*
+ * 启停第三方非ecframe进程、脚本程序
+ * 程序提供两种模式：
+ * 		1. 写info文件，需要第三方进程调用epa_info程序或库将信息写入info，本程序进行检测
+ * 		2. 不写info文件，只对程序或脚本的存在与否进行检测
+ *
+ */
+
+#ifndef _EXTERN_PROC_ADAPTER_H_
+#define _EXTERN_PROC_ADAPTER_H_
+
+#include <errno.h>
+#include "common_tool.h" 
+#include "../../common/cpf_common_struct.h"
+
+
+class CConfig
+{
+public:
+	/* 程序针对是否写info文件分两种情况进行配置
+	 *  0 需要写info文件
+	 *  1 不需要写info文件	
+	 */
+	bool isNoFileProc;
+
+	// 第三方程序命令 
+	aistring m_strRunCmd;
+
+	// xml configuration content
+	aistring m_strConfig;
+
+	// 可以在start_cmd中配置完命令，也可以在此处将参数补全
+	aistring m_str3rdParam;
+
+	// 配置写出的info文件与cfg文件的位置
+	aistring m_strCfgPath;
+
+READ_CONFIG_BEGIN
+    char* pCfgContent = new char [1024*1024*2];
+    READ_VALUE(pCfgContent,"cfg_content","null", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+	m_strConfig = pCfgContent;
+	delete [] pCfgContent;
+
+    char charStartCmd[512];
+    READ_VALUE(charStartCmd, "start_cmd", "null", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+    m_strRunCmd = charStartCmd;
+
+	char char3rdParam[256];
+    READ_VALUE(char3rdParam, "param", "null", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+	m_str3rdParam = char3rdParam;
+
+	char charCfgPath[256];
+    READ_VALUE(charCfgPath, "cfg_path", "", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+	m_strCfgPath = charCfgPath;
+
+	char proType[2];
+    READ_VALUE(proType, "proc_type", "0", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+	isNoFileProc = (atoi(proType) == 0) ? false : true;
+
+
+READ_CONFIG_END
+	
+};
+
+
+/*
+ *	外部程序通过epa_info接口写出的文件的读取类
+ */
+class CExtProcFileInfo
+{
+public:
+	CExtProcFileInfo()
+		: m_iPid(0)
+		, m_iInitValue(2)
+		, m_iStopProgress(0)
+	{
+		
+	}
+
+	virtual ~CExtProcFileInfo(){}
+
+	int32 ReadFile(const char* filename);
+
+public:
+	int32 		m_iPid;
+	int32 		m_iInitValue;
+	int32 		m_iStopProgress;
+	aistring 	m_strInitErrorInfo;
+	aistring 	m_strStopErrorInfo;
+
+};
+
+
+class CExternalProcAdapter
+	: public NAMESPACE_BILLING40_FRAME CThread
+{
+public:
+	CExternalProcAdapter()
+		: m_iTimeOut(0)
+	{
+		
+	}
+
+	~CExternalProcAdapter() {}
+
+	// 继承框架实现
+	virtual int32 init();
+	virtual int32 run(NAMESPACE_BILLING40_FRAME CData *p);
+	virtual int32 stop();
+	virtual int32 destroy();
+
+private:
+	int32 ReadXml();
+
+	int32 InitFile();
+
+	int32 ReplaceParameters();
+
+	int32 ForceStopProc(int32 iPid);
+
+	int32 StartProc();
+	
+	int32 SetExternProcEnv();
+
+	void GetPsFlag();
+
+private:
+	int32       m_iTimeOut;
+
+	aistring 	m_strProc;
+	aistring 	m_strCurrentDir;
+	aistring 	m_strCfgFile;
+	aistring 	m_strInfoFile;
+	aistring 	m_strPsFlag;
+
+	cpf::CProcKey    m_procKey;
+
+	CConfig 			m_Config;
+
+	CExtProcFileInfo 	m_ProcInfo;
+	
+};
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_BILLING40_FRAME CThread* create_instanceAdapterAnalyze()
+{
+	return new CExternalProcAdapter();
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif

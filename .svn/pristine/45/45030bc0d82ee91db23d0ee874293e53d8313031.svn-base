@@ -1,0 +1,116 @@
+#include "epa_info.h"
+#include <iostream>
+#include <stdlib.h>
+
+
+/*
+ *  epa_info shell脚本，lua脚本接口
+ *  
+ *	-i 	写入初始化值和错误信息
+ *		先后顺序：初始化值和错误信息（默认为""）
+ *		
+ *		初始化值：
+ *		0 失败
+ *		1 成功
+ *		2 初始化中
+ *
+ *	-s 	写入结束程度
+ *		100 表示完全退出
+ *	
+ */
+
+
+int main(int argc, char *argv[])
+{
+	if(argc <= 2 )
+	{
+		return -1;
+	}
+
+	if(3 == argc)
+	{
+		if(0 == strncmp(argv[1], "-i", 2))
+		{
+			try
+			{
+				int iInitVal = atoi(argv[2]);
+				int iRet = epa::SetShellInitInfo(iInitVal);
+				if(0 != iRet)
+				{
+					return -1;
+				}
+			}
+			catch(...)
+			{
+				return -1;
+			}
+		}
+		else if(0 == strncmp(argv[1], "-s", 2))
+		{
+			try
+			{
+				int iStopProc = atoi(argv[2]);
+				int iRet = epa::SetShellStopInfo(iStopProc);
+				if(0 != iRet)
+				{
+					return -1;
+				}
+			}
+			catch(...)
+			{
+				return -1;
+			}
+		}
+		else
+		{
+			return -1;
+		}
+	}
+
+	if(4 == argc)
+	{
+		if(0 == strncmp(argv[1], "-i", 2))
+		{
+			try
+			{
+				int iInitVal = atoi(argv[2]);
+				int iRet = epa::SetShellInitInfo(iInitVal, argv[3]);
+				if(0 != iRet)
+				{
+					return -1;
+				}
+			}
+			catch(...)
+			{
+				return -1;
+			}
+		}
+		else if(0 == strncmp(argv[1], "-s", 2))
+		{
+			try
+			{
+				int iStopProc = atoi(argv[2]);
+				int iRet = epa::SetShellStopInfo(iStopProc, argv[3]);
+				if(0 != iRet)
+				{
+					return -1;
+				}
+			}
+			catch(...)
+			{
+				return -1;
+			}
+		}
+		else
+		{
+			return -1;
+		}
+	}
+
+	if(argc >= 5)
+	{
+		return -1;
+	}
+
+	return 0;
+}

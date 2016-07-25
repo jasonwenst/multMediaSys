@@ -1,0 +1,45 @@
+#include <stdio.h>
+#include <unistd.h>
+#include "../epa_info.h"
+
+/*
+ * epa_info使用示例程序
+ * 环境变量设置在test.sh中
+ */
+int main()
+{
+	/*
+	 * 初始化中
+	 */
+	epa::SetInitInfo(2);
+
+	printf("sleep after init value =2 ....\n");
+	sleep(2);
+	/*
+	 * 初始化成功
+	 */
+	epa::SetInitInfo(1);
+
+	sleep(2);
+	/*
+	 * 结束进程，写入退出程度
+	 */
+	for(int i = 0; i < 10; i++)
+	{
+		epa::SetStopInfo(10*i);
+		sleep(2);
+	};
+
+	sleep(2);
+	/*
+	 * 初始化失败，写入错误信息
+	 */
+	epa::SetInitInfo(0, "write error info.");
+
+	/*
+	 * 结束进程失败，写入错误信息
+	 */
+	epa::SetStopInfo(20, "stop progress error");
+
+	return 0;
+}

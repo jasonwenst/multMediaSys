@@ -1,0 +1,41 @@
+/* $Id: */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：base.cpp）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Jun 13, 2013）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+
+
+#include "base.h"
+
+namespace cpf
+{
+
+CException::CException(int64 eCode, aistring strErrorMsg)
+:m_eCode(eCode), m_msgTempl(strErrorMsg)
+{
+
+}
+
+CException::~CException()
+{
+
+}
+
+
+}
+
+

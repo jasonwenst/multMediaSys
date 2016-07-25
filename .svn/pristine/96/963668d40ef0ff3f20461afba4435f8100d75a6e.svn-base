@@ -1,0 +1,68 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：nrm_vm_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-5-8）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __NRM_VM_MGR_IMPL_H___
+#define __NRM_VM_MGR_IMPL_H___
+
+#include "nrm_vm_mgr.h"
+#if defined(HPUX)
+#include <sys/pstat.h>
+#include <sys/param.h>
+#include <sys/dk.h>
+#include <sys/mpctl.h>
+
+#elif defined(AIXV5)
+#include <libperfstat.h>
+
+#elif defined(SOLARIS)
+#include <unistd.h>
+#include <kstat.h>
+#include <sys/sysinfo.h>
+#include <string.h>
+
+#endif
+#include "nrm_config_data.h"
+
+namespace MDbe
+{
+
+class CNrmVmMgrImpl : public INrmVmMgr
+{
+protected:
+	CNrmVmMgrImpl();
+    ~CNrmVmMgrImpl();
+	friend class INrmVmMgr;
+private:
+    CNrmConfig &m_cObjCfg;
+
+public:
+    virtual void GetVmStaticInfo(SBaseVmStaticInfo &rcVmStaticInfo);
+
+    virtual void ChangeVmTime(CModifyTime &rcModifyTime);
+
+    virtual void GetVmStatus(SSrmVmProcStatus & rcSrmVmStatus);
+    void NotifyUpdate(SNrmSoftWareUpdate &rcNrmSoftWareUpdate);
+    void UpdateProcess(SNrmUpdateProcess &rcNrmUpdateProcess);
+
+};
+
+} // namespace MDbe
+
+
+#endif /* __NRM_VM_MGR_IMPL_H___ */
+

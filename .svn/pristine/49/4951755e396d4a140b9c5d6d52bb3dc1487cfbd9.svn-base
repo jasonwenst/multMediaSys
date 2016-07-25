@@ -1,0 +1,13 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_deploy_mgr_cpp)
+{
+	//Fuction: ISrmDeployMgr & ISrmDeployMgr :: GetInstance ( )
+	TEST_FIXTURE(TestFixture,TestISrmDeployMgr_GetInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

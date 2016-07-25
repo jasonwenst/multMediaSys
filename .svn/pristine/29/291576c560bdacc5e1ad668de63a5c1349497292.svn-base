@@ -1,0 +1,85 @@
+/* $Id: srm_app_mgr_impl.h 528346 2014-11-20 08:57:02Z hupj $  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_app_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_APP_MGR_IMPL_H___
+#define __SRM_APP_MGR_IMPL_H___
+
+#include "srm_rdc_mgr.h"
+#include "srm_app_mgr.h"
+#include "dbe2_lock.h"
+
+namespace MDbe
+{
+
+const static int32 APP_LOCK_SIZE = 1000;
+
+class CAppAutoLock{
+public:
+	CAppAutoLock(int32 iAppId);
+	~CAppAutoLock();
+private:
+	CLock &m_cLock;
+};
+
+class CSrmAppMgrImpl : public ISrmAppMgr
+{
+public:
+    virtual int32 StartApp(int32 iAppId, int32 iStartMsgType, aistring szStartParam,
+        int32 iStopMsgType, aistring szStopParam, int32 iTransType,
+        SBaseProcOperateList *pcProcOperateList);
+
+    virtual int32 StopApp(int32 iAppId, int32 iTransType, SBaseProcOperateList *pcProcOperateList);
+
+	virtual int32 ForceStopApp(int32 iAppId, int32 iTransType, SBaseProcOperateList *pcProcOperateList);
+
+	virtual int32 RepairApp(int32 iAppId, int32 iTransType, aistring szRepairParam, SBaseProcOperateList *pcProcOperateList);
+
+	virtual void InsertAppOperate(SSrmAppExe &rcExeApp, int32 iTransId, int32 iVmId);
+
+	virtual void InsertAppOperateHis(SSrmAppExe &rcExeApp, int32 iTransId, int32 iVmId);
+
+	virtual bool GetAppOperateByTrans(int32 iAppId, int32 iTransId, CRdcAppOperate &rcAppOperate);
+
+	virtual bool GetAppOperateByProcOperate(SBaseExeProc &rcExeProc, int32 iVmId, CRdcAppOperate &rcAppOperate);
+
+	virtual void FinishDbmOperate(int32 iAppId, int32 iExeType, int32 iExeResult, int32 iTransId);
+
+    virtual bool CheckAppState(int32 iAppId, int32 iState);
+
+    virtual bool UpdateAppCbParam(int32 iAppId, int32 iStopMsgType, aistring szStopParam);
+protected:
+	CSrmAppMgrImpl();
+	friend class ISrmAppMgr;
+
+     /**
+     * 设置APP操作，回复dbm启动APP时
+     */
+    void SetProcOperate(SBaseProcOperateList *pOperDestList, CRdcProcTransOperateList &rlstOperateSource);
+
+    /**
+	 * 停止APP时候，获得要停止的APP操作
+	 */
+	bool GetStopAppOperate(CRdcApp &rcApp, CRdcProcTransOperateList &rlstProcOperate, int32 iStopType);
+
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_APP_MGR_IMPL_H___ */

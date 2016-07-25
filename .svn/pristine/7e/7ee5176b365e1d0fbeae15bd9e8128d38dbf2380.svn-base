@@ -1,0 +1,22 @@
+SYS:=$(shell uname -s)
+ifeq "$(SYS)" "AIX"
+LIB=Makefile_LIB_AIX
+BIN=Makefile_BIN_AIX
+else
+LIB=Makefile_LIB
+BIN=Makefile_BIN
+endif
+
+all:
+	gmake -f $(LIB)
+	gmake -f $(BIN) 
+
+install:
+	gmake -f $(LIB) install
+	gmake -f $(BIN) install
+
+clean:
+	gmake -f $(LIB) clean
+	gmake -f $(BIN) clean
+
+

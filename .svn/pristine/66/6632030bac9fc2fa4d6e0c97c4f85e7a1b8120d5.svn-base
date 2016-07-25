@@ -1,0 +1,140 @@
+#ifndef _NR_API_H_
+#define _NR_API_H_
+#include "compile.h"
+#include "frame_interface.h"
+#include "nr_common_struct.h"
+
+/*
+	NR lib库外部引用头文件;提供对外接口函数，供操作NR使用.
+*/
+
+namespace cpf
+{
+/**
+ * @brief
+ * 进程资源信息记录类
+ * 保存进程资源的增/删/改接口
+ */
+class CNrApi
+{
+public:
+	CNrApi();
+	virtual ~CNrApi();
+private:
+	CNrApi(const CNrApi& rh){};
+	CNrApi& operator=(const CNrApi& rh){ return *this; };
+public:
+	
+	/**
+	 * 对外接口
+	 * 创建一个CNrApi实例
+	 * 使用单例模式
+	 * 成功时返回CNrApi的地址，失败时返回NULL
+	 */
+	static CNrApi* CreateNr();
+
+	/**
+	 * NR初始化接口;由其依附程序调用;应用不必关心
+	 * @return 返回值：0:初始化成功；< 0:初始化失败
+	*/
+	virtual int32 NrInit(NAMESPACE_BILLING40_FRAME CThread *pThread) = 0;
+
+	/**
+	 * 检查NR根目录是否存在，不存在则创建NR目录
+	 * @return 返回值：0:初始化成功；< 0:初始化失败
+	*/
+	virtual int32 CheckNrRootPath() = 0;
+
+	/**
+	 * 创建NR目录
+	 * @param objProcKey：进程唯一标识
+	 * @return 返回值：0:创建成功；< 0:创建失败
+	*/
+	virtual int32 CreateProcNr(CProcKey &rPk) = 0;
+
+	/**
+	 * 进程挂载接口
+	 * @param objProcKey：进程唯一标识
+	 * @return 返回值：0:挂载成功；< 0:挂载失败
+	*/
+	virtual int32 HoldNr(CProcKey &rPk, const char* szCmd) = 0;
+
+	/**
+	 * 进程卸载接口
+	 * @param objProcKey 进程id
+	 * @return 返回值：0:卸载成功；< 0:卸载失败
+	*/
+	virtual int32 UnholdNr(CProcKey& rPk) = 0;
+
+	/**
+	 * 一次写入进程脚本的信息
+	 * 将会完全覆盖内容
+	 */
+	virtual int32 WriteProcCmds(CProcKey &rPk, ListNrProcCmd &rlstProcCmd) = 0;
+
+	/**
+	 * 获取进程脚本的信息
+	 */
+	virtual int32 ReadProcCmd(CProcKey &rPk, CNrProcCmd& rNrProcCmd, EmNrProcCmdType em) = 0;
+
+	/**
+	 * 设置PID
+	 */
+	virtual int32 WritePid(CProcKey &rPk, int32 &iPid) = 0;
+
+	/**
+	 * 获取PID
+	 */
+	virtual int32 ReadPid(CProcKey &rPk, int32 &iPid) = 0;
+
+	/**
+	 * 设置进程信息（进程状态nrm专用）
+	 * @param rProcKey  CProcKey 进程id
+	 * @param rProcStat  CProcStat 进程状态
+	 * @return 0:成功，非0：失败，会导致进程退出
+	 */
+	virtual int32 WriteProcStatus(CProcKey &rPk,  CProcStat& rProcStat) = 0;
+
+	/**
+     * 读取进程信息（进程状态nrm专用）
+     * @param rProcKey  CProcKey 进程id
+     * @param rProcStat CProcStat 进程状态
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+	virtual int32 ReadProcStatus(CProcKey &rPk, CProcStat& rProcStat) = 0;
+
+	/**
+	 * 设置进程信息（进程占用系统资源）
+	 * @param rProcKey  CProcKey 进程id
+	 * @param rProcPid  CProcPid 进程占用系统资源
+	 * @return 0:成功，非0：失败，会导致进程退出
+	 */
+	virtual int32 WriteProcResoure(CProcKey &rPk,  CProcPid& rProcPid) = 0;
+
+	/**
+     * 读取进程信息（进程占用系统资源）
+     * @param rProcKey  CProcKey 进程id
+     * @param rProcPid  CProcPid 进程占用系统资源
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+	virtual int32 ReadProcResoure(CProcKey &rPk,  CProcPid& rProcPid) = 0;
+
+	/**
+     * 读取全部进程信息（进程占用系统资源）
+     * @param rProcPid  CProcPid 进程占用系统资源
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+	virtual int32 ReadAllProcKey(CProcKeyVec& rProcKeyVec) = 0;
+
+	/**
+     * 读取全部进程信息（进程占用系统资源）
+     * @param rProcPid  CProcPid 进程占用系统资源
+     * @return 0:成功，非0：失败，会导致进程退出
+     */
+	virtual int32 ReadAllProcResource(ProcPidMap& rProcPidMap) = 0;
+
+};
+
+
+}
+#endif	//_NR_API_H_

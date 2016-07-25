@@ -1,0 +1,243 @@
+#include "cron_util.h"
+
+NAMESPACE_OD_CRON_BEGIN
+
+int32 GetMaxValue(VALUE_TYPE em)
+{
+	int32 iMax =0;
+	switch(em)
+	{
+	case EM_SEC_TYPE:
+		iMax = MAX_SEC;
+		break;
+	case EM_MIN_TYPE:
+		iMax = MAX_MIN;
+		break;
+	case EM_HOUR_TYPE:
+		iMax = MAX_HOUR;
+		break;
+	case EM_DAY_TYPE:
+		iMax = MAX_DAY;
+		break;
+	case EM_MONTH_TYPE:
+		iMax = MAX_MONTH;
+		break;
+	case EM_YEAR_TYPE:
+		iMax = MAX_YEAR;
+		break;
+	case EM_WEEK_TYPE:
+		iMax = MAX_WEEK;
+		break;
+	default:
+		break;
+	}
+
+	return iMax;
+}
+
+void ModifyFormatTime(struct tm &tmInput)
+{
+	if(tmInput.tm_sec >= MAX_SEC)
+	{
+		tmInput.tm_sec = tmInput.tm_sec%MAX_SEC;
+		tmInput.tm_min += 1;
+	}
+
+	if(tmInput.tm_min >= MAX_MIN)
+	{
+		tmInput.tm_min = tmInput.tm_min%MAX_MIN;
+		tmInput.tm_hour += 1;
+	}
+
+	if(tmInput.tm_hour >= MAX_HOUR)
+	{
+		tmInput.tm_hour = tmInput.tm_hour%MAX_HOUR;
+		tmInput.tm_mday += 1;
+	}
+
+	if(tmInput.tm_mday >= MAX_DAY)
+	{
+		tmInput.tm_mday = tmInput.tm_mday%MAX_DAY;
+		tmInput.tm_mon += 1;
+	}
+	else if(tmInput.tm_mday < 0)
+	{
+		//闰年
+		if(JudgeLeapYear(tmInput.tm_year+1900) && tmInput.tm_mon == 1)
+		{
+			//闰年29日
+			tmInput.tm_mday += month_of_day[tmInput.tm_mon] + 1;
+		}
+		else
+		{
+			tmInput.tm_mday += month_of_day[tmInput.tm_mon];
+		}
+
+	}
+
+	if(tmInput.tm_mon >= MAX_MONTH)
+	{
+		tmInput.tm_mon = tmInput.tm_mon%MAX_MONTH;
+		tmInput.tm_year += 1;
+	}
+
+	if(tmInput.tm_year >= MAX_YEAR)
+	{
+		tmInput.tm_year += 1;
+	}
+	//EM_WEEK_TYPE:
+	//todo
+	//tmInput.tm_wday = iValue;
+	return;
+}
+bool JudgeLeapYear(int32 iYear)
+{
+	return (iYear % 400 == 0) || (iYear % 100 != 0 && iYear % 4 == 0);
+}
+
+bool CheckExpressValidity(const char* szExpress)
+{
+	//第一个字符 * ? 数字
+	return (szExpress[0] == '*'||szExpress[0] == '?'|| (szExpress[0] >= '0' && szExpress[0] <= '9'));
+}
+
+char GetCurrentChar(const char** szExpress)
+{
+	if (NULL == szExpress) return 0;
+	if(*szExpress != NULL && **szExpress !=0)
+	{   
+		char tmp = **szExpress;
+		if (tmp < '0' || tmp > '9')
+		{
+			++ *szExpress; 
+			return tmp;
+		}
+	}   
+	else
+	{   
+		return 0;
+	} 
+}
+
+int32 GetCurrentNum(const char** szExpress)
+{
+	if (NULL == szExpress) return -1;
+	const char *tmpExpress = *szExpress;
+
+	if(tmpExpress != NULL && **szExpress !=0)
+	{   
+		int32 iNum = 0;
+		while(*tmpExpress >= '0' && *tmpExpress <= '9')
+		{
+			++iNum;
+			++ tmpExpress;
+		}
+		if (iNum == 0) return -1;	
+		
+		char szNumber[128] = {0};
+		int32 iRet = snprintf(szNumber, sizeof(szNumber) > iNum ? iNum+1 : sizeof(szNumber), "%s", *szExpress);
+		
+		if (iRet != 0)
+		{
+			(*szExpress) += iNum;
+			return atoi(szNumber);
+		}
+		else
+		{
+			return -1;
+		}
+	}   
+	else
+	{   
+		return -1;
+	} 
+}
+
+char* IsChar(char **pszExpress, char* ch)
+{
+	if(NULL == *pszExpress || NULL == ch)
+	{
+		memset(ch, 0, 1);
+		return ch;
+	}
+
+	if(0 == **pszExpress)
+	{
+		memset(ch, 0, 1);
+		return ch;
+	}
+
+	if(**pszExpress < '0' || **pszExpress > '9')
+	{
+		memcpy(ch, *pszExpress, 1);
+		++(*pszExpress);
+
+	}
+	return ch;
+}
+
+
+bool IsNumber(char **pszExpress, int32& iNextNum)
+{
+	if(NULL == *pszExpress)
+	{
+		return false;
+	}
+	if(0 == **pszExpress)
+	{
+		return false;
+	}
+
+	char *szExpress = *pszExpress;
+	int32 iLen = 0;
+	while(*szExpress >= '0' && *szExpress <= '9')
+	{
+		++iLen;
+		++szExpress;
+	}
+
+	if(iLen == 0)
+	{
+		return false;
+	}
+	char szNumber[33] = {0};
+	snprintf(szNumber, sizeof(szNumber) > iLen ? iLen +1 : sizeof(szNumber), 
+		"%s", *pszExpress);
+
+	iNextNum = atoi(szNumber);
+	szNumber[32] = 0;
+	(*pszExpress) += iLen;
+
+	return true;
+}
+
+bool IsSpecifiedChar(char **pszExpress, struct tm &tmInput, int32& iNextNum, VALUE_TYPE em)
+{
+	if(NULL == *pszExpress) return true;
+
+	char SpecifiedChar[2] = {0};
+	IsChar(pszExpress, SpecifiedChar);
+	if(0 == strcmp("L", SpecifiedChar))
+	{
+		if(EM_DAY_TYPE == em)
+		{
+			iNextNum = month_of_day[tmInput.tm_mon] - iNextNum + 1;
+		}
+		return true;
+	}
+	else if(0 == strcmp("W", SpecifiedChar))
+	{
+		return false;
+	}
+	else if(0 == strcmp("#", SpecifiedChar))
+	{
+		return false;
+	}
+	else if(0 != strcmp("", SpecifiedChar))
+	{// is not number
+		--(*pszExpress);
+	}
+	return false;
+}
+
+NAMESPACE_OD_CRON_END

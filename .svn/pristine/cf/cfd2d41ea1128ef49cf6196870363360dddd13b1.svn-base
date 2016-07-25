@@ -1,0 +1,53 @@
+#pragma  once 
+#include <stdlib.h>
+/********************************************************************
+filename: 	IWarnClient.h
+created:	2015-01-23
+author:      huwei
+
+purpose:	 报警客户端api
+*********************************************************************/
+
+//报警格式 
+class IWarnClient
+{
+public:
+	static IWarnClient* getInstance();
+	//初始化，启动时调用一次
+	virtual int init() = 0;
+	//反初始化， 退出时调用一次 如不确定是否其他线程还在使用则不调用
+	virtual int uninit() = 0;
+	//用于当单独bin调用时设置，每次都会起一个进程，短暂的又退出，这样设置，用于在文件队列时减少一行记录占据一个文件的情况。
+	virtual void setLittleRecordMode(bool bLittle = false);
+
+
+	//@jobSeqId 获取不到则写0
+	//@appId 获取不到则写0
+	//@procId 获取不到则写0
+	//@appName 用名字标识应用 当获取不到jobid等，此字段必填，否则可以为NULL
+	//@warnSpace 报警的命名空间 公司内固定写assiainfo即可
+	//@warnCode  报警的报警码，命名空间内唯一，必须在页面注册，否则为未定义报警
+	//@warnInfo 报警信息 非空 不能包含| 字符
+	//@warnRemark 报警 附言，可以为报警堆栈等信息 不能包含 | 字符
+	//进程pid也在里面取
+	//时间在里面取，保证准确
+	virtual int doWarning(  int jobSeqId, int appId, int procId, const char* appName, const char* warnSpace, int warnCode, const char* warnMsg, const char* warnRemark) = 0;
+	//字段由| 分隔，依次为
+	//第一个字段为解码类型，目前只有一种为1001
+	//时间， 
+	//进程id processid，
+	//@jobSeqId 获取不到则写0
+	//@appId 获取不到则写0
+	//@procId 获取不到则写0
+	//@appName 用名字标识应用 当获取不到jobid等，此字段必填，否则可以为NULL
+	//@warnSpace 报警的命名空间   公司内固定写assiainfo即可
+	//@warnCode  报警的报警码，命名空间内唯一，必须在页面注册，否则为未定义报警
+	//@warnInfo 报警信息 非空 不能包含| 字符
+	//@warnRemark 报警 附言，可以为报警堆栈等信息 不能包含 | 字符
+	//1001 |134439| 6300 | 2 | 3 | 4 | myapp | mywarn | -1 | big error | nothing to care |
+	virtual int doWarning(const char* formatMsg) = 0;
+protected:
+	IWarnClient();
+	
+	bool m_bLittleMode;
+};

@@ -1,0 +1,17 @@
+DB=0
+DEBUG=1
+OB_TIER=
+PRODUCT=
+
+PRODDEST=libepa_infoD.so
+
+include $(OB_REL)/etc/Cmake
+
+CEPA_INFO_OBJ=epa_info_impl.o
+
+$(PRODDEST):$(CEPA_INFO_OBJ)
+	$(SHLD) $^ $(SHLDFLAGS) $(LDOPTS) -o $@
+
+install: $(PRODDEST)
+	cp -f $^ $(OB_REL)/lib
+

@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+import os
+if __name__ == "__main__":
+    try :
+        os.system("ps -ef| grep $USER | grep odframe | grep -v grep > ./psd_list")
+        os.system("jps -m | grep -v Jps >> ./psd_list")
+        envPath = os.getenv("HOME")
+        dirpath = "%s/ipc/nr" % envPath
+        file = open('./psd_list','r')
+        wfile = open('./pid','w+')
+        dirlist = os.listdir(dirpath)
+        for line in file:
+            xmlfile = ""
+            linelist = line.split(' ')
+            for xml in linelist:
+                if( -1 != xml.find(".xml")):
+                    xmlfile = xml
+                    break
+            for dir in dirlist:
+                if(-1 != xmlfile.find(dir)):
+                    xmlfile = ""
+                    break
+            wfile.write(xmlfile)
+        wfile.close()
+        file.close()
+    except Exception, e:
+        print str(e)
+

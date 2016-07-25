@@ -1,0 +1,103 @@
+#include "dbe_base_def.sdl"
+
+module MDbe
+{
+    //启动进程7001
+    struct SNrmStartProc
+    {
+        MDbe::SBaseHead msg_head;                   // 消息头
+        //获取进程的ProcKey
+        MDbe::SBaseProcKey base_proc_key;
+        //配置文件字符串
+        string config_file;
+        //附加参数默认填“-m”，可以不填（现在只支持”-m“）
+        string suffix_param;
+        // 存放文件夹前缀
+        string file_prefix;
+        // 指定配置文件存放地(java进程取配置文件的特殊方式)
+        string ts_classpath;
+        // 启动脚本
+        string start_cmd;
+        // 停止脚本
+        string stop_cmd;
+        // 强制停止脚本
+        string forced_stop_cmd;
+        // 检测脚本
+        string check_cmd;
+        // 重启脚本
+        string restart_cmd;
+        // 启动超时秒数
+        int32 time_out_second;
+    }
+    list vector<SNrmStartProc> SNrmStartProcList;
+    map aimap<int32, SNrmStartProc> SNrmStartProcMap;
+    
+    struct SNrmStartProcExt
+    {
+		SNrmStartProc start_proc;
+		int32 vm_id;
+		int32 restart_number;
+		string app_param;
+		int32 min_proc_num;
+		int32 max_proc_num;
+    }
+    list vector<SNrmStartProcExt> SNrmStartProcExtList;
+
+	//停止进程7002
+    struct SNrmStopProc
+    {
+		MDbe::SBaseHead msg_head;                   // 消息头
+        //获取进程的ProcKey
+        MDbe::SBaseProcKey base_proc_key;
+        //操作类型（一般停止还是强停）
+        int32 operate_type;
+        // 超时秒数
+        int32 time_out_second;
+    }
+    
+    //DBE进程停止进度7004
+	// 新消息7112相同结构
+    struct SNrmStopProcProg
+    {
+	MDbe::SBaseHead msg_head;                   // 消息头
+        MDbe::SBaseProcKey base_proc_key;
+        // 消息确认
+        MDbe::SBaseStopProcessProg stop_process_progress;
+    }
+    
+    // 7007 NRM注册回复
+    struct SNrmResponseRegister
+    {
+        MDbe::SBaseHead msg_head;                   // 消息头
+        int32 reg_result;                           // NRM注册结果
+    }
+    
+	// 7121
+    // 软件升级命令
+    struct SNrmSoftWareUpdate
+    {
+		MDbe::SBaseHead msg_head;						// 消息头
+		int32 vm_id;									// 虚拟机ID
+		int32 op_id;									// 操作ID
+		string update_version;							// 版本
+		string update_script;							// 更新脚本
+		string update_command;							// 更新命令
+		string script_name;								// 脚本名称
+    }
+
+	// 7122(MSG_NRM_SOFTWARE_UPDATE_PROCESS)
+    // SRM查询更新进度
+    struct SNrmUpdateProcess
+    {
+		MDbe::SBaseHead msg_head;						// 消息头
+		int32 op_id;									// 操作ID
+		int32 vm_id;									// 虚拟机ID列表
+    }
+
+	//stat信息 3600
+    struct SNrmStatInfo
+    {
+		MDbe::SBaseHead msg_head;                   // 消息头
+        string stat_info;
+    }
+}

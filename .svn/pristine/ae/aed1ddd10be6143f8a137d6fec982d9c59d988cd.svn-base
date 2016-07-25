@@ -1,0 +1,150 @@
+package  Cpf_console_jobmanage;
+use strict;
+use warnings;
+use Ca;
+
+sub new {        
+    my ($class)= shift;
+    my ($jobid,$type,$ca);    
+    if(@_!=0 and @_==3){
+        $jobid =shift;
+        #print "jobid:$jobid\n";
+        $type =shift;
+        #print "type:$type\n";
+        $ca   =shift;
+     }
+     else{
+         die "[fatal]:JobManage param num error!@_\n";
+     }
+
+    #$ca->set_data; 
+    my $self = {
+            _JobId   =>$jobid,
+            _Type     =>$type,
+            _Ca       =>$ca,
+    };  
+    return bless($self,$class);
+}
+
+sub set_data{
+    my $self =shift;
+    print "Enter the job id :\n";
+    chomp($self->{_JobId}=<STDIN>);
+    print "Enter job type  $self->{_JobId}:\n";
+    chomp($self->{_Type}=<STDIN>);
+}
+
+sub run{
+    my $self = shift;
+    my $sock   = $self->{"_Ca"};
+    my $seqid  = time()+ ($self->{"_JobId"});
+    print "job_ins id:$self->{'_JobId'},exetype : $self->{'_Type'},seq id:$seqid\n";
+
+    my $obbStr =&packObbStr($self->{"_JobId"},$self->{"_Type"},$seqid);
+    $sock->send_msg(3023,$obbStr);
+    my $robbstr = $sock->rece_msg(5033,$seqid);
+    parseObbstr($robbstr);
+}
+
+sub parseObbstr{
+    my $obbstr = shift;
+    my ($result,$errInfo);
+    
+    if($obbstr =~ m#OPER_RESULT" : ([0-9]*)[^0-9]#s)
+    {
+        $result = $1;
+    }
+    
+    if((!defined $result) and ($obbstr =~ m#"int32_5_OPER_RESULT" : (.*?) .*#s))
+    {
+        $result = $1;
+    }
+
+    if($obbstr =~ m#"string_6_ERROR_INFO" : "(.*?)".*#s)
+    {
+        $errInfo = $1;
+    }
+
+#    if($obbstr =~ m#"int32_5_OPER_RESULT" : (.*?),.*"string_6_ERROR_INFO" : "(.*?)"#s)
+#    {
+#        $errInfo = $2;
+#        $result = $1;
+#    }
+#    elsif($obbstr =~ m#"string_6_ERROR_INFO" : "(.*?)",.*"int32_5_OPER_RESULT" : (.*?),#s)
+#    {
+#        $errInfo = $1;
+#        $result = $2;
+#    }
+    print "can not get result\n",return 0  if !(defined $result);
+    if($result==1){
+        print "Operation has been sent to srm successfully!\n";
+    }
+    elsif($result ==0){
+        print "result:$result\nerr_info:$errInfo\n";
+    }
+}
+
+sub packObbStr{
+    my ($jobid,$type,$seq)= @_;
+    my $obb_content= <<END_OF_STRING;
+obbs:J:1.3:{
+         "struct_1_sJobOPerate" : { 
+             "int16_0__MarkerNum" : 1,
+                 "int64_1__UsedMarker" : "3",
+                 "int64_2__Marker" : "3",
+                 "struct_3_MSG_HEAD" : { 
+                     "int16_0__MarkerNum" : 1,
+                     "int64_1__UsedMarker" : "3",
+                     "int64_2__Marker" : "3",
+                     "int32_3_COMMAND" : 3023,
+                     "int64_4_SEQUENCE" : "$seq"
+                 },  
+                 "list_4_JOB_OP_LIST_size" : 1,
+                 "list_4_JOB_OP_LIST" : [ 
+                 {   
+                     "int16_0__MarkerNum" : 1,
+                     "int64_1__UsedMarker" : "3",
+                     "int64_2__Marker" : "3",
+                     "int32_3_JOBINS_ID" : $jobid,
+                     "int32_4_OPERATE_TYPE" : $type 
+                 }   
+             ]   
+         }   
+     }
+END_OF_STRING
+return $obb_content;
+}
+
+sub usage_note{   
+my $poper =shift;
+$poper->{'start_job'}->{'type'}=1;
+$poper->{'start_job'}->{'lib'} ="Cpf_console_jobmanage";
+$poper->{'start_job'}->{'num'} =1; 
+$poper->{'start_job'}->{'help'}="start_job job_id";
+
+$poper->{'stop_job'}->{'type'}=0;
+$poper->{'stop_job'}->{'lib'} ="Cpf_console_jobmanage";
+$poper->{'stop_job'}->{'num'} =1; 
+$poper->{'stop_job'}->{'help'}="stop_job job_id";
+
+$poper->{'forcestop_job'}->{'type'}=2;
+$poper->{'forcestop_job'}->{'lib'} ="Cpf_console_jobmanage";
+$poper->{'forcestop_job'}->{'num'} =1; 
+$poper->{'forcestop_job'}->{'help'}="forcestop_job job_id";
+
+my $usage_note = <<END_OF_STRING;
+|--------------------------------------------------------------------------------------------------
+|Command                |describe
+|--------------------------------------------------------------------------------------------------
+|start_job     123456   |start job, id  123456
+|--------------------------------------------------------------------------------------------------
+|stop_job      123456   |stop  job, id  123456
+|--------------------------------------------------------------------------------------------------
+|forcestop_job 123456   |force stop job, id 123456 
+|--------------------------------------------------------------------------------------------------
+|help Command           |view command,such as help start_job
+|--------------------------------------------------------------------------------------------------
+END_OF_STRING
+return $usage_note;
+}
+1;

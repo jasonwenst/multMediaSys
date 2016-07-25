@@ -1,0 +1,109 @@
+#include <unittest_cp_dbe2_base_main.h>
+
+SUITE(SUITE___cron_cron_item_cpp)
+{
+	//Fuction: int32 CCronDay :: GetNearTime ( struct tm & tmNextTime , int32 & iCarry , int32 & iBalance )
+	TEST_FIXTURE(TestFixture,TestCCronDay_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronDay :: ModifyTime ( struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronDay_ModifyTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronDay :: SeekBegin ( struct tm & tmNextTime )
+	TEST_FIXTURE(TestFixture,TestCCronDay_SeekBegin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronDay :: SeekEnd ( struct tm & tmNextTime )
+	TEST_FIXTURE(TestFixture,TestCCronDay_SeekEnd)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronHour :: GetNearTime ( struct tm & tmNextTime , int32 & iCarry , int32 & iBalance )
+	TEST_FIXTURE(TestFixture,TestCCronHour_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronMin :: GetNearTime ( struct tm & tmNextTime , int32 & iCarry , int32 & iBalance )
+	TEST_FIXTURE(TestFixture,TestCCronMin_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronMonth :: GetNearTime ( struct tm & tmNextTime , int32 & iCarry , int32 & iBalance )
+	TEST_FIXTURE(TestFixture,TestCCronMonth_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_CRON_BEGIN int32 CCronSec :: GetNearTime ( struct tm & tmNextTime , int32 & iCarry , int32 & iBalance )
+	TEST_FIXTURE(TestFixture,TestCCronSec_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronWeek :: GetNearTime ( struct tm & tmNextTime , int32 & iCarry , int32 & iBalance )
+	TEST_FIXTURE(TestFixture,TestCCronWeek_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronWeek :: ModifyTime ( struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronWeek_ModifyTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronWeek :: SeekBegin ( struct tm & tmNextTime )
+	TEST_FIXTURE(TestFixture,TestCCronWeek_SeekBegin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronWeek :: SeekEnd ( struct tm & tmNextTime )
+	TEST_FIXTURE(TestFixture,TestCCronWeek_SeekEnd)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronYear :: GetNearTime ( struct tm & tmNextTime , int32 & iCarry , int32 & iBalance )
+	TEST_FIXTURE(TestFixture,TestCCronYear_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

@@ -1,0 +1,202 @@
+#include "dbe_base_def.sdl"
+
+module MDbe
+{
+    // 3001(MSG_NOTIFY_PROC_START)
+    // 进程首次启动成功信息
+    struct SSrmNotifyProc
+    {
+        MDbe::SBaseHead msg_head;               	// 消息头
+        MDbe::SBaseProcInfo proc_info;			// 进程信息
+        MDbe::SBaseExeProcResult proc_exe_result;   //进程执行结果
+    }
+
+    // 4111(MSG_DBM_EXE_APP)
+    // 启动/停止/强停流程
+    struct SSrmAppExe
+    {
+        MDbe::SBaseHead msg_head;                      // 消息头
+        int32 app_id;				                   // app ID
+        int32 exe_type;                                // 操作类型	STOP_APP = 0,START_APP = 1,FORCE_STOP_APP = 2,REPAIR_APP = 3
+    }
+    
+	// 进程信息
+    struct SSrmProcInfo
+    {
+        int32 app_id;									// app ID
+		int32 proc_id;									// proc id
+		int32 vm_id;									// 虚拟机 ID
+    }
+	list vector<SSrmProcInfo> SSrmProcInfoList;
+
+	// 4112(MSG_DBM_ADD_PROC)
+    // 指定进程启停
+    struct SSrmProcOperation
+    {
+        MDbe::SBaseHead msg_head;                      // 消息头
+		SSrmProcInfoList proc_list;					   // 进程列表
+        int32 app_id;				                   // app ID （废弃 不用）
+        int32 exe_type;			                       // 操作类型	STOP_PROC = 0, START_APP = 1, FORCE_STOP_APP = 2
+    }
+
+	// 4113(MSG_DBM_ADD_PROC)
+    // 增加进程
+    struct SSrmAddProc
+    {
+        MDbe::SBaseHead msg_head;                      // 消息头
+        int32 app_id;				                   // app ID
+        int32 number;			                       // 增加个数
+    }
+
+    // 4116(MSG_DBM_HEART_BEAT)
+    // DBM发送心跳
+    struct SSrmDbmHeart
+    {
+        MDbe::SBaseHead msg_head;                      // 消息头
+    }
+    
+    // DBM注册
+    struct SSrmDbmReg
+    {
+        MDbe::SBaseHead msg_head;                      // 消息头
+    }
+    
+	// 4121(MSG_SOFTWARE_UPGRADE)
+    // DBM发送软件更新
+    struct SSrmSoftWareUpdate
+    {
+		MDbe::SBaseHead msg_head;                      // 消息头
+		MDbe::Sint32List vm_list;					   // 虚拟机ID列表
+		string package_path;							// 更新包地址
+		string ftp_server_ip;							// 
+		string ftp_server_user;
+		string ftp_server_password;
+		int32 version_patch_type;						// 版本/patch type
+		int32 version_patch_id;							// 版本/patch ID
+		string version_patch_code;						// 版本/patch CODE
+		string md5_value;								// 包的MD5值
+		string product_code;							// 产品code
+		int32 deploy_staff;								// 部署人
+		int32 exe_type;									// 执行类型，升级，回退等
+		string domains;									// 升级的域
+    }
+
+	// 4122(MSG_SOFTWARE_UPGRADE_PROCESS)
+    // NRM返回升级进度
+    struct SSrmUpGradeProcess
+    {
+		MDbe::SBaseHead msg_head;                       // 消息头
+		int32 vm_id;									// 虚拟机编号
+		int32 op_id;									// 操作ID
+		int32 state;									// 更新状态（0失败 1成功 2升级中）
+		int32 process;									// 0-100
+		string process_desc;							// 进度描述
+		string restart_flow_ids;						// 重启流程
+		string update_files;							// 更新文件
+    }
+    
+    // 3006(MSG_VM_PROC_STATUS)
+    // 发送虚拟机状态
+    struct SSrmVmProcStatus
+    {
+        MDbe::SBaseHead msg_head;                       // 消息头
+        MDbe::SBaseVmUpdInfo vm_info;			// 虚拟资源使用情况
+        MDbe::SBaseProcUpdStatusList proc_status_list;	// 进程信息
+    }
+    
+	// 3008(MSG_NRM_EXE_PROC_RSP)
+    // NRM回应程起停操作
+    struct SSrmRepExeProc
+    {
+        MDbe::SBaseHead msg_head;                       // 消息头
+        MDbe::SBaseExeProcResult proc_exe_result;		//进程执行结果
+        int32 pid;										// 回复启动消息时候上报
+    }
+    
+    // 3010(MSG_VM_PROC_NEED_MIGRATE)
+    // NRM向SRM发送虚拟机上进程需要迁移
+    struct SSrmProcNeedMigrate
+    {
+        MDbe::SBaseHead msg_head;                    // 消息头
+        MDbe::SBaseProcKey proc_key;            	// 进程key
+    }
+
+	// 流程启动完成回复DBM上报(-601)
+    struct SSrmExeCallBack
+    {
+        MDbe::SBaseHead msg_head;
+        int32 app_id;                   // app ID
+        int32 exe_result;               // 执行结果
+        string error_info;              // 错误提示信息
+        int32 trans_id;                 // 事务ID
+		int32 trans_type;				// 事务类型
+        string param;                   // 回调参数
+    }
+    
+    // 6102(MSG_REQ_VMID)
+    // NRM上报虚拟机静态信息
+    struct SSrmNrmRegister
+    {
+		MDbe::SBaseHead msg_head;	// 消息头
+		MDbe::SBaseVmStaticInfo vm_static_info;// 虚拟机静态信息
+		MDbe::SBaseProcUpdStatusList proc_status_list;	// 进程信息
+    }
+    
+	// 3025(MSG_DBE_TO_SRM_EXIT_REQ)
+    // 进程请求退出
+    struct SSrmProReqExit
+    {
+        MDbe::SBaseHead msg_head;                       // 消息头
+        MDbe::SBaseProcKey proc_key;                    // 进程key
+    }
+
+	// 3501 进程积压信息
+    struct SProcBackLog
+    {
+        MDbe::SBaseHead msg_head;                   // 消息头
+        MDbe::SBaseProcKey proc_key;				// 进程key
+		int32 vm_id;								// vm id
+		string flow_name;							// 进程内部流程名称
+		string xdr_type;							// 业务类型
+		string input_path;							// 输入目录
+		int32 wait_handle_count;					// 待处理文件数
+		int64 update_time;							// 更新时间
+    }
+
+	// 3502 进程定时上报处理速度
+    struct SProcHandleRate
+    {
+        MDbe::SBaseHead msg_head;                   // 消息头
+        MDbe::SBaseProcKey proc_key;				// 进程key
+		int32 vm_id;								// vm id
+		string flow_name;							// 进程内部流程名称
+		string xdr_type;							// 业务类型
+		int64 handle_rate;							// 处理速度
+		int64 update_time;							// 更新时间
+    }
+
+    //DBM手动操作job(3023::MSG_RSP_JOB_PROGRESS)
+    struct SSrmJobOperate
+    {
+        MDbe::SBaseHead msg_head;
+        MDbe::SJobContrlInfoList job_op_list;
+
+    }
+
+    //DBM手动操作job app(3024::MSG_JOB_APP_PROGRESS)
+    struct SSrmJobAppOperate
+    {
+        MDbe::SBaseHead msg_head;
+        MDbe::SJobAppContrlInfoList app_op_list;
+       //MDbe::SJobFlowContrlInfo job_op;
+    }
+
+	// 4123 (MSG_SYNC_VM_PROC)
+	// 主机同步
+	struct SDbmSyncVmProc
+    {
+        MDbe::SBaseHead msg_head;						// 消息头
+		MDbe::Sint32List vm_list;					    // 虚拟机ID列表
+    }
+}
+

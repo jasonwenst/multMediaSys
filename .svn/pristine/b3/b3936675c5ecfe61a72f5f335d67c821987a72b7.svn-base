@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<!-- NOTE: -->
+<!-- Version log: 1. Convert by ngload using shell from old config file dataldrmgr_gsm_local_0.cfg on 20100822092721. -->
+
+<root>
+  <shl_func_define>
+  	<function>
+  	  <func_id>1</func_id>
+	  <shl_lib_name>../build/libcpf_ng_epaD.so</shl_lib_name>
+  	  <func_name>create_instanceAdapterAnalyze</func_name>
+  	</function>
+  </shl_func_define>
+
+  <node_define>
+  	<node>
+  	  <node_def_id>1</node_def_id>
+  	  <node_name>input_file</node_name>
+  	  <functions>
+  	    <function>
+  	      <func_id>1</func_id>
+  	      <batch_id>1</batch_id>
+  	    </function>
+  	  </functions>
+  	</node>
+   </node_define>
+
+   <common_config>
+		<proc_id>666</proc_id>
+		<cpf_flow_id>2</cpf_flow_id>
+		<cpf_service_id>1</cpf_service_id>
+		<cpf_proc_id>3</cpf_proc_id>
+		
+		<log>
+			<path>./</path>
+			<file_prefix>adapter_log</file_prefix>
+			<level>DEBUG</level>
+		</log>
+	</common_config>
+
+  <flows>
+      <!-- =======================2nd TASK config : Dataload ======================== -->
+    <flow>
+      <flow_name>AdapterTest</flow_name>
+      <flow_id>2</flow_id>
+      <flow_configs>
+        <!-- config of flow -->
+      </flow_configs>
+      <nodes>
+      <!-- ===================1st COMPONENT config: Read file============= -->
+          	<!-- ===================3rd COMPONENT config: Dataload============= -->
+        	<node>
+        	  <node_id>1</node_id>
+        	  <node_name>test</node_name>
+        	  <define_id>1</define_id>
+        	  <node_configs>
+                   <start_cmd>perl epa_test.pl</start_cmd>   
+					<cfg_content>
+						<![CDATA[
+							key1    => value1
+							flow_id => @(flow_id)
+							app_id  => @(srv_id)
+							proc_id => @(proc_id)
+						]]>
+					</cfg_content>	
+					<param></param>
+					<proc_type></proc_type>
+        	  </node_configs>
+        	</node>
+
+      </nodes>
+    </flow>
+  </flows>
+</root>
+

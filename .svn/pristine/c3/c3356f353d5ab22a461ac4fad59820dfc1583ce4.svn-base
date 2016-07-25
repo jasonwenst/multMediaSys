@@ -1,0 +1,18 @@
+#include "nr_lock.h"
+#include "math.h"
+
+namespace cpf
+{
+CLock g_cNrLock[LOCK_SIZE];
+
+CNrAutoLock::CNrAutoLock(CProcKey &rPk):
+m_cLock(g_cNrLock[abs((rPk.m_objSKey.m_iSrvId + rPk.m_iProcId) % LOCK_SIZE)])
+{
+	m_cLock.Lock();
+}
+
+CNrAutoLock::~CNrAutoLock()
+{
+	m_cLock.UnLock();
+}
+}

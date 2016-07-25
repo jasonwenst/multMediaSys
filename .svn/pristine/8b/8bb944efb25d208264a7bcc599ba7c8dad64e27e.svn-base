@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<root>
+	<common_config>
+	 	<flow_id>-1</flow_id>
+    		<service_id>1</service_id>
+		<proc_id>1</proc_id>
+		<log4j-configuration>
+			<appender>
+				<name>dailyrollingfile</name>
+				<class>DailyRollingFileAppender</class>
+				<param>
+					<name>file</name>
+					<value>$LOGPATH/aierr/exec3rd</value>
+				</param>
+				<param>
+					<name>flush_immediately</name>
+					<value>true</value>
+				</param>
+				
+				<param>
+					<name>maxfilesize</name>
+					<value></value>
+				</param>
+				<param>
+					<name>intervalmin</name>
+					<value></value>
+				</param>
+				<param>
+					<name>maxbackupindex</name>
+					<value>40</value>
+				</param>
+
+				<param>
+					<name>datepattern</name>
+					<value>yyyy-MM-dd</value>
+				</param>
+	
+				<layout>
+					<class>SimpleLayout</class>
+				</layout>
+			</appender>
+			<root>
+				<priority>
+					<value>trace</value>
+				</priority>
+				<appender-ref>
+					<ref>dailyrollingfile</ref>
+				</appender-ref>
+			</root>
+		</log4j-configuration>	
+		<proc_limit>1000</proc_limit>
+	</common_config>
+	<pipe_lines>
+		<pipe_line>
+		<pipe_line_name>exec3rd</pipe_line_name>
+		<pipe_line_id>1</pipe_line_id>
+			<nodes>
+				<node>
+					<node_id>1</node_id>
+					<node_name>exec3rd</node_name>
+					<node_configs />
+					<functions>
+						<function>
+							<shl_lib_name>libcp_dbe_pccD</shl_lib_name>
+							<func_name>create_manage3rdInstance</func_name>
+							<batch_id>1</batch_id>
+							<func_configs>
+								<run_command>sleep</run_command>
+								<params>1000</params>
+							</func_configs>
+						</function>
+					</functions>
+				</node>
+			</nodes>
+		</pipe_line>
+
+	</pipe_lines>
+</root>
+
