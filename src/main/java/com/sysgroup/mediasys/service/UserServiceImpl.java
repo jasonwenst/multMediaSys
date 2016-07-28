@@ -11,9 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 
 import com.sysgroup.mediasys.converter.UserConverter;
-import com.sysgroup.mediasys.entity.UserEntity;
+import com.sysgroup.mediasys.entity.UserEntity1;
 import com.sysgroup.mediasys.model.User;
-import com.sysgroup.mediasys.repository.UserRepository;
+import com.sysgroup.mediasys.repository.UserRepository1;
 
 
 @Service("userService")
@@ -24,14 +24,14 @@ public class UserServiceImpl implements UserService{
 	private static List<User> users;
 	
 	@Autowired
-	private UserRepository userRepository;
+	private UserRepository1 userRepository;
 	
 
 	public List<User> findAllUsers() {
 		log.info("findAllUsers invocked!");
 		users = new ArrayList<User>();
-		List<UserEntity> entities = (List<UserEntity>) userRepository.findAll();
-		for(UserEntity entity : entities) {
+		List<UserEntity1> entities = (List<UserEntity1>) userRepository.findAll();
+		for(UserEntity1 entity : entities) {
 			users.add(UserConverter.convert(entity));
 		}
 		log.info("findAllUsers completed!");
@@ -39,7 +39,7 @@ public class UserServiceImpl implements UserService{
 	}
 	
 	public User findById(long id) {
-		UserEntity entity = userRepository.findOne(id);
+		UserEntity1 entity = userRepository.findOne(id);
 		if(entity != null) {
 			return UserConverter.convert(entity);
 		}
@@ -56,7 +56,7 @@ public class UserServiceImpl implements UserService{
 	}
 
 	public void updateUser(User user) {
-		UserEntity entity = userRepository.findOne(user.getId());
+		UserEntity1 entity = userRepository.findOne(user.getId());
 		entity.setAddress(user.getAddress());
 		entity.setEmail(user.getEmail());
 		entity.setUserName(user.getUsername());

@@ -7,21 +7,21 @@ loginModule.controller('loginCtrl', ['$scope', 'Restangular', '$location', '$sta
 		var params = {
 			username : $scope.user.username,
 			password : $scope.user.password
-		}
+	}
 	
-		console.log(params);
-		var loginUrl = Restangular.all('/mediasys/login');
-		loginUrl.post(params).then(function(obj) {
-			console.log(obj);
-			if(obj) {
-				console.log('jump to home page');
-				$location.path("/home");
-				// $state.go('home');
+	console.log(params);
+	var loginUrl = Restangular.all('/mediasys/login');
+	loginUrl.post(params).then(function(obj) {
+		console.log(obj);
+		if(obj) {
+			console.log('jump to home page');
+			$location.path("/home");
+			// $state.go('home');
 
-			} else {
-				$scope.loginResult = true;
-			}
-		});
+		} else {
+			$scope.loginResult = true;
+		}
+	});
 
 	}
 }])

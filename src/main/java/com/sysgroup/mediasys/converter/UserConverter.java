@@ -2,13 +2,13 @@ package com.sysgroup.mediasys.converter;
 
 import org.springframework.util.StringUtils;
 
-import com.sysgroup.mediasys.entity.UserEntity;
+import com.sysgroup.mediasys.entity.UserEntity1;
 import com.sysgroup.mediasys.model.User;
 
 public class UserConverter {
 
 	
-	public static User convert(UserEntity entity) {
+	public static User convert(UserEntity1 entity) {
 		
 		User model = new User();
 		model.setUsername(entity.getUserName());
@@ -22,8 +22,8 @@ public class UserConverter {
 		
 	}
 	
-	public static UserEntity convertToEntity(User user) {
-		UserEntity entity = new UserEntity();
+	public static UserEntity1 convertToEntity(User user) {
+		UserEntity1 entity = new UserEntity1();
 		entity.setUserName(user.getUsername());
 		entity.setAddress(user.getAddress());
 		entity.setEmail(user.getEmail());

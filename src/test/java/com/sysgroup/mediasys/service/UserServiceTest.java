@@ -5,15 +5,15 @@ import java.util.List;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.sysgroup.mediasys.entity.UserEntity;
+import com.sysgroup.mediasys.entity.UserEntity1;
 import com.sysgroup.mediasys.model.User;
-import com.sysgroup.mediasys.repository.UserRepository;
+import com.sysgroup.mediasys.repository.UserRepository1;
 
 
 public class UserServiceTest extends BaseJUnit4Test{
 
 	@Autowired
-	private UserRepository userRepository;
+	private UserRepository1 userRepository;
 	
 	@Autowired
 	private UserService userService;
@@ -22,7 +22,7 @@ public class UserServiceTest extends BaseJUnit4Test{
 	@Test
 	public void findUserByUsername() {
 		
-		UserEntity user = userRepository.findOne(1L);
+		UserEntity1 user = userRepository.findOne(1L);
 		
 		System.out.print(user.toString());
 	}
@@ -31,11 +31,11 @@ public class UserServiceTest extends BaseJUnit4Test{
 	@Test
 	public void saveUser() {
 		User entity = new User();
-		entity.setUsername("TOM");
+		entity.setUsername("TOM3");
 		entity.setEmail("tom@qq.com");
-		entity.setAddress("nanjing");
+		entity.setAddress("ÄÏ¾©");
 		entity.setPassword("123456");
-		entity.setSsoId("1111");
+		entity.setSsoId("111111122");
 		userService.saveUser(entity);
 	}
 	
@@ -74,12 +74,13 @@ public class UserServiceTest extends BaseJUnit4Test{
 		System.out.println(userService.findByNameAndPassword(user));
 	}
 	
-	public UserRepository getUserRepository() {
+	
+	public UserRepository1 getUserRepository() {
 		return userRepository;
 	}
 
 
-	public void setUserRepository(UserRepository userRepository) {
+	public void setUserRepository(UserRepository1 userRepository) {
 		this.userRepository = userRepository;
 	}
 

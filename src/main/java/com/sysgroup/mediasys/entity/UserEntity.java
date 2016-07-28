@@ -1,110 +1,108 @@
 package com.sysgroup.mediasys.entity;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import java.io.Serializable;
+import javax.persistence.*;
+import java.util.List;
 
+
+/**
+ * The persistent class for the TB_USER database table.
+ * 
+ */
 @Entity
-@Table(name = "user")
-public class UserEntity {
+@Table(name="TB_USER")
+//@NamedQuery(name="TbUser.findAll", query="SELECT t FROM TbUser t")
+public class UserEntity implements Serializable {
+	private static final long serialVersionUID = 1L;
 
 	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
-	private Long id;
-	
-	private String userName;
-	
-	private String address;
-	
-	private String email;
-	
-	private String ssoId;
-	
-	private String password;
+	@Column(name="USER_ID")
+	private int userId;
 
-	
+	@Column(name="USER_NAME")
+	private String userName;
+
+	@Column(name="USER_PASSWD")
+	private String userPasswd;
+
+//	//bi-directional many-to-one association to TbMaterial
+//	@OneToMany(mappedBy="tbUser")
+//	private List<MaterialEntity> tbMaterials;
+//
+//	//bi-directional many-to-one association to TbSendHi
+//	@OneToMany(mappedBy="tbUser")
+//	private List<SendHisEntity> tbSendHis;
+
+	//bi-directional many-to-one association to TbUerGroup
+	@ManyToOne
+	@JoinColumn(name="GROUP_ID")
+	private UserGroupEntity tbUerGroup;
 
 	public UserEntity() {
-		super();
 	}
 
-
-	public UserEntity(Long id, String userName, String address, String email) {
-		super();
-		this.id = id;
-		this.userName = userName;
-		this.address = address;
-		this.email = email;
+	public int getUserId() {
+		return this.userId;
 	}
 
-
-	public Long getId() {
-		return id;
+	public void setUserId(int userId) {
+		this.userId = userId;
 	}
-
-
-	public void setId(Long id) {
-		this.id = id;
-	}
-
 
 	public String getUserName() {
-		return userName;
+		return this.userName;
 	}
-
 
 	public void setUserName(String userName) {
 		this.userName = userName;
 	}
 
+	public String getUserPasswd() {
+		return this.userPasswd;
+	}
 
-	public String getAddress() {
-		return address;
+	public void setUserPasswd(String userPasswd) {
+		this.userPasswd = userPasswd;
 	}
 
 
-	public void setAddress(String address) {
-		this.address = address;
+//	public MaterialEntity addTbMaterial(MaterialEntity tbMaterial) {
+//		getTbMaterials().add(tbMaterial);
+//		tbMaterial.setTbUser(this);
+//
+//		return tbMaterial;
+//	}
+//
+//	public MaterialEntity removeTbMaterial(MaterialEntity tbMaterial) {
+//		getTbMaterials().remove(tbMaterial);
+//		tbMaterial.setTbUser(null);
+//
+//		return tbMaterial;
+//	}
+//
+//	public SendHisEntity addTbSendHi(SendHisEntity tbSendHi) {
+//		getTbSendHis().add(tbSendHi);
+//		tbSendHi.setTbUser(this);
+//
+//		return tbSendHi;
+//	}
+//
+//	public SendHisEntity removeTbSendHi(SendHisEntity tbSendHi) {
+//		getTbSendHis().remove(tbSendHi);
+//		tbSendHi.setTbUser(null);
+//
+//		return tbSendHi;
+//	}
+
+	public UserGroupEntity getTbUerGroup() {
+		return this.tbUerGroup;
 	}
 
-
-	public String getEmail() {
-		return email;
+	public void setTbUerGroup(UserGroupEntity tbUerGroup) {
+		this.tbUerGroup = tbUerGroup;
 	}
 
-
-	public void setEmail(String email) {
-		this.email = email;
-	}
 
 	
-
-	public String getSsoId() {
-		return ssoId;
-	}
-
-
-	public void setSsoId(String ssoId) {
-		this.ssoId = ssoId;
-	}
-
-
-	public String getPassword() {
-		return password;
-	}
-
-
-	public void setPassword(String password) {
-		this.password = password;
-	}
-
-
-	@Override
-	public String toString() {
-		return "UserEntity [id=" + id + ", userName=" + userName + ", address=" + address + ", email=" + email
-				+ ", ssoId=" + ssoId + ", password=" + password + "]";
-	}
-
+	
 }
