@@ -1,0 +1,104 @@
+#ifndef _MESSAGE_SIMULATE_H_ 
+#define _MESSAGE_SIMULATE_H_
+
+#include <time.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <string>
+#include <vector>
+#include <fstream>
+#include <fcntl.h>
+#include <iostream>
+
+#include "xdr.h"
+#include "sockapi.h"
+#include "compile.h"
+
+#include "base_func.h"
+#include "base_class.h"
+#include "frame_file_interface.h"
+
+#include "util.h"
+#include "nr_api.h"
+#include "socket_base.h"
+#include "frame_interface.h"
+#include "../pcc/pcc_struct.h"
+
+
+using namespace std;
+using namespace cpf;
+
+
+class CExitCode
+{
+public:
+	int32 m_iExitCode;
+
+READ_CONFIG_BEGIN
+	READ_VALUE(m_iExitCode, "exit_value", 0, NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+READ_CONFIG_END
+
+};
+
+class CConfig
+{
+public:
+	std::string m_strProcKey;
+	std::string m_strStdOut;
+
+READ_CONFIG_BEGIN
+	char szBuf[511] = "";
+	
+	// READ_VALUE(szBuf, "run_command", "", NAMESPACE_BILLING40_LOG FATAL_LEVEL)
+	// m_strProcKey = std::string(szBuf);
+READ_CONFIG_END
+};
+
+class CMessageSimulateThread : public bs_frame_file::CProcessFileThread, public NAMESPACE_BILLING40_FRAME IProcessMessage
+{
+public:
+	CMessageSimulateThread();
+	~CMessageSimulateThread();
+
+	int32 init();
+	int32 destroy();
+	int32 connect();
+	int32 run(bs_frame_file::CFrameFile *pFrameFile);
+
+	virtual void send_processStopped();
+	virtual int32 send_message(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg);
+	virtual int32 send_startProcess(int32 iPid, int32 iResult);
+	virtual NAMESPACE_BILLING40_FRAME CControlPkg * receive_message();
+	
+private:
+	CProcPid m_objProcUpdStatus;
+	CNrApi* m_pNrApi;
+	int32 m_iSd;
+	
+	time_t m_lLastCheckTime;
+	CConfig m_objConfig;
+
+	int32 send_msg3501(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg);
+	int32 send_msg3502(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg);
+	
+	int32 send_start_process(int32 iPid, int32 iResult, int32 iType);
+	int32 real_send_message(int32 iMsgType, const char *pData, int32 iSize);
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_BILLING40_FRAME CThread* create_instanceMessageSimulate()
+{
+        return new CMessageSimulateThread();
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+

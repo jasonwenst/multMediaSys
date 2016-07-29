@@ -1,0 +1,77 @@
+#include <unittest_cp_dbe2_base_main.h>
+
+SUITE(SUITE___cron_cron_base_cpp)
+{
+	//Fuction: int32 CCronItem :: ChangeValueMap ( ItemValueMap & rItemValueMap )
+	TEST_FIXTURE(TestFixture,TestCCronItem_ChangeValueMap)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronItem :: GetNearTime ( struct tm & tmNextTime , int32 & iCarry , int32 & iBalance )
+	TEST_FIXTURE(TestFixture,TestCCronItem_GetNearTime)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronItem :: IsCarry ( struct tm & tmNextTime , int32 iCarry , int32 iSeek )
+	TEST_FIXTURE(TestFixture,TestCCronItem_IsCarry)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronItem :: LoadCronExpression ( const char * szExpress , struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronItem_LoadCronExpression)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronItem :: RedoCronExpression ( struct tm & tmInput )
+	TEST_FIXTURE(TestFixture,TestCCronItem_RedoCronExpression)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronItem :: SeekBegin ( struct tm & tmNextTime )
+	TEST_FIXTURE(TestFixture,TestCCronItem_SeekBegin)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronItem :: SeekEnd ( struct tm & tmNextTime )
+	TEST_FIXTURE(TestFixture,TestCCronItem_SeekEnd)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CCronItem :: SetChildItem ( CCronItem * pChild )
+	TEST_FIXTURE(TestFixture,TestCCronItem_SetChildItem)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_CRON_BEGIN int32 CCronItem :: setValueType ( VALUE_TYPE em )
+	TEST_FIXTURE(TestFixture,TestCCronItem_setValueType)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

@@ -1,0 +1,76 @@
+/********************************************************************************/
+/* 定义[NRM_MSG_TYPE_BEG(7001), NRM_MSG_TYPE_END(8000))内的消息			*/
+/********************************************************************************/
+
+#ifndef _NRM_MSG_INTERFACE_H_
+#define _NRM_MSG_INTERFACE_H_
+
+namespace MDbe
+{
+
+//消息
+enum
+{
+    //发送者是SRM，接收者是NRM
+    MSG_START_PROC = 7001,
+    MSG_STOP_PROC = 7002,
+    MSG_REQ_VM_STATIC = 7003,
+    MSG_STOP_PROC_PROG = 7004,
+    MSG_SRV_PARAM_SYNC = 7005,
+    //主机停止消息，一般单主机出错时，由系统发送
+    //比如新主机加入到平台时，无法同步软件版本，那么
+    //此主机将被pt停止，由nrm再重启重连
+    MSG_SRM_TO_NRM_STOP_VM = 7006,
+    MSG_START_PROC_NO_CMD = 7011,
+    //重启完成
+    MSG_SRM_SOFT_UPD_RESTART_RECV = 7012,
+    // 进程写nr信息（通过socket，非框架进程，比如java进程）
+    MSG_THREAD_TO_NRM_WRITE_NR = 7013,
+    
+    //DBM IPVS 设置/查询
+    MSG_DBM_TO_NRM_IPVS_CONFIG = 7014,
+    
+    //返回启动配置（nrm -> tbts）
+    MSG_REPLY_PROCESS_CONFIG_PATH = 7015,
+    //存储挂载
+    MSG_SRV_MOUNT_STORAGE = 7055,
+    
+    //DBM询问IPVS运行状态
+    MSG_DBM_TO_NRM_IPVS_RUN_STATUS = 7056,
+    
+    //查询计算节点版本信息
+    MSG_DBM_TO_PT_VM_VERSION_INFO = 7150,
+    
+    // DBM询问/设置DBE时钟信息
+    MSG_PT_TO_NRM_CLOCK_INFO = 7201,
+    
+    MSG_PT_TO_ONE_NRM_CLOCK_INFO = 7202,
+    
+    //PT发送给NRM的消息
+    MSG_PT_TO_NRM_OnNewSoftware = 7501,
+    MSG_PT_TO_NRM_GetSoftwareRes = 7502,
+    MSG_PT_TO_NRM_SoftwareUpdateRestart = 7503,
+    MSG_PT_TO_NRM_StartSetup = 7504,
+    MSG_PT_TO_NRM_RollbackSetup = 7505,
+    MSG_PT_TO_NRM_CheckVmInfo = 7506,
+    //MSG_PT_TO_NRM_ShellScripts = 7507,	//执行软件脚本
+    MSG_PT_TO_NRM_ShellBakScripts = 7507,	//执行软件脚本(备份)
+    MSG_PT_TO_NRM_ShellUpdateScripts = 7508,//执行软件脚本(更新)
+    MSG_PT_TO_NRM_ShellRollbackScripts = 7509,//执行软件脚本(回退)
+    MSG_SRM_TO_NRM_RESTART_FRAME = 7510, //执行重启框架进程
+    
+    // 7800-7899 fo pp
+    MSG_NRM_TO_PP_START_PROC = 7801, // 启动进程
+    MSG_PP_TO_NRM_START_PROC_REPLY = 7851, //启动进程回复
+    
+    //模拟制造虚拟机异常(7901)
+    MSG_NRM_SIMULATE_VM_ERROR = 7901,
+    //模拟制造进程异常(7902)
+    MSG_NRM_SIMULATE_PROC_ERROR = 7902,
+    //模拟制造CPU异常(7903)
+    MSG_NRM_SIMULATE_CPU_ERROR = 7903
+};
+
+} //end namespace
+
+#endif //_NRM_MSG_INTERFACE_H_

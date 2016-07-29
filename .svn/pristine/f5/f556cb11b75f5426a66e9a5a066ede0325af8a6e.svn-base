@@ -1,0 +1,73 @@
+/* $Id: */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：socket_base.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Jun 14, 2013）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SOCKET_BASE_H___
+#define __SOCKET_BASE_H___
+
+#include "base.h"
+
+namespace cpf
+{
+
+int NetNonBlock(int fd);
+
+int NetKeepAlive(int fd, int interval);
+
+int NetEnableTcpNoDelay(int fd);
+
+int NetDisableTcpNoDelay(int fd);
+
+int NetSetSendBuffer(int fd, int buffsize);
+
+int NetTcpKeepAlive(int fd);
+
+int NetResolve(char * host, char * ipbuf);
+
+int NetTcpConnect(char * addr, int port);
+
+int NetTcpNonBlockConnect(char * addr, int port);
+
+int NetUnixGenericConnect(char * path, int flags);
+
+int NetUnixConnect(char * path);
+
+int NetUnixNonBlockConnect(char * path);
+
+int NetRead(int fd, char * buf, int count);
+
+int NetWrite(int fd, char * buf, int count);
+
+int NetTcpServer(int port, const char * bindaddr);
+
+int NetUnixServer(const char * path, mode_t perm);
+
+int NetTcpAccept(int s, char * ip, int * port);
+
+int NetUnixAccept(int s);
+
+int NetPeerToString(int fd, char * ip, int * port);
+
+int NetSockName(int fd, char * ip, int * port);
+
+void NetClose(int s);
+
+}
+
+
+#endif /* __SOCKET_BASE_H___ */

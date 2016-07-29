@@ -1,0 +1,106 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_vm_mgr.h）
+/// brief	 
+///				虚拟机负载调整类管理接口
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-20)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_VM_MGR_H___
+#define __SRM_VM_MGR_H___
+
+#include "srm_define.h"
+#include "dbe2_base_mgr.h"
+
+
+#include "srm_def_sdl_c.h"
+#include "rdc_def_sdl_c.h"
+#include "rdc_table_def_sdl_c.h"
+
+namespace MDbe
+{
+/**
+ * 虚拟机负载调整类管理接口
+ */
+class ISrmVmMgr : public IBaseMgr
+{
+public:
+	/**
+	 * 获取管理类的实例
+	 * @return 返回实例
+	 */
+	static ISrmVmMgr & GetInstance();
+
+public:
+	/**
+	 *检查虚拟机是否可使用
+	 * @return true 可用 false 不可用
+	 */
+	virtual bool CheckVmAvailable(int32 iVmId)=0;
+	/**
+	 * 检查域下有无虚拟机可使用
+	 * @return true 可用 false 不可用
+	 */
+	virtual bool CheckDomainAvailable(int32 iDomainId)=0;
+	/**
+	 * 检查集群下有无虚拟机可使用
+	 * @return true 可用 false 不可用
+	 */
+	virtual bool CheckClusterAvailable(int32 iClusterId)=0;
+	/**
+	 * 请求PDC_VM所有可使用的虚拟机信息
+	 * @出参 rlstVmList
+	 */
+	virtual void RequestAvailableVm(CPdcVmList& rlstVmList) = 0;
+	/**
+	 * 更新虚拟机状态 
+	 * @param in  iVmId  iVmConnectState iVmState
+	 */
+	virtual void UpdateVmstate(int32 iVmId,int32 iNrmConnectState,int32 iVmRelyAppState)=0;
+	/**
+	 * 设置nrm连接断开
+	 * @param in  iVmId 虚拟机编号
+	 */
+	virtual void SetNrmNoConnect(int32 iVmId)=0;
+	/**
+	 * nrm注册逻辑
+	 * @param in  rcPdcVm  
+	 */
+	virtual bool HandleNrmRegister(SSrmNrmRegister& rNrmRegister)=0;
+	/**
+	 * 检查nrm心跳   
+	 */
+	virtual void CheckNrmHeart()=0;
+	/**
+	 * 虚拟机依赖服务启动回调函数
+	 * @param in  iVmId  
+	 * @param in  bRelySrvState
+	 */
+	virtual void VmRelyCallBack(int32 iVmId,int32 bResult,int32 iTransId,aistring strErrorMsg="") =0;
+	
+	/**
+     * 对外接口
+	 * 同步主机进程
+	 */
+    virtual void SyncVmProc(int32 iVmId) = 0;
+};
+
+} // namespace MDbe
+
+
+
+
+#endif /* __SRM_VM_MGR_H___ */

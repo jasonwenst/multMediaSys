@@ -1,0 +1,101 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_msg_dispatch.cpp）
+/// brief	 
+///				负责提供SRM所有对外消息注册与管理器注册
+///
+///
+/// version 2.1  
+/// author       （eg: kongll）
+/// date          (eg:2014-11-10)
+///
+///	修订说明：ng版本
+//////////////////////////////////////////////////////////////////////////
+#include "msg_dispatch_mgr.h"
+#include "srm_vm_mgr.h"
+#include "srm_rdc_mgr.h"
+#include "srm_app_mgr.h"
+#include "srm_proc_mgr.h"
+#include "srm_other_mgr.h"
+#include "srm_deploy_mgr.h"
+#include "srm_record_mgr.h"
+#include "srm_proc_trans_mgr.h"
+
+#include "msg_process/srm_msg_process_dbe.h"
+#include "msg_process/srm_msg_process_dbm.h"
+#include "msg_process/srm_msg_process_inner.h"
+
+namespace MDbe
+{
+//注册消息
+DBE2_MSG_PROCESS_BEGIN
+DBE2_MSG_PROCESS_REGISGER(3006, CMsgProcess3006)
+DBE2_MSG_PROCESS_REGISGER(3008, CMsgProcess3008)
+DBE2_MSG_PROCESS_REGISGER(-3008, CMsgProcess3008)
+DBE2_MSG_PROCESS_REGISGER(3010, CMsgProcess3010)
+DBE2_MSG_PROCESS_REGISGER(3025, CMsgProcess3025)
+DBE2_MSG_PROCESS_REGISGER(3501, CMsgProcess3501)
+DBE2_MSG_PROCESS_REGISGER(3502, CMsgProcess3502)
+
+//job
+DBE2_MSG_PROCESS_REGISGER(3023, CMsgProcess3023)
+DBE2_MSG_PROCESS_REGISGER(3024, CMsgProcess3024)
+
+// 软件升级消息管理
+DBE2_MSG_PROCESS_REGISGER(4121, CMsgProcess4121)
+DBE2_MSG_PROCESS_REGISGER(4122, CMsgProcess4122)
+
+DBE2_MSG_PROCESS_REGISGER(4111, CMsgProcess4111)
+DBE2_MSG_PROCESS_REGISGER(4112, CMsgProcess4112)
+DBE2_MSG_PROCESS_REGISGER(4113, CMsgProcess4113)
+DBE2_MSG_PROCESS_REGISGER(4116, CMsgProcess4116)
+DBE2_MSG_PROCESS_REGISGER(4123, CMsgProcess4123)
+DBE2_MSG_PROCESS_REGISGER(5017, CMsgProcess5017)
+DBE2_MSG_PROCESS_REGISGER(6102, CMsgProcess6102)
+
+DBE2_MSG_PROCESS_REGISGER(-11,  CMsgProcessI11)
+DBE2_MSG_PROCESS_REGISGER(150,  CMsgProcess150)
+DBE2_MSG_PROCESS_REGISGER(-601, CMsgProcessI601)
+DBE2_MSG_PROCESS_REGISGER(-602, CMsgProcessI601)
+DBE2_MSG_PROCESS_REGISGER(-603, CMsgProcessI603)
+DBE2_MSG_PROCESS_REGISGER(-604, CMsgProcessI604)
+DBE2_MSG_PROCESS_REGISGER(-605, CMsgProcessI605)
+DBE2_MSG_PROCESS_REGISGER(-606, CMsgProcessI606)
+DBE2_MSG_PROCESS_REGISGER(-607, CMsgProcessI607)
+DBE2_MSG_PROCESS_REGISGER(-609, CMsgProcessI609)
+DBE2_MSG_PROCESS_REGISGER(-610, CMsgProcessI610)
+DBE2_MSG_PROCESS_REGISGER(-613, CMsgProcessI613)
+
+DBE2_MSG_PROCESS_REGISGER(MSG_REP_DBM_OPERATE_PROC,  CMsgProcessI611)
+DBE2_MSG_PROCESS_REGISGER(MSG_REP_DBM_ADD_PROC,  CMsgProcessI612)
+
+DBE2_MSG_PROCESS_REGISGER(-901, CMsgProcessI901)
+DBE2_MSG_PROCESS_REGISGER(-903, CMsgProcessI903)
+DBE2_MSG_PROCESS_REGISGER(-906, CMsgProcessI906)
+DBE2_MSG_PROCESS_REGISGER(-911, CMsgProcessI911)
+DBE2_MSG_PROCESS_REGISGER(-912, CMsgProcessI912)
+DBE2_MSG_PROCESS_REGISGER(-999, CMsgProcessI999)
+
+
+DBE2_MSG_PROCESS_END
+
+//注册管理器
+DBE2_ALL_MGR_BEGIN
+DBE2_ALL_MGR_REGISGER(ISrmRdcMgr)
+DBE2_ALL_MGR_REGISGER(ISrmDeployMgr)
+DBE2_ALL_MGR_REGISGER(ISrmAppMgr)
+DBE2_ALL_MGR_REGISGER(ISrmProcTransMgr)
+DBE2_ALL_MGR_REGISGER(ISrmRecordMgr)
+DBE2_ALL_MGR_REGISGER(ISrmProcMgr)
+DBE2_ALL_MGR_REGISGER(ISrmVmMgr)
+DBE2_ALL_MGR_REGISGER(ISrmOtherMgr)
+DBE2_ALL_MGR_END
+
+
+} // namespace MDbe
+
+

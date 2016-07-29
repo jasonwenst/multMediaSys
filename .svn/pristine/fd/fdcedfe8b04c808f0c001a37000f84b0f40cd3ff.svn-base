@@ -1,0 +1,46 @@
+#ifndef _NGEPA_DEF_H_
+#define _NGEPA_DEF_H_
+
+#define NAMESPACE_DBE_CPF_BEGIN namespace cpf  {
+#define NAMESPACE_DBE_CPF_END }
+
+NAMESPACE_DBE_CPF_BEGIN
+
+#define CHECK_SHELL_NAME 	"check_proc_alive.pl"
+#define TIME_OUT_VALUE 		180
+#define SLEEP_TIME			1
+
+
+// 程序启动值定义
+#define EXT_PROC_START_FAILED         0
+#define EXT_PROC_START_OK			  1
+#define EXT_PROC_START_ONGOING		  2
+
+#define EXT_PROC_STOPTIME			60
+
+
+// enum EPA_EXCEPTION_CODE
+// {
+// 	//exception
+// 	//EPA_INIT_ALLDATA_ERROR = DBE2_EPA_START_ERROR_CODE,
+// 	EPA_CHECK_SCRIPTS_ERROR,
+// 	EPA_INIT_SETENV_ERROR,
+// 	EPA_CLEAR_RUN_DIR_ERROR,
+// 	EPA_CREAT_CFG_ERROR ,
+// 	EPA_START_PROC_ERROR,
+// 	EPA_EP_INIT_ERROR,
+// };
+//
+// typedef enum 
+// {
+// 	//error\fatal log
+// 	EPA_INIT_FATAL=706001,
+// 	EPA_RUN_FATAL,
+// 	EPA_ABORT_FATAL,
+// 	EPA_EPERM_ERROR,
+// }EPA_LOG_ERROR_CODE;
+
+NAMESPACE_DBE_CPF_END
+
+
+#endif

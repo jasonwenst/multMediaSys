@@ -1,0 +1,61 @@
+#include <unittest_cp_dbe2_ca_main.h>
+
+SUITE(SUITE_dbe_communicate_read_cpp)
+{
+	//Fuction: NAMESPACE_OD_CA CDbeCommunicateRead :: ~ CDbeCommunicateRead ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateRead)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_CA CDbeCommunicateRead :: CDbeCommunicateRead ( ) : m_pCommunicateApi ( 0 )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateRead_CDbeCommunicateRead)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: NAMESPACE_OD_FRAME CThread * create_dbeCommunicateRead ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateRead_create_dbeCommunicateRead)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateRead :: destroy ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateRead_destroy)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateRead :: init ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateRead_init)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateRead :: run ( NAMESPACE_OD_FRAME CData * p )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateRead_run)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 NAMESPACE_OD_CA CDbeCommunicateRead :: stop ( )
+	TEST_FIXTURE(TestFixture,TestCDbeCommunicateRead_stop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

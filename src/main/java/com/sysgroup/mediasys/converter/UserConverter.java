@@ -1,35 +1,31 @@
 package com.sysgroup.mediasys.converter;
 
-import org.springframework.util.StringUtils;
+import org.springframework.util.ObjectUtils;
 
-import com.sysgroup.mediasys.entity.UserEntity1;
+import com.sysgroup.mediasys.entity.UserEntity;
 import com.sysgroup.mediasys.model.User;
 
 public class UserConverter {
 
 	
-	public static User convert(UserEntity1 entity) {
+	public static User convert(UserEntity entity) {
 		
 		User model = new User();
 		model.setUsername(entity.getUserName());
-		model.setAddress(entity.getAddress());
-		model.setEmail(entity.getEmail());
-		model.setId(entity.getId());
-		model.setPassword(entity.getPassword());
-		model.setSsoId(entity.getSsoId());
+		model.setId(entity.getUserId());
+		model.setPassword(entity.getUserPasswd());
+		model.setGroupId(ObjectUtils.isEmpty(entity.getTbUerGroup())? null : entity.getTbUerGroup().getGroupId());
+		
 		return model;
 		
 		
 	}
 	
-	public static UserEntity1 convertToEntity(User user) {
-		UserEntity1 entity = new UserEntity1();
+	public static UserEntity convertToEntity(User user) {
+		UserEntity entity = new UserEntity();
 		entity.setUserName(user.getUsername());
-		entity.setAddress(user.getAddress());
-		entity.setEmail(user.getEmail());
-		entity.setId(user.getId());
-		entity.setPassword(user.getPassword());
-		entity.setSsoId(StringUtils.isEmpty(user.getSsoId()) ? String.valueOf(System.currentTimeMillis()) : user.getSsoId() );
+		entity.setUserId(user.getId());
+		entity.setUserPasswd(user.getPassword());
 		return entity;
 	}
 }

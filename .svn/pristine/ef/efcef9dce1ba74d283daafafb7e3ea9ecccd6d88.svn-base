@@ -1,0 +1,378 @@
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：dbe2_base_hash_table.h）
+/// brief
+///				hash_table定义
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-13）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __DBE2_BASE_HASH_TABLE_H___
+#define __DBE2_BASE_HASH_TABLE_H___
+
+#include "compile.h"
+#include "dbe2_hash_func.h"
+#include <list>
+#include <vector>
+
+
+
+#define DBE2_HASH_TABLE_FIND_METHOD_DECLARE(argv_type,type_compare_func) \
+    bool container(argv_type key) \
+    { \
+        return find(key) != end(); \
+    } \
+    \
+    iterator find(argv_type key) \
+    { \
+        uint32 iHashKey = HashFunc(key); \
+        uint32 iIdx = DBE2_MOD(iHashKey, m_iCapacity); \
+        table_bucket_type & lstElement = m_cStore[iIdx]; \
+        typename table_bucket_type::iterator itr = lstElement.begin(); \
+        typename table_bucket_type::iterator itrEnd = lstElement.end(); \
+        for(; itr != itrEnd; itr++) \
+        { \
+            if(type_compare_func) \
+            { \
+                return iterator(m_cStore, itr, iIdx); \
+            } \
+        } \
+        return end(); \
+    } \
+    \
+    VALUE & find_or_insert(argv_type key) \
+    { \
+        iterator itr = find(key); \
+        if(itr != end()) \
+        { \
+            return itr->second; \
+        } \
+        VALUE v; \
+        insert(value_type(key,v)); \
+        return find(key)->second; \
+    } \
+    \
+    range_type equal_range(argv_type key) \
+    { \
+        uint32 iHashKey = HashFunc(key); \
+        uint32 iIdx = DBE2_MOD(iHashKey, m_iCapacity); \
+        table_bucket_type & lstElement = m_cStore[iIdx]; \
+        typename table_bucket_type::iterator itr = lstElement.begin(); \
+        typename table_bucket_type::iterator itrEnd = lstElement.end(); \
+        for(; itr != itrEnd; itr++) \
+        { \
+            if(type_compare_func) \
+            { \
+                return range_type(iterator(m_cStore, itr, iIdx, true), iterator(m_cStore, itrEnd, iIdx, true)); \
+            } \
+        } \
+        return range_type(iterator(m_cStore, itrEnd, iIdx, true), iterator(m_cStore, itrEnd, iIdx, true)); \
+    } \
+    \
+    size_type count(argv_type key) \
+    { \
+        uint32 iHashKey = HashFunc(key); \
+        uint32 iIdx = DBE2_MOD(iHashKey, m_iCapacity); \
+        table_bucket_type & lstElement = m_cStore[iIdx]; \
+        typename table_bucket_type::iterator itr = lstElement.begin(); \
+        typename table_bucket_type::iterator itrEnd = lstElement.end(); \
+        int32 iCount = 0; \
+        for(; itr != itrEnd; itr++) \
+        { \
+            if(type_compare_func) \
+            { \
+                iCount++; \
+            } \
+        } \
+        return iCount; \
+    }
+
+
+
+namespace MDbe
+{
+
+template<typename KEY, typename VALUE>
+class base_hash_table
+{
+public:
+    typedef std::pair<KEY, VALUE> value_type;
+protected:
+    typedef int32 size_type;
+    typedef AISTD list<value_type> table_bucket_type;
+    typedef AISTD vector<table_bucket_type> table_store_type;
+public:
+    /*!
+     * \brief
+     *      迭代
+     */
+    class iterator
+    {
+    public:
+        iterator & operator++()
+        {
+            next();
+            return *this;
+        }
+        iterator & operator++(int)
+        {
+            next();
+            return *this;
+        }
+
+        bool operator==(const iterator & it) const
+        {
+            return m_itrElement == it.m_itrElement;
+        }
+        bool operator!=(const iterator & it) const
+        {
+            return m_itrElement != it.m_itrElement;
+        }
+
+        value_type & operator*() const
+        {
+            return *m_itrElement;
+        }
+
+        value_type * operator->() const
+        {
+            return &(operator*());
+        }
+
+        iterator(const iterator & rhs):
+            m_cElement(rhs.m_cElement), m_cTable(rhs.m_cTable),
+            m_iBucketIdx(rhs.m_iBucketIdx), m_itrElement(rhs.m_itrElement),
+            m_isNextInBucket(rhs.m_isNextInBucket)
+        {
+
+        }
+
+        iterator & operator=(const iterator & rhs)
+        {
+            if (this != &rhs)
+            {
+                ::new((void *)this) iterator(rhs);
+            }
+            return *this;
+        }
+
+        iterator(table_store_type & cTable, typename table_bucket_type::iterator itrElement,
+                 int32 iBucketIdx, bool isNextInBucket = false):
+            m_cTable(cTable), m_iBucketIdx(iBucketIdx),
+            m_itrElement(itrElement), m_cElement(*itrElement), m_isNextInBucket(isNextInBucket)
+        {
+        }
+    protected:
+
+        bool eof()
+        {
+            return m_iBucketIdx >= m_cTable.size();
+        }
+        void next()
+        {
+            if(eof())
+            {
+                return;
+            }
+            m_itrElement++;
+            do
+            {
+                //在这个bucket内寻找下一个值
+                for(; m_itrElement != m_cTable[m_iBucketIdx].end(); m_itrElement++)
+                {
+                    if(m_isNextInBucket)
+                    {
+                        //需要比对值
+                        if(m_itrElement->first == m_cElement.first)
+                        {
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+                if(m_isNextInBucket)
+                {
+                    //只在本bucket里面做迭代
+                    return;
+                }
+                //进入下一个bucket
+                m_iBucketIdx++;
+                if(m_iBucketIdx >= m_cTable.size())
+                    return;
+                m_itrElement = m_cTable[m_iBucketIdx].begin();
+            }
+            while(!eof());
+        }
+
+
+
+    protected:
+        bool m_isNextInBucket;              //是否只在一个bucket里面做next
+        table_store_type & m_cTable;
+        int32 m_iBucketIdx;
+        value_type & m_cElement;
+        typename table_bucket_type::iterator m_itrElement;
+        friend class base_hash_table;
+    };
+
+public:
+    typedef iterator const_iterator;
+    typedef std::pair<iterator, iterator> range_type;
+
+public:
+
+    base_hash_table(bool multivalue, size_type size): m_iCapacity(0),
+        m_iSize(0), m_isMultiValue(multivalue)
+    {
+        resize(size);
+    }
+
+    void insert(value_type value)
+    {
+        if(size() > m_iCapacity * 2)
+        {
+            resize(size() * 4);
+        }
+        if(!m_isMultiValue)
+        {
+            erase(value.first);
+        }
+        __insert(m_cStore, value, m_iCapacity);
+        m_iSize++;
+    }
+
+    void clear()
+    {
+        m_cStore.clear();
+    }
+
+    size_type size()
+    {
+        return m_iSize;
+    }
+
+    iterator begin()
+    {
+        for(int32 i = 0; i < m_iCapacity; i++)
+        {
+            if(m_cStore[i].size() > 0)
+            {
+                return iterator(m_cStore, m_cStore[i].begin(), i);
+            }
+        }
+        return end();
+    }
+
+    iterator end()
+    {
+        return iterator(m_cStore, m_cStore[m_cStore.size() - 1].end(), m_cStore.size());
+    }
+
+    void resize(size_type new_size)
+    {
+        if(new_size <= m_iCapacity)
+            return;
+        size_type capacity = 1;
+        while (capacity < new_size)
+            capacity <<= 2;
+
+        if(size() > 0)
+        {
+            //移动老数据
+            table_store_type cStore(capacity);
+            iterator itr = begin();
+            iterator itrEnd = end();
+            for(; itr != itrEnd; itr++)
+            {
+                __insert(cStore, (*itr), capacity);
+            }
+            m_cStore.clear();
+            m_cStore = cStore;
+        }
+        else
+        {
+            m_cStore.resize(capacity);
+        }
+        //完成resize
+        m_iCapacity = capacity;
+    }
+
+    void erase(iterator itr)
+    {
+        if(itr == end())
+            return;
+        m_cStore[itr.m_iBucketIdx].erase(itr.m_itrElement);
+        m_iSize--;
+    }
+
+    void erase(KEY key)
+    {
+        uint32 iHashKey = HashFunc(key);
+        uint32 iIdx = ((iHashKey) & ((m_iCapacity) - 1));
+        table_bucket_type & lstElement = m_cStore[iIdx];
+        typename table_bucket_type::iterator itr = lstElement.begin();
+        typename table_bucket_type::iterator itrEnd = lstElement.end();
+        while(itr != itrEnd)
+        {
+            if(itr->first == key)
+            {
+                itr = lstElement.erase(itr);
+                m_iSize--;
+            }
+            else
+            {
+                itr++;
+            }
+        }
+    }
+
+    DBE2_HASH_TABLE_FIND_METHOD_DECLARE(const char *, (strcmp(itr->first.c_str(), key) == 0))
+
+    DBE2_HASH_TABLE_FIND_METHOD_DECLARE(aistring &, (strcmp(itr->first.c_str(), key) == 0))
+
+    DBE2_HASH_TABLE_FIND_METHOD_DECLARE(int16, (itr->first == key))
+
+    DBE2_HASH_TABLE_FIND_METHOD_DECLARE(uint16, (itr->first == key))
+
+    DBE2_HASH_TABLE_FIND_METHOD_DECLARE(int32, (itr->first == key))
+
+    DBE2_HASH_TABLE_FIND_METHOD_DECLARE(uint32, (itr->first == key))
+
+    DBE2_HASH_TABLE_FIND_METHOD_DECLARE(int64, (itr->first == key))
+
+    DBE2_HASH_TABLE_FIND_METHOD_DECLARE(uint64, (itr->first == key))
+
+
+protected:
+    void __insert(table_store_type & store, value_type & value, int32 capacity)
+    {
+        uint32 iHashKey = HashFunc(value.first);
+        uint32 iIdx = DBE2_MOD(iHashKey, capacity);
+        store[iIdx].push_back(value);
+    }
+
+protected:
+    table_store_type m_cStore;      //最终于存储
+    size_type m_iCapacity;          //table容量
+    size_type m_iSize;              //现有数据数量
+    bool m_isMultiValue;            //是否允许有多值存在
+};
+
+
+};  // namespace dbe2
+
+
+
+#endif /* __DBE2_BASE_HASH_TABLE_H___ */

@@ -5,15 +5,17 @@ import java.util.List;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.sysgroup.mediasys.entity.UserEntity;
 import com.sysgroup.mediasys.entity.UserEntity1;
 import com.sysgroup.mediasys.model.User;
+import com.sysgroup.mediasys.repository.UserRepository;
 import com.sysgroup.mediasys.repository.UserRepository1;
 
 
 public class UserServiceTest extends BaseJUnit4Test{
 
 	@Autowired
-	private UserRepository1 userRepository;
+	private UserRepository userRepository;
 	
 	@Autowired
 	private UserService userService;
@@ -22,7 +24,7 @@ public class UserServiceTest extends BaseJUnit4Test{
 	@Test
 	public void findUserByUsername() {
 		
-		UserEntity1 user = userRepository.findOne(1L);
+		UserEntity user = userRepository.findOne(1);
 		
 		System.out.print(user.toString());
 	}
@@ -53,7 +55,7 @@ public class UserServiceTest extends BaseJUnit4Test{
 		user.setAddress("zhejiang");
 		user.setEmail("guolq@qq.com");
 		user.setUsername("jason");
-		user.setId(1l);
+		user.setId(1);
 		userService.updateUser(user);
 		getAll();
 		
@@ -75,12 +77,12 @@ public class UserServiceTest extends BaseJUnit4Test{
 	}
 	
 	
-	public UserRepository1 getUserRepository() {
+	public UserRepository getUserRepository() {
 		return userRepository;
 	}
 
 
-	public void setUserRepository(UserRepository1 userRepository) {
+	public void setUserRepository(UserRepository userRepository) {
 		this.userRepository = userRepository;
 	}
 

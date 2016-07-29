@@ -1,0 +1,197 @@
+#include <unittest_cp_dbe2_msg_dispatch_main.h>
+
+SUITE(SUITE_msg_dispatch_mgr_cpp)
+{
+	//Fuction: CMgrInitHelper :: ~ CMgrInitHelper ( )
+	TEST_FIXTURE(TestFixture,TestCMgrInitHelper)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMgrInitHelper :: CMgrInitHelper ( od_frame :: CThread * pOdThread ) : m_pOdThread ( pOdThread )
+	TEST_FIXTURE(TestFixture,TestCMgrInitHelper_CMgrInitHelper)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgHelper :: ~ CMsgHelper ( )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgHelper :: CMsgHelper ( od_frame :: CThread * pOdThread ) : m_pOdThread ( pOdThread )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_CMsgHelper)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgAddr CMsgHelper :: Connect ( CCommunicateApi * pCommunicateApi )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_Connect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgAddr CMsgHelper :: Disconnect ( CCommunicateApi * pCommunicateApi )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_Disconnect)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgAddr CMsgHelper :: FindSourceByCCommunicateApi ( CCommunicateApi * pCommunicateApi )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_FindSourceByCCommunicateApi)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: GetSocket ( const MDbe :: CSourceData & rSourceData , CSourceDataCmuApiMap & rSourceDataCmuApiMap )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_GetSocket)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: GetSocketByDbm ( const MDbe :: CSourceData & rcReqSourceData , CSourceDataCmuApiMap & rSourceDataCmuApiMap )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_GetSocketByDbm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: GetSocketByProckey ( const MDbe :: CSourceData & rcReqSourceData , CSourceDataCmuApiMap & rSourceDataCmuApiMap )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_GetSocketByProckey)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: GetSocketBySrm ( const CSourceData & rcReqSourceData , CSourceDataCmuApiMap & rSourceDataCmuApiMap )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_GetSocketBySrm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: GetSocketByTs ( const MDbe :: CSourceData & rcReqSourceData , CSourceDataCmuApiMap & rSourceDataCmuApiMap )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_GetSocketByTs)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: GetSocketByVm ( const CSourceData & rcReqSourceData , CSourceDataCmuApiMap & rSourceDataCmuApiMap )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_GetSocketByVm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgAddr CMsgHelper :: GetSourceMsgAddr ( const MDbe :: CSourceData & rSourceData )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_GetSourceMsgAddr)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: od_frame :: CCommData * CMsgHelper :: MakeCNotifyHead ( CSendSource & cSendSource , CSendTarget & cSendTarget , int32 iMsgType , bool isFindComuApi )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_MakeCNotifyHead)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: ObtainSocket ( const CSourceData & rcReqSourceData , CSourceDataCmuApiMap & rcSourceDataCmuApiMap , const CSourceData & rcSourceData , CCommunicateApiInfo & cCmuApi , const char * pFromInfo )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_ObtainSocket)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: Send ( int32 iMsgType , obb_stream & cObbStream , bool bMyself )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_Send)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: SetRouteData ( CSendSource & cSendSource , CSendTarget & cSendTarget , CRouteData & rRouteData )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_SetRouteData)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: int32 CMsgHelper :: SetSocket ( MDbe :: CSourceData & rSourceData , CCommunicateApi * pCommunicateApi , bool bServer )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_SetSocket)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: _GetSocket ( const MDbe :: CSourceData & rcReqSourceData , CSourceDataCmuApiMap & rSourceDataCmuApiMap )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper__GetSocket)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: IMsgDispatchMgr & IMsgDispatchMgr :: GetInstance ( )
+	TEST_FIXTURE(TestFixture,TestIMsgDispatchMgr_GetInstance)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: GetSocketBySoJob ( const MDbe :: CSourceData & rcReqSourceData , CSourceDataCmuApiMap & rSourceDataCmuApiMap )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_GetSocketBySoJob)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: CMsgAddr CMsgHelper :: Delete ( CCommunicateApi * pCommunicateApi )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_Delete)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CMsgHelper :: SendIntraMsg ( CSendTarget & rSendTarget , CCommunicateApi * pCommunicateApi , int32 iMsgType )
+	TEST_FIXTURE(TestFixture,TestCMsgHelper_SendIntraMsg)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

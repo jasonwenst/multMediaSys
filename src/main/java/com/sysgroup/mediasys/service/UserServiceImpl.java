@@ -11,9 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 
 import com.sysgroup.mediasys.converter.UserConverter;
-import com.sysgroup.mediasys.entity.UserEntity1;
+import com.sysgroup.mediasys.entity.UserEntity;
 import com.sysgroup.mediasys.model.User;
-import com.sysgroup.mediasys.repository.UserRepository1;
+import com.sysgroup.mediasys.repository.UserRepository;
 
 
 @Service("userService")
@@ -24,22 +24,22 @@ public class UserServiceImpl implements UserService{
 	private static List<User> users;
 	
 	@Autowired
-	private UserRepository1 userRepository;
+	private UserRepository userRepository;
 	
 
 	public List<User> findAllUsers() {
 		log.info("findAllUsers invocked!");
 		users = new ArrayList<User>();
-		List<UserEntity1> entities = (List<UserEntity1>) userRepository.findAll();
-		for(UserEntity1 entity : entities) {
+		List<UserEntity> entities = (List<UserEntity>) userRepository.findAll();
+		for(UserEntity entity : entities) {
 			users.add(UserConverter.convert(entity));
 		}
 		log.info("findAllUsers completed!");
 		return users;
 	}
 	
-	public User findById(long id) {
-		UserEntity1 entity = userRepository.findOne(id);
+	public User findById(int id) {
+		UserEntity entity = userRepository.findOne(id);
 		if(entity != null) {
 			return UserConverter.convert(entity);
 		}
@@ -56,14 +56,15 @@ public class UserServiceImpl implements UserService{
 	}
 
 	public void updateUser(User user) {
-		UserEntity1 entity = userRepository.findOne(user.getId());
-		entity.setAddress(user.getAddress());
-		entity.setEmail(user.getEmail());
+		UserEntity entity = userRepository.findOne(user.getId());
+//		entity.setAddress(user.getAddress());
+//		entity.setEmail(user.getEmail());
 		entity.setUserName(user.getUsername());
+		entity.setUserPasswd(user.getPassword());
 		userRepository.save(entity);
 	}
 
-	public void deleteUserById(long id) {
+	public void deleteUserById(int id) {
 		userRepository.delete(id);
 	}
 
@@ -76,7 +77,9 @@ public class UserServiceImpl implements UserService{
 	}
 
 	public boolean findByNameAndPassword(User user) {
-		return ObjectUtils.isEmpty(userRepository.findUserEntityByUserNameAndPassword(user.getUsername(), user.getPassword())) ? false : true;
+		UserEntity userEntity = userRepository.findUserEntityByUserNameAndUserPasswd(user.getUsername(), user.getPassword());
+		log.info("username = {}, password = {}",user.getUsername(), user.getPassword());
+		return ObjectUtils.isEmpty(userEntity) ? false : true;
 	}
 
 }

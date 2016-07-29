@@ -1,0 +1,109 @@
+#include <unittest_cp_dbe2_srm_main.h>
+
+SUITE(SUITE___mgr_impl_srm_proc_mgr_impl_cpp)
+{
+	//Fuction: CSrmProcMgrImpl :: CSrmProcMgrImpl ( )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_CSrmProcMgrImpl)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: bool CSrmProcMgrImpl :: ProcActiveExit ( SBaseProcKey & rcProcKey , int32 iVmId , CRdcProcList & rcTbProcList )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_ProcActiveExit)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: SendStopMsgToNrm ( SBaseProcKey & rcProcKey , int32 iVmId , int32 iStopType )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_SendStopMsgToNrm)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: Stop ( CRdcProcTransOperate & rcStopOperate , int32 iFoceStop )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_Stop)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: UpdateProcState ( SBaseProcKey & rcProKey , int32 iExeType , int32 iExeResult )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_UpdateProcState)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: Start ( CRdcProcTransOperateList & rcStartOperateList , SNrmStartProcExtList & rcStartProcExtList )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_Start)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: StartProc ( SBaseProcKey & rcProKey , int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_StartProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: StopProc ( SBaseProcKey & rcProKey , int32 iVmId )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_StopProc)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: GetFlowSrvParam ( const CInt32Set & ri32FlowIdSet , const CInt32Set & ri32SrvIdSet , SNrmStartProcExtList & rcStartProcExtList )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_GetFlowSrvParam)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void MyTrim ( aistring & strInput )
+	TEST_FIXTURE(TestFixture,TestMyTrim)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: GetSrvConfig ( SBaseSrvKey & rcSrvKey , aistring & rstrConfig )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_GetSrvConfig)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: ClearTbTsRegisterInfo ( SBaseProcKey & rcProcKey , CRdcProc * pProc )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_ClearTbTsRegisterInfo)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+	//Fuction: void CSrmProcMgrImpl :: SyncProcState ( )
+	TEST_FIXTURE(TestFixture,TestCSrmProcMgrImpl_SyncProcState)
+	{
+		/*codes for test start here*/
+
+
+		/*codes for test stop here*/
+	}
+}

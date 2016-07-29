@@ -1,0 +1,708 @@
+#include "pcc_communicate.h"
+#include "nr_api.h"
+#include "parseenv.h"
+#include "util.h"
+#include <errno.h>
+#include <sys/time.h>
+
+#include <sys/socket.h>
+// tcp test connection
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+
+#define PCC_SOCKET_CONNECT			1
+#define PCC_SOCKET_DISCONNECT		0
+#define PCC_RECONNECT_SLEEPTIME		2
+
+#define PCC_MAX_MSG_SIZE			500
+
+// HW的存储默认支持40个文件，100M*40，即4个G
+#define PCC_STOREFILE_MAXSIZE		1024*1024*100
+
+NAMESPACE_DBE_CPF_BEGIN
+
+void GetVirtualTime(CTimeOdFrame& rTime)
+{
+	struct timeval tv;
+	gettimeofday(&tv, 0);
+
+    rTime.m_tmVal.tv_sec = tv.tv_sec;
+    rTime.m_tmVal.tv_usec = tv.tv_usec;
+    rTime.m_iSecModify = 0;
+}
+
+
+void string_replace( aistring &strBig, const aistring strsrc, const aistring strdst )
+{
+    aistring::size_type pos = 0;
+    aistring::size_type srclen = strsrc.size();
+    aistring::size_type dstlen = strdst.size();
+
+    while( (pos=strBig.find(strsrc, pos)) != std::string::npos )
+    {
+        strBig.replace( pos, srclen, strdst );
+        pos += dstlen;
+    }
+}
+
+int CheckSocketConnected(int sock) 
+{ 
+	if(sock <= 0) 
+	{
+		return PCC_SOCKET_DISCONNECT;
+	} 
+
+#ifdef _AIX
+	int type;
+	socklen_t size = sizeof(int);
+	if(getsockopt(sock, SOL_SOCKET, SO_TYPE, (void*)&type, (socklen_t *)&size) == -1)
+	{
+		return PCC_SOCKET_DISCONNECT;
+	}
+	else
+	{
+		return PCC_SOCKET_CONNECT;
+	}
+#else
+	struct tcp_info info; 
+	int len = sizeof(info); 
+	getsockopt(sock, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len); 
+	if((info.tcpi_state == 1)) 
+	{ 
+		return PCC_SOCKET_CONNECT; 
+	} 
+	else 
+	{ 
+		return PCC_SOCKET_DISCONNECT; 
+	}
+#endif
+
+}
+
+int32 CPccCommunicate::init()
+{
+	int32 iRet = 0;
+
+	m_objProcUpdStatus.m_objSKey.m_iFlowId = get_cpfFlowId();
+	m_objProcUpdStatus.m_objSKey.m_iSrvId = get_cpfServiceId();
+	m_objProcUpdStatus.m_iProcId = get_cpfProcId();
+	m_objProcUpdStatus.m_iPid = getpid();
+
+#ifndef LINUX 
+	m_iPageSize = getpagesize();
+#endif
+
+	//init nr here
+	cpf::CNrApi *pNrApi = cpf::CNrApi::CreateNr();
+	if(pNrApi == NULL)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "create nr object error, errno:%d", errno);
+		return -1;
+	}
+
+	iRet = pNrApi->NrInit(this);
+	if(iRet != 0)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "init nr error, errno:%d", errno);
+		return -1;
+	}
+
+	aistring strCommand;
+	m_objProcUpdStatus.m_iPid = getpid();
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "get pid %d", m_objProcUpdStatus.m_iPid);
+
+	iRet = pNrApi->HoldNr(m_objProcUpdStatus, strCommand.c_str());
+	if(iRet != 0)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "hold nr error with flow id %d service id %d proc id %d, command %s, errno:%d %s",
+			m_objProcUpdStatus.m_objSKey.m_iFlowId,
+			m_objProcUpdStatus.m_objSKey.m_iSrvId,
+			m_objProcUpdStatus.m_iProcId,
+			strCommand.c_str(),
+			errno,strerror(errno));
+		return -1;
+	}
+	else
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "hold nr success with flow id %d service id %d proc id %d, command %s",
+			m_objProcUpdStatus.m_objSKey.m_iFlowId,
+			m_objProcUpdStatus.m_objSKey.m_iSrvId,
+			m_objProcUpdStatus.m_iProcId,
+			strCommand.c_str());
+	}
+
+    if( 0 != pNrApi->WritePid(m_objProcUpdStatus, m_objProcUpdStatus.m_iPid))
+    {
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, 
+				"write pid error: save pid in nr/cmd_line error with flow id %d service id %d proc id %d, command %s, errno:%d %s", 
+					m_objProcUpdStatus.m_objSKey.m_iFlowId,
+					m_objProcUpdStatus.m_objSKey.m_iSrvId,
+					m_objProcUpdStatus.m_iProcId,
+					strCommand.c_str(),
+					errno,
+					strerror(errno));
+    }
+	else
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "write pid %d OK", m_objProcUpdStatus.m_iPid);
+	}
+
+	m_pNrApi = pNrApi;
+
+	set_messageObj(this);
+
+	aistring strPort;
+	iRet = ConvertEnvPath("$NRM_PORT", strPort);
+	if(iRet == 0)
+	{
+		m_iPort = atoi(strPort.c_str());
+		if(m_iPort <= 1024) 
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, 
+					"nrm port is %d, less than 1024, change to default 8701", m_iPort);
+			m_iPort = 8701;
+		}
+	}
+	else
+	{
+		m_iPort = 8701;
+	}
+
+	m_queue = IlocalQue::getInstance();
+
+	// 默认设置路径在nrm config文件路径下的pcc_data下，若不存在会创建该路径
+	// 不设置destroy操作，会引起error
+	
+	aistring path = "pcc_" + itoa(get_cpfFlowId()) + "_"
+		+ itoa(get_cpfServiceId()) + "_"
+		+ itoa(get_cpfProcId());
+
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, ">>> pcc save msg path %s", path.c_str());
+	m_queue->setRootDir(path.c_str());
+	// m_queue->destroy();
+	m_queue->setMaxFileSize(PCC_STOREFILE_MAXSIZE);
+	int bqueue = m_queue->init();
+	if(0 != bqueue)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "init queue error ...");
+	}
+	else
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "init queue OK.");
+	}
+
+	if(connect() != 0)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, ">>> first connect to nrm failed");
+	}
+
+	return 0;
+}
+
+int32 CPccCommunicate::connect()
+{
+	if(PCC_SOCKET_CONNECT != CheckSocketConnected(m_iSd))
+	{
+		try
+		{
+			int32 iSockFd = NetTcpConnect("127.0.0.1", m_iPort);
+			if (iSockFd >= 0)
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "create connect to 127.0.0.1:%d OK", m_iPort);
+			}
+			else
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "create connect to 127.0.0.1:%d failed", m_iPort);
+			}
+
+			m_iSd = iSockFd;
+
+			NAMESPACE_BILLING40_FRAME CControlPkg cControlPkg;
+			cControlPkg.m_iMsgType = 150;
+			char szContent[100];
+			CDbeCommApi cDbeCommApi;
+			cDbeCommApi.m_objPKey = m_objProcUpdStatus;
+			cDbeCommApi.m_iProcType = 9;
+			cDbeCommApi.m_tmRegTime = GetSecTime();
+			cDbeCommApi.m_tmRegModifyTime = 0;
+			memcpy(szContent, &cDbeCommApi, sizeof(cDbeCommApi));
+			push_message_list(150, szContent, sizeof(cDbeCommApi));
+		}
+		catch(cpf::CException &e)
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "error exception: %s, >>>> restart again", e.get_message().c_str());
+			return -1;
+		}
+		catch(...)
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "other exception");
+			return -1;
+		}
+	}
+	else
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "already connect to nrm");
+	}
+
+	return 0;
+}
+
+int32 CPccCommunicate::destroy()
+{
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "destroy clear_messageObj");
+	clear_messageObj(this);
+	real_send_message();
+
+	m_queue->destroy();
+	return 0;
+}
+
+#ifdef _PCC_DEBUG
+	int gCount = 0;
+#endif
+
+int32 CPccCommunicate::run(NAMESPACE_BILLING40_FRAME CData *p)
+{
+#ifdef _PCC_DEBUG
+	if(PCC_SOCKET_CONNECT != CheckSocketConnected(m_iSd))
+	{
+		sleep(1);
+		for(int i = 0; i < 10; i++)	
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "PCC_DEBUG MODEL ADD DATA");
+			char szCon[10240]={0};
+			snprintf(szCon, 10240, "obbs:J:1.3:{\n   \"struct_0_MDbe::SNrmStatInfo\" : {\n      \"int16_0__MarkerNum\" : 1,\n      \"int64_1__UsedMarker\" : \"3\",\n      \"int64_2__Marker\" : \"3\",\n      \"struct_3_MSG_HEAD\" : {\n         \"int16_0__MarkerNum\" : 1,\n         \"int64_1__UsedMarker\" : \"7\",\n         \"int64_2__Marker\" : \"7\",\n         \"int32_3_COMMAND\" : 3600,\n         \"int64_4_SEQUENCE\" : \"1\",\n         \"int64_5_ID\" : \"1\" \n      }, \n      \"string_4_STAT_INFO\" : \"%s\"\n      }\n}\n\n",
+			"test pcc data");
+			push_message_list(3600, szCon, strlen(szCon));
+		}
+
+		gCount++;
+		if(gCount > 70)
+		{
+			connect();
+		}
+		return 0;
+	}
+
+#endif
+	write_procRes();
+	real_send_message();
+	sleep(2);
+
+	return 0;
+}
+
+
+void CPccCommunicate::real_send_message()
+{
+	int nLen = 0;
+	while(m_msgQList.Size() > 0)
+	{
+		NetWriteData tmp = m_msgQList.Pop_front();
+		nLen = NetWrite(m_iSd, tmp.pSendData, tmp.nLen);
+		if(nLen > 0)
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "send msg length %d, data len %d", nLen, tmp.nLen);
+			// 每发送一条的同时push一条本地的数据到队列
+			
+			char *szData = new char[10240];
+			int32 szLen = 10240;
+
+			if(!(m_queue->fetch(szData, szLen)))
+			{
+				NetWriteData data;
+				data.pSendData = szData;
+				data.nLen = szLen;
+				m_msgQList.Push_back(data);
+
+				LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, 
+						"push data to queue, len[%d], queue number[%d]", szLen, m_nCountQueue);
+				m_queue->commit();
+				m_nCountQueue--;
+				continue;
+				
+			}
+			else
+			{
+				delete []szData;
+				LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "no data in queue");
+			}
+
+		}
+		else
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "send msg failed, return %d", nLen);
+			m_msgQList.Push_front(tmp);
+			if(connect() == 0)
+			{
+				continue;
+			}
+			else
+			{
+				LogAppend(NAMESPACE_BILLING40_LOG FATAL_LEVEL, "pcc reconnect failed.");
+				break;
+			}
+		}
+
+	}	
+
+}
+
+int32 CPccCommunicate::control(NAMESPACE_BILLING40_FRAME CControlPkg& controlPkg)
+{
+	return 0;
+}
+
+void CPccCommunicate::send_processStopped()
+{
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "proc stop success.send msg 3008 to nrm");
+	return;
+}
+
+int32 CPccCommunicate::send_msg3025(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg)
+{
+    LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "send msg 3025:%s", pControlPkg->m_strMsgInfo.c_str());
+
+	char szCon[2048]={0};
+    snprintf(szCon, 2048, "obbs:J:1.3:{\n   \"struct_0_MDbe::SSrmProReqExit\" : {\n      \"int16_0__MarkerNum\" : 1,\n         \"int64_1__UsedMarker\" : \"3\",\n         \"int64_2__Marker\" : \"3\",\n         \"struct_3_MSG_HEAD\" : {\n            \"int16_0__MarkerNum\" : 1,\n            \"int64_1__UsedMarker\" : \"7\",\n            \"int64_2__Marker\" : \"7\",\n            \"int32_3_COMMAND\" : 3025,\n            \"int64_4_SEQUENCE\" : \"0\",\n            \"int64_5_ID\" : \"0\"\n            },\n            \"struct_4_PROC_KEY\" : {\n               \"int16_0__MarkerNum\" : 1,\n               \"int64_1__UsedMarker\" : \"3\",\n               \"int64_2__Marker\" : \"3\",\n               \"int32_3_APP_ID\" : %d,\n               \"int32_4_PROC_ID\" : %d\n         }\n   }\n}\n\n",
+        m_objProcUpdStatus.m_objSKey.m_iSrvId, m_objProcUpdStatus.m_iProcId);
+
+
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "send msg %s", szCon);
+	if (pControlPkg != NULL)
+	{
+		delete pControlPkg;
+		pControlPkg = NULL;	
+	}
+    return push_message_list(3025, szCon, strlen(szCon));
+}
+
+int32 CPccCommunicate::send_msgCommon(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg)
+{
+    string_replace(pControlPkg->m_strMsgInfo, "\"", "\\\"");
+    LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "send msg %d:%s",pControlPkg->m_iMsgType, pControlPkg->m_strMsgInfo.c_str());
+
+	char szCon[10240]={0};
+    snprintf(szCon, 10240, "obbs:J:1.3:{\n   \"struct_0_MDbe::SNrmStatInfo\" : {\n      \"int16_0__MarkerNum\" : 1,\n      \"int64_1__UsedMarker\" : \"3\",\n      \"int64_2__Marker\" : \"3\",\n      \"struct_3_MSG_HEAD\" : {\n         \"int16_0__MarkerNum\" : 1,\n         \"int64_1__UsedMarker\" : \"7\",\n         \"int64_2__Marker\" : \"7\",\n         \"int32_3_COMMAND\" : 3600,\n         \"int64_4_SEQUENCE\" : \"1\",\n         \"int64_5_ID\" : \"1\" \n      }, \n      \"string_4_STAT_INFO\" : \"%s\"\n      }\n}\n\n",
+        pControlPkg->m_strMsgInfo.c_str());
+
+    LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "send msg %s", szCon);
+    if (pControlPkg != NULL)
+    {
+        delete pControlPkg;
+        pControlPkg = NULL;	
+    }
+    return push_message_list(3600, szCon, strlen(szCon));
+}
+
+
+int32 CPccCommunicate::send_msg3501(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg)
+{
+    aistring strFlowName("");
+    aistring strXdrType("");
+    aistring strInputPath("");
+    int32 iWaitCount = 0;
+    LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "send msg 3501:%s", pControlPkg->m_strMsgInfo.c_str());
+    aistring &strTmp = pControlPkg->m_strMsgInfo;
+    int32 iSize = strTmp.length();
+    int32 iStart = 0;
+    int32 iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strFlowName = strTmp.substr(iStart, iEnd - iStart);
+    }
+
+    if (iEnd < iSize) iStart = iEnd + 1;
+    iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strXdrType = strTmp.substr(iStart, iEnd - iStart);
+    }
+
+    if (iEnd < iSize) iStart = iEnd + 1;
+    iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strInputPath = strTmp.substr(iStart, iEnd - iStart);
+    }
+
+    if (iEnd < iSize) iEnd ++;
+    iWaitCount = atoi(strTmp.substr(iEnd).c_str());
+
+    char szCon[2048]={0};
+    snprintf(szCon, 2048, "obbs:J:1.3:{\n   \"struct_0_MDbe::SProcBackLog\" : {\n      \"int16_0__MarkerNum\" : 1,\n         \"int64_1__UsedMarker\" : \"254\",\n         \"int64_2__Marker\" : \"254\",\n         \"struct_3_PROC_KEY\" : {\n            \"int16_0__MarkerNum\" : 1,\n            \"int64_1__UsedMarker\" : \"3\",\n            \"int64_2__Marker\" : \"3\",\n            \"int32_3_APP_ID\" : %d,\n            \"int32_4_PROC_ID\" : %d\n         },\n         \"int32_4_VM_ID\" : %d,\n         \"string_5_FLOW_NAME\" : \"%s\",\n         \"string_6_XDR_TYPE\" : \"%s\",\n         \"string_7_INPUT_PATH\" : \"%s\",\n         \"int32_8_WAIT_HANDLE_COUNT\" : %d,\n         \"int64_9_UPDATE_TIME\" : \"%lld\"\n   }\n}\n\n",
+        m_objProcUpdStatus.m_objSKey.m_iSrvId, m_objProcUpdStatus.m_iProcId,
+        0, strFlowName.c_str(), strXdrType.c_str(),  strInputPath.c_str(), iWaitCount, GetSecTime());
+
+	if (pControlPkg != NULL)
+    {
+        delete pControlPkg;
+        pControlPkg = NULL;	
+    }
+
+    return push_message_list(3501, szCon, strlen(szCon));
+}
+
+int32 CPccCommunicate::send_msg3502(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg)
+{
+    aistring strFlowName("");
+    aistring strXdrType("");
+    int64 iHandleRate = 0l;
+    LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "send msg 3502:%s", pControlPkg->m_strMsgInfo.c_str());
+    aistring &strTmp = pControlPkg->m_strMsgInfo;
+    int32 iSize = pControlPkg->m_strMsgInfo.length();
+    int32 iStart = 0;
+    int32 iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strFlowName = strTmp.substr(iStart, iEnd - iStart);
+    }
+    
+    if (iEnd < iSize) iStart = iEnd + 1;
+    iEnd = strTmp.find(";", iStart);
+    if (iEnd > iStart) 
+    {
+        strXdrType = strTmp.substr(iStart, iEnd - iStart);
+    }
+
+    if (iEnd < iSize) iEnd ++;
+    iHandleRate = atol(strTmp.substr(iEnd).c_str());
+
+    char szCon[2048];
+    snprintf(szCon, 2048, "obbs:J:1.3:{\n   \"struct_0_MDbe::SProcHandleRate\" : {\n      \"int16_0__MarkerNum\" : 1,\n         \"int64_1__UsedMarker\" : \"126\",\n         \"int64_2__Marker\" : \"126\",\n         \"struct_3_PROC_KEY\" : {\n            \"int16_0__MarkerNum\" : 1,\n            \"int64_1__UsedMarker\" : \"3\",\n            \"int64_2__Marker\" : \"3\",\n            \"int32_2_APP_ID\" : %d,\n            \"int32_4_PROC_ID\" : %d\n         },\n         \"int32_4_VM_ID\" : %d,\n         \"string_5_FLOW_NAME\" : \"%s\",\n         \"string_6_XDR_TYPE\" : \"%s\",\n         \"int64_7_HANDLE_RATE\" : \"%d\",\n         \"int64_8_UPDATE_TIME\" : \"%lld\"\n   }\n}\n\n",
+        m_objProcUpdStatus.m_objSKey.m_iSrvId, m_objProcUpdStatus.m_iProcId,
+        0, strFlowName.c_str(), strXdrType.c_str(), iHandleRate, GetSecTime());
+
+	if (pControlPkg != NULL)
+    {
+        delete pControlPkg;
+        pControlPkg = NULL;	
+    }
+
+    return push_message_list(3502, szCon, strlen(szCon));
+}
+
+int32 CPccCommunicate::send_message(NAMESPACE_BILLING40_FRAME CControlPkg *pControlPkg)
+{
+    if (3501 == pControlPkg->m_iMsgType)
+    {
+        return send_msg3501(pControlPkg);
+    }
+    if (3502 == pControlPkg->m_iMsgType)
+    {
+        return send_msg3502(pControlPkg);
+    }
+    if (3025 == pControlPkg->m_iMsgType)
+    {
+    	return send_msg3025(pControlPkg);
+    }
+    if (3600 == pControlPkg->m_iMsgType)
+    {
+        return send_msgCommon(pControlPkg);
+    }
+
+	push_message_list(pControlPkg->m_iMsgType, pControlPkg->m_strMsgInfo.c_str(), pControlPkg->m_strMsgInfo.length());
+
+	if (pControlPkg != NULL)
+	{
+		delete pControlPkg;
+		pControlPkg = NULL;	
+	}
+
+	return 0;
+}
+
+#define HEX_CHAR(n) ((n) > 9 ? ((n) - 10 + 'a') : ((n) + '0'))
+int32 CPccCommunicate::push_message_list(int32 iMsgType, const char *pData, int32 iSize)
+{
+	char *szSend = new char[280 + iSize];
+	if(NULL == szSend) return -1;
+	struct PACKAGE_HEADER header = PACKAGE_HEADER();
+	header.type_ = iMsgType;
+	header.count_ = 2;
+	header.size_ = 72 * 3 + iSize;
+	memcpy(szSend, &header, sizeof(header));
+	int32 iTotal = sizeof(header);
+
+	struct ITEM_HEADER routItem;
+	routItem.size_ = 72;
+	routItem.flag_ = system_endian();
+	routItem.type_ = 2;
+	memcpy(routItem.class_name, "N6od_srm10CRouteDataE", 21);
+	memcpy(szSend + iTotal, &routItem, sizeof(routItem));
+	iTotal += sizeof(routItem);
+
+	CRouteData cRt;
+	cRt.m_iSFlowId = m_objProcUpdStatus.m_objSKey.m_iFlowId;
+	cRt.m_iSSrvId = m_objProcUpdStatus.m_objSKey.m_iSrvId;
+	cRt.m_iSProcId = m_objProcUpdStatus.m_iProcId;
+	cRt.m_iSSrvType = 9;
+	memcpy(szSend + iTotal, &cRt, sizeof(CRouteData));
+	iTotal += sizeof(CRouteData);
+
+	routItem.size_ = (iSize + 7)/8 *8;
+	routItem.flag_ = system_endian();
+	routItem.type_ = 0;
+	if (150 == iMsgType)
+	{
+		routItem.type_ = 2;
+	}
+	memcpy(routItem.class_name, "CControlPkg", 13);
+	memcpy(szSend + iTotal, &routItem, sizeof(routItem));
+	iTotal += sizeof(routItem);
+
+	memcpy(szSend + iTotal, pData, iSize);
+	iTotal += iSize;
+
+	if(PCC_MAX_MSG_SIZE < m_msgQList.Size())
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, 
+				"wait msg are more than %d, push this msg[%d] here", PCC_MAX_MSG_SIZE, iMsgType);
+
+		int result = m_queue->push(szSend, iTotal);
+		if(0 == result)
+		{
+			m_nCountQueue++;
+		}
+		else
+		{
+			LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "Push data to file error");
+		}
+
+		delete [] szSend;
+		return 0;
+	}
+
+	NetWriteData data;
+	data.pSendData = szSend;
+	data.nLen = iTotal;
+	m_msgQList.Push_back(data);
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "push to list type[%d], length[%d]", iMsgType, iTotal);
+
+	return 0;
+}
+
+NAMESPACE_BILLING40_FRAME CControlPkg * CPccCommunicate::receive_message()
+{
+	return NULL; 
+}
+
+int32 CPccCommunicate::send_startProcess(int32 iPid, int32 iResult)
+{
+	LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "proc start result:%d.send msg 7111 to nrm", iResult);
+	NAMESPACE_BILLING40_FRAME CControlPkg *cControlPkg = new NAMESPACE_BILLING40_FRAME CControlPkg;
+	cControlPkg->m_iMsgType = 7111;
+	char szCon[2048];
+	snprintf(szCon, 2048, "obbs:J:1.3:{\n    \"struct_0_MDbe::SSrmNotifyProc\" : {\n        \"int16_0__MarkerNum\" : 1,\n            \"int64_1__UsedMarker\" : \"7\",\n            \"int64_2__Marker\" : \"7\",\n            \"struct_3_MSG_HEAD\" : {\n                \"int16_0__MarkerNum\" : 1,\n                \"int64_1__UsedMarker\" : \"7\",\n                \"int64_2__Marker\" : \"7\",\n                \"int32_3_COMMAND\" : 7111,\n                \"int64_4_SEQUENCE\" : \"1\",\n                \"int64_5_ID\" : \"1\"\n            },\n            \"struct_4_PROC_INFO\" : {\n                \"int16_0__MarkerNum\" : 1,\n                \"int64_1__UsedMarker\" : \"27\",\n                \"int64_2__Marker\" : \"27\",\n                \"struct_3_BASE_PROC_KEY\" : {\n                    \"int16_0__MarkerNum\" : 1,\n                    \"int64_1__UsedMarker\" : \"3\",\n                    \"int64_2__Marker\" : \"3\",\n                    \"int32_3_APP_ID\" : %d,\n                    \"int32_4_PROC_ID\" : %d\n                },\n                \"int64_4_UPDATE_TIME\" : \"0\",\n                \"int32_5_VM_ID\" : 0,\n                \"int32_6_PID\" : %d\n            },\n            \"struct_5_PROC_EXE_RESULT\" : {\n                \"int16_0__MarkerNum\" : 1,\n                \"int64_1__UsedMarker\" : \"6\",\n                \"int64_2__Marker\" : \"6\",\n                \"int32_3_RESULT\" : %d,\n                \"string_4_FAIL_REASON\" : \"%s\"\n            }\n    }\n}\n\n\n",
+		m_objProcUpdStatus.m_objSKey.m_iSrvId, 
+		m_objProcUpdStatus.m_iProcId, m_objProcUpdStatus.m_iPid, iResult, "");
+	cControlPkg->m_strMsgInfo = szCon;
+	send_message(cControlPkg);
+	return 0;
+}
+
+int32 CPccCommunicate::write_procRes()
+{
+	LogAppend(NAMESPACE_BILLING40_LOG DEBUG_LEVEL, "Begin write proc info");
+
+	int32 iRet = 0;
+
+	if(m_pNrApi == NULL)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG INFO_LEVEL, "NrApi error.");
+		return 0;
+	}
+
+	CTimeOdFrame cTime;	
+	GetVirtualTime(cTime);
+
+	time_t lTimeEsc = (cTime.m_tmVal.tv_sec - cTime.m_iSecModify)
+		- (m_lastTime.m_tmVal.tv_sec - m_lastTime.m_iSecModify);
+	m_lastTime = cTime;
+
+	if(getrusage(RUSAGE_SELF, m_pCurrUsage) != 0)
+	{
+		return 0;
+	}
+
+	time_t lUse = (m_pCurrUsage->ru_utime.tv_sec - m_pLastUsage->ru_utime.tv_sec
+			+ m_pCurrUsage->ru_stime.tv_sec - m_pLastUsage->ru_stime.tv_sec) * 1000000
+			+ m_pCurrUsage->ru_utime.tv_usec - m_pLastUsage->ru_utime.tv_usec
+			+ m_pCurrUsage->ru_stime.tv_usec - m_pLastUsage->ru_stime.tv_usec;
+
+	time_t lTime = (cTime.m_tmVal.tv_sec - cTime.m_iSecModify - m_stLastTime.tv_sec) * 100
+			+ (cTime.m_tmVal.tv_usec - cTime.m_iSecModify - m_stLastTime.tv_usec)/10000;
+	time_t lUsage = (0==lTime)? 0 : lUse / lTime;
+	m_objProcUpdStatus.m_dbCpuUse = lUsage;
+	m_objProcUpdStatus.m_dbCpuUse /= 100;
+
+	
+#ifdef LINUX
+	char szPidFile[128];
+	sprintf(szPidFile, "/proc/%d/statm", m_objProcUpdStatus.m_iPid);
+	AISTD ifstream objMemInfo(szPidFile);
+	objMemInfo >> m_objProcUpdStatus.m_dbMemUse;
+	objMemInfo >> m_objProcUpdStatus.m_dbMemUse;
+    // 单位K
+	m_objProcUpdStatus.m_dbMemUse /= 1024;
+#else
+	m_objProcUpdStatus.m_dbMemUse = (m_pCurrUsage->ru_maxrss * m_iPageSize)/1024;
+#endif
+
+	m_objProcUpdStatus.m_dbHandleRate = 0;
+	GetCurrentTime(m_objProcUpdStatus.m_llUpdateTime);
+	m_objProcUpdStatus.m_iSecModify = cTime.m_iSecModify;
+
+	m_stLastTime = cTime.m_tmVal;
+	//求的真实时间
+	m_stLastTime.tv_sec = cTime.m_tmVal.tv_sec - cTime.m_iSecModify;
+
+	struct rusage *pTmp = m_pCurrUsage;
+	m_pCurrUsage = m_pLastUsage;
+	m_pLastUsage = pTmp;
+
+/*
+	uint64 ullInVolume = 0ULL;
+	uint64 ullOutVolume = 0ULL;
+	const CNetstat *pHead = CNetstat::head();
+	while(pHead != NULL)
+	{
+		ullInVolume += pHead->m_ullInVolume;
+		ullOutVolume += pHead->m_ullOutVolume;
+		pHead = pHead->m_pNext;
+	}
+	ullInVolume -= m_ullLastInVolume;
+	ullOutVolume -= m_ullLastOutVolume;
+	if(lTimeEsc >0 ) 
+	{
+		m_objProcUpdStatus.m_fNetUse = (ullInVolume > ullOutVolume ? ullInVolume : ullOutVolume) * 8 / lTimeEsc;
+	}
+
+	m_ullLastInVolume += ullInVolume;
+	m_ullLastOutVolume += ullOutVolume;
+*/
+	iRet = m_pNrApi->WriteProcResoure(m_objProcUpdStatus, m_objProcUpdStatus);
+	if(iRet != 0)
+	{
+		LogAppend(NAMESPACE_BILLING40_LOG WARN_LEVEL,"write nr error, ret:%d, errno:%d", iRet, errno);
+	}
+
+	return 0;
+}
+
+
+NAMESPACE_DBE_CPF_END
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	NAMESPACE_BILLING40_FRAME CThread * create_pccCommunicateInstance()
+	{
+		return new NAMESPACE_DBE_CPF CPccCommunicate();
+	}
+
+#ifdef __cplusplus
+}
+#endif
+

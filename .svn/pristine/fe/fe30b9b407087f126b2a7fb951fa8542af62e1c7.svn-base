@@ -1,0 +1,33 @@
+#!/bin/sh
+# useage: check_ts.sh prockey
+
+prockey=$1
+ecframepid=$2
+shellpid=$3
+echo "check_ts.sh $prockey $ecframepid $shellpid"
+proccount=1
+while [ $proccount -gt 0 ]
+do
+	proccount=`ps -ef| awk '{ print \$2 }' | grep -w $ecframepid | grep -v grep | wc -l`
+	#echo "proccount:$proccount"
+	sleep 5
+done
+
+echo "check ecfram exit!"
+
+# edit this to kill child proc begin
+
+childPids=`ps -ef | awk '{ if( \$3 == '$shellpid' ) { print \$2 } }'`
+echo "childPids:$childPids"
+for cpid in $childPids; do
+    kill "$cpid"
+    kill -9 "$cpid"
+done
+
+# edit end
+
+kill  "$shellpid"
+kill -9 "$shellpid"
+
+
+

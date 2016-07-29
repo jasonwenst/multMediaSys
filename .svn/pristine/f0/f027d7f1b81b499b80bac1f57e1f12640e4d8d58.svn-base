@@ -1,0 +1,178 @@
+/* $Id: */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：base.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：Jun 13, 2013）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __BASE_H___
+#define __BASE_H___
+
+#include "compile.h"
+#include <vector>
+#include <string>
+#include "frame_interface.h"
+#include <unistd.h>
+
+#define DBE2_LOG(level, ...) do{printf(__VA_ARGS__);printf("\n"); }while(0);
+#define CPF_THROW(code,msg) throw cpf::CException((uint64)(code),cpf::FormatString("%s:%d:%s", __FILE__, __LINE__, msg).c_str())
+
+#define CPF_ERROR_CODE_EVENT_START  1000
+#define CPF_ERROR_CODE_NET_START    2000
+#define CPF_ERROR_CODE_CACHE_START  3000
+
+
+typedef AISTD string aistring;
+typedef AISTD vector<aistring> CStringList;
+
+
+namespace cpf
+{
+
+class CException
+{
+public:
+    CException(int64 eCode, aistring strErrorMsg);
+
+    ~CException();
+
+    inline int64 get_code(void) const
+    {
+        return m_eCode;
+    }
+
+    inline aistring get_message(void) const
+	{
+
+		char buf[1024] = {0};
+		// m_msgTempl.replace(m_msgTempl.find("?"), 1, "");
+        sprintf(buf, "%s", m_msgTempl.c_str());
+        for (int i = 0; i < m_lstParam.size(); ++i)
+        {
+           sprintf(buf, "%s:%d.%s", buf, i, m_lstParam[i].c_str());
+        }
+		
+        return aistring(buf);
+	}
+
+public:
+    inline CException & operator<<(const std::string & val)
+    {
+        m_lstParam.push_back(val);
+        return *this;
+    }
+
+    inline CException & operator<<(const char * val)
+    {
+        m_lstParam.push_back(val ? val : "(nil)");
+        return *this;
+    }
+
+    inline CException & operator<<(const char val)
+    {
+        add_param<const char, 8>("%c", val);
+        return *this;
+    }
+
+    inline CException & operator<<(char * val)
+    {
+        return operator<<((const char *) val);
+    }
+
+    inline CException & operator<<(bool val)
+    {
+        return this->operator<<(int(val));
+    }
+
+    inline CException & operator<<(short val)
+    {
+        return this->operator<<(int(val));
+    }
+
+    inline CException & operator<<(int val)
+    {
+        add_param<int, 32>("%d", val);
+        return *this;
+    }
+
+    inline CException & operator<<(unsigned int val)
+    {
+        add_param<unsigned int, 32>("%u", val);
+        return *this;
+    }
+
+    inline CException & operator<<(long val)
+    {
+        add_param<long, 32>("%ld", val);
+        return *this;
+    }
+
+    inline CException & operator<<(unsigned long val)
+    {
+        add_param<unsigned long, 32>("%lu", val);
+        return *this;
+    }
+
+    inline CException & operator<<(float val)
+    {
+        add_param<float, 32>("%f", val);
+        return *this;
+    }
+
+    inline CException & operator<<(double val)
+    {
+        add_param<double, 64>("%f", val);
+        return *this;
+    }
+
+    inline CException & operator<<(long double val)
+    {
+        add_param<long double, 64>("%lf", val);
+        return *this;
+    }
+
+    inline CException & operator<<(void * val)
+    {
+        add_param<void *, 32>("%p", val);
+        return *this;
+    }
+
+protected:
+    template <typename T, unsigned int N>
+    inline void     add_param(const char * format, T & pm)
+    {
+        char buf[N] = {0};
+        sprintf(buf, format, pm);
+        m_lstParam.push_back(buf);
+    }
+
+private:
+    aistring             m_msgTempl;
+    int64 m_eCode;
+    AISTD vector<aistring> m_lstParam;
+};
+
+
+aistring FormatString(const char * format, ...);
+
+int64 GetMicroSecTime();
+
+int64 GetMilliSecTime();
+
+
+};
+
+
+#endif /* __BASE_H___ */

@@ -2,7 +2,7 @@ package com.sysgroup.mediasys.model;
 
 public class User {
 
-	private long id;
+	private int id;
 	
 	private String username;
 	
@@ -14,11 +14,13 @@ public class User {
 	
 	private String password;
 	
+	private int groupId;
+	
 	public User(){
 	}
 	
 
-	public User(long id, String username, String address, String email, String ssoId, String password) {
+	public User(int id, String username, String address, String email, String ssoId, String password, int groupId) {
 		super();
 		this.id = id;
 		this.username = username;
@@ -26,14 +28,15 @@ public class User {
 		this.email = email;
 		this.ssoId = ssoId;
 		this.password = password;
+		this.groupId = groupId;
 	}
 
 
-	public long getId() {
+	public int getId() {
 		return id;
 	}
 
-	public void setId(long id) {
+	public void setId(int id) {
 		this.id = id;
 	}
 
@@ -83,12 +86,23 @@ public class User {
 	}
 
 
+	public int getGroupId() {
+		return groupId;
+	}
+
+
+	public void setGroupId(int groupId) {
+		this.groupId = groupId;
+	}
+
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + ((address == null) ? 0 : address.hashCode());
 		result = prime * result + ((email == null) ? 0 : email.hashCode());
+		result = prime * result + groupId;
 		result = prime * result + (int) (id ^ (id >>> 32));
 		result = prime * result + ((password == null) ? 0 : password.hashCode());
 		result = prime * result + ((ssoId == null) ? 0 : ssoId.hashCode());
@@ -116,6 +130,8 @@ public class User {
 				return false;
 		} else if (!email.equals(other.email))
 			return false;
+		if (groupId != other.groupId)
+			return false;
 		if (id != other.id)
 			return false;
 		if (password == null) {
@@ -137,11 +153,6 @@ public class User {
 	}
 
 
-	@Override
-	public String toString() {
-		return "User [id=" + id + ", username=" + username + ", address=" + address + ", email=" + email + ", ssoId="
-				+ ssoId + ", password=" + password + "]";
-	}
 
 	
 

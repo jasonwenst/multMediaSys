@@ -1,0 +1,154 @@
+/* $Id$  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_proc_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：hupj）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_PROC_MGR_IMPL_H___
+#define __SRM_PROC_MGR_IMPL_H___
+
+#include "srm_proc_mgr.h"
+#include "srm_def_sdl_c.h"
+#include "srm_proc_trans_mgr.h"
+#include "dbe2_lock.h"
+
+namespace MDbe
+{
+const static int32 LOCK_SIZE = 1000;
+
+template<typename T>
+class LockList
+{
+public:
+    LockList<T>(){}
+    void Push_back(const T &value);
+    T Pop_front();
+    void GetAndClearList(AISTD vector<T> &clist);
+    int32 Size();
+private:
+    AISTD vector<T> m_list;
+    MDbe::CLock m_lock;
+};
+
+class CProcExitLock
+{
+public:
+	CProcExitLock(SBaseProcKey &rPk);
+	~CProcExitLock();
+private:
+	CLock & m_cLock;
+};
+
+class CProcConfig
+{
+public:
+    CProcConfig();
+    CProcConfig(const CProcConfig &rProcCfg);
+    CProcConfig& operator = (const CProcConfig &rProcCfg);
+
+    aistring m_strCfg;
+    aistring m_strLogPath;
+    aistring m_strFilePrefix;
+};
+typedef AISTD map<int32, CProcConfig> CInt32ProcConfigMap;
+
+class CSrmProcMgrImpl : public ISrmProcMgr
+{
+public:
+	virtual void StartByTrans(CRdcProcTransOperateList &rcStartOperateList, int32 modifyState);
+
+	virtual void StopByTrans(CRdcProcTransOperateList &rcStartOperateList, int32 modifyState);
+
+	virtual void Stop(CRdcProcTransOperate &rcStopOperate, int32 iFoceStop, int32 modifyState);
+
+	virtual void UpdateProcState(SBaseProcKey &rcProKey, int32 iVmId, int32 iExeType, int32 iExeResult, int32 iPid);
+
+    virtual void UpdateStopProcState(SBaseProcKey &rcProKey, int32 iVmId, int32 iState);
+
+	virtual void ProcActiveExit(SBaseProcKey &rcProcKey, int32 iVmId);
+
+    virtual void UpdateProcBackInfo(SProcBackLog &rcProcBackLog);
+
+	virtual void UpdateProcHandleRate(SProcHandleRate &rcProcHandleRate);
+
+    virtual int32 DbmOperateProc(SSrmProcOperation &procOperation);
+
+    virtual int32 DbmAddProc(SSrmAddProc &rSrmAddProc);
+
+	virtual void WriteProcDynamicInfo();
+
+	virtual void HandleExceptProc(SBaseProcKey &rcProcKey, int32 iVmId);
+	virtual bool AddProcSomeLogPath(CRdcProc&);
+protected:
+	CSrmProcMgrImpl();
+	friend class ISrmProcMgr;
+
+private:
+    /**
+	 * 获取app参数
+	 * @param ri32AppSet 查询APP集合
+	 * @param rcStartProcExtList 流程启动参数
+	 */
+	void GetAppParam(const CInt32Set &ri32AppSet, SNrmStartProcExtList &rcStartProcExtList, CInt32StringlMap *pcLogPathMap = NULL, CInt32StringlMap *pcInputPathMap = NULL, CInt32StringlMap *pcShellPathMap = NULL, CInt32StringlMap *pcStatPathMap = NULL);
+
+    /**
+     * 设置pcc配置
+     */
+    void SetPccParams(aistring &strCfg);
+
+    /**
+     * 获取日志路径信息 
+    */
+    void GetLogPath(CProcConfig &rcProcCfg);
+
+	/**
+	 * 发送停止的7002消息给nrm
+	 * @param rcrcProcKey 进程key
+	 * @param iVmId 发送的虚拟机ID
+	 * @param iStopType 停止类型，区别停止与强停进程
+	 */
+	void SendStopMsgToNrm(SBaseProcKey &rcrcProcKey, int32 iVmId, int32 iStopType, int32 iSecondLimit = 0);
+
+	/**
+	* @param rcProcKey 进程key
+	* @param iVmId 虚拟机ID
+	* @param iStopType 停止类型
+	*/
+	void SendProcStopSuccessToSelf(SBaseProcKey &rcProcKey, int32 iVmId, int32 iStopType);
+
+    /**
+	* 清除进程的注册信息和上报信息
+	* @param rcProcKey
+	* @param cProc 进程信息
+	*/
+    void ClearProcRunInfo(SBaseProcKey& rcProcKey, CRdcProc *pProc = NULL);
+
+    /**
+	 * 头结点进程退出时，发送7002消息给NRM
+	 * @param rcProcKey 进程key
+	 * @param iVmId 虚拟机ID
+	 */
+	void StopProcWithTrans(SBaseProcKey &rcProcKey, int32 iVmId, bool bCallBack = false);
+
+    void OperateProcWithTrans(int32 operateType, SSrmProcInfoList &rPkInfoList,int32 ioutTime, int32 iCallBackMsg, aistring strCallBackParam);
+    LockList<CRdcProcBacklog> m_lstProcBackLog;
+    LockList<CRdcProcHandleRate> m_lstProcHandleRate;
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_PROC_MGR_IMPL_H___ */

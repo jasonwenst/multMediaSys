@@ -1,0 +1,93 @@
+
+#ifndef _OD_FRAME_DBE_PCC_COMMUNICATE_H_
+#define _OD_FRAME_DBE_PCC_COMMUNICATE_H_
+
+#include "pid_info.h"
+#include "const.h"
+#include "public/odframe/communicate_thread.h"
+#include "public/odframe/frame_interface.h"
+#include "nr_api.h"
+#include "dbe2_common_struct.h"
+#include <public/common/base/synobj.h>
+#include <sys/resource.h>
+
+NAMESPACE_DBE_PCC_BEGIN
+
+class CPccRecv
+ : public NAMESPACE_OD_FRAME IProcessMessage
+ , public NAMESPACE_OD_FRAME CThread
+ , public CCommunicateEventSink
+{
+	enum {
+		TIME_STEP = 1
+	};
+public:
+	virtual int32 init();
+	virtual int32 destroy();
+	virtual int32 run(NAMESPACE_OD_FRAME CData *p);
+
+	virtual int32 on_sendMessage(NAMESPACE_OD_FRAME CControlData *pControlData);
+	virtual NAMESPACE_OD_FRAME CControlData *receive_message();
+	virtual void on_pipelineStopped();
+	virtual NAMESPACE_OD_FRAME CControlData* alloc_controlData();
+	virtual void get_sysinfo(int32 uid, void *pdbinfo);
+	virtual int32 send_stopProgress(int32 iProgress);
+	virtual int32 send_startProcess(int32 iPid, int32 iResult);
+
+	void on_connected(CCommunicateApi *pCommunicateApi);
+	void adjustLogLevel(std::string &rstrLevel);
+
+	CPccRecv();
+	~CPccRecv();
+
+private:
+	CPccRecv(const CPccRecv& rh);
+	CPccRecv& operator=(const CPccRecv& rh);
+
+	void write_procRes();
+	int32 send_startProcess(NAMESPACE_OD_FRAME CCommData *pCommData, int32 iPid, int32 iResult);
+
+	CCommunicateApi *		m_pCommunicateApi;
+	CCommunicateClientConfig	m_objCommunicateClientConfig;
+
+	//NAMESPACE_OD_NR CNrApi *	m_pNrApi;
+	MDbe:: CNrApi *	m_pNrApi;
+	MDbe:: CProcPid	m_objProcUpdStatus;
+	//time_t				m_lLastWriteTime;
+	NAMESPACE_OD_SYSTEM CTimeCmp 	m_cLastWriteTime;
+	SPidInfo			m_objPidInfo;
+	uint64				m_ullLastInVolume;
+	uint64				m_ullLastOutVolume;
+
+	struct rusage			m_stUsage1;
+	struct rusage			m_stUsage2;
+	struct rusage *			m_pLastUsage;
+	struct rusage *			m_pCurrUsage;
+	struct timeval			m_stLastTime;
+	int32				m_iPageSize;
+
+	bool				m_bRunWithThread;
+	bool                m_bStopFinish;
+
+	bool				m_bDbInfoGot;
+	MDbe:: CDbInfo  m_objDbInfo;
+	tmutex m_sktLock;/*! @brief add by lijie12 for socket close_wait problem*/
+};
+
+extern struct rusage g_st3rdRUsage;
+
+NAMESPACE_DBE_PCC_END
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NAMESPACE_OD_FRAME CThread *create_pccRecvInstance();
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif //_OD_FRAME_DBE_PCC_COMMUNICATE_H_
+

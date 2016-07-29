@@ -1,0 +1,125 @@
+/* $Id: srm_job_mgr_impl.h 382292 2013-11-18 10:28:28Z hupj $  */
+//////////////////////////////////////////////////////////////////////////
+///	COPYRIGHT NOTICE
+///	Copyright (c) 2011, Asiainfo Linkage Technologies(China),Inc.   （版权声明）
+///	All rights reserved.
+///
+/// file	（本文件的文件名eg：srm_job_mgr_impl.h）
+/// brief	 
+///
+///
+///
+/// version 1.1	（版本声明）
+/// author		（作者，eg：fanxiaojun）
+/// date		（文件创建日期，eg：2012-4-17）
+///
+///
+///	修订说明：最初版本
+//////////////////////////////////////////////////////////////////////////
+
+#ifndef __SRM_JOB_MGR_IMPL_H___
+#define __SRM_JOB_MGR_IMPL_H___
+
+#include "srm_job_mgr.h"
+#include "srm_rdc_mgr.h"
+#include "dbe2_lock.h"
+#include "public/odframe/frame_interface.h"
+
+#define SRM_STEP_LOCK_SIZE 1000
+
+
+namespace MDbe
+{
+ enum JOB_END_JUDGE_TPYE
+ {
+     END_JUDGE_WITH_REMOVED = 1,
+     END_JUDGE_WITHOUT_REMOVED = 2,
+ };
+
+ class CJobConfig
+ {
+ public:
+     CJobConfig()
+     {
+         m_iEndJudge = 2;
+     }
+     virtual ~CJobConfig()
+     {}
+
+     READ_CONFIG_BEGIN
+         READ_VALUE2(m_iEndJudge, "end_judge", 2, NAMESPACE_XML_CONFIG emValueOptional)
+     READ_CONFIG_END
+
+ public:
+     int32 m_iEndJudge;
+ };
+
+class CSrmJobMgrImpl : public ISrmJobMgr
+{
+protected:
+	CSrmJobMgrImpl();
+	virtual ~CSrmJobMgrImpl();
+	friend class ISrmJobMgr;
+private:
+	enum VOCATION_TYPE{
+		WEEKEND = 1,
+		MONTH_DAY = 2,
+		SPECIAL_DAY = 3,
+	};
+	enum EXE_STEP_TYPE{
+		EXE_STEP_NOMAL = 0,
+		EXE_STEP_FORCE = 1,
+		EXE_REMOVED_STEP = 2,
+	};
+public:
+    void Init(CMgrInitHelper & cMgrInitHelper);
+	void StartJob(int32 iJobId); // 启动任务
+	void StopJob(int32 iJobId); // 停止任务
+	void ForceJob(int32 iJobId); // 强制停止任务
+	void PauseJob(SJobContrlInfo& rcJobCtrlInfo); // 暂停任务
+	void ContinueJob(SJobContrlInfo& rcJobCtrlInfo); // 继续执行任务
+	
+	virtual void StartRemovedStep(SJobContrlInfo& rcJobCtrlInfo);
+	/* 任务操作结果处理及流程异常回调 */
+	void AppStartCallback(SSrmExeCallBack & rExeSCallBack);
+	void AppEndCallback(SSrmExeCallBack & rExeSCallBack);
+	void JobScheduleProcess();
+	void AppOperate(SJobAppContrlInfoList &rJobAppOperateList);
+	virtual void AppExcptionCallback(SSrmExeCallBack & rExeSCallBack);
+private:
+	void StartStep(SStepId& rStepId,int32 iExeFlage = EXE_STEP_NOMAL);
+	void StartStepNoLock(SStepId& rStepId,int32 iExeFlage = EXE_STEP_NOMAL);
+	bool CheckHasRuningStep(int32 iJobId);
+	bool CheckStepStart(SStepId& rcStepId);
+	bool CheckJobStart(int32 iJobId);
+	bool CheckStepFinish(SStepId& rcStepId);
+	bool CheckJobFinish(int32 iJobId);
+	bool CheckJobPaused(int32 iJobId);
+	// ISrmRdcMgr::ALL_STATUS_需要其他文件定义 modify
+	void SetJobStatus(int32 iJobId, int32 iJobStatus,int32 iCurrJobStatus= ISrmRdcMgr::ALL_STATUS_,aistring erroinfo="");
+	void SetStepStatus(SStepId& rcStepId, int32 iStepStatus,aistring erroinfo="");
+	void SetAppStatus(SJobAppId& rcAppId, int32 iAppStatus,aistring erroinfo="");
+	void SendJobAlarm(int32 iJobId,aistring erroinfo="");
+	bool JobVocation(CRdcJobSchedule &rJobSchedule); // CRdcJobSchedule类型需要其他文件定义 modify
+	
+	// void SendJobPrgress(int32 iJobId,aistring erroinfo="");
+	// void SendFlowProgress(SJobFlowId&  cJobFlowId ,aistring erroinfo="");
+	
+	/* 检查依赖的step是否全部完成, return:true 全部完成, false 未全部完成 */
+	bool CheckRelyStepFinish(SStepId& rcStepId);
+
+	bool JudgeLeapYear(int32 iYear);
+	int32 FindParamValue(aistring& srcStr, const char* param1, const char* param2, int32 startPos, int32& value);
+	bool ChangeParamValue(aistring& srcStr, const char* param1, const char* param2, int32 startPos, int32 value);
+	bool changeTmtoDay(struct tm tmTime, int32& day);
+	bool ChangeDaytoTm(struct tm& tmTime, int32 day);
+	CLock m_stepLock[SRM_STEP_LOCK_SIZE];
+
+    CJobConfig m_config;
+
+};
+
+} // namespace MDbe
+
+
+#endif /* __SRM_JOB_MGR_IMPL_H___ */
