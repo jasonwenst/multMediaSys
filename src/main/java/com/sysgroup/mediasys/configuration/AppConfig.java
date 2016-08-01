@@ -21,7 +21,7 @@ public class AppConfig  extends WebMvcConfigurerAdapter{
 	public void configureViewResolvers(ViewResolverRegistry registry) {
 		InternalResourceViewResolver viewResolver = new InternalResourceViewResolver();
 		viewResolver.setViewClass(JstlView.class);
-		viewResolver.setPrefix("/WEB-INF/views/");
+		viewResolver.setPrefix("/app/");
 		viewResolver.setSuffix(".jsp");
 		registry.viewResolver(viewResolver);
 	}
@@ -29,15 +29,16 @@ public class AppConfig  extends WebMvcConfigurerAdapter{
 	@Override
 	public void addResourceHandlers(ResourceHandlerRegistry registry) {
 		registry.addResourceHandler("/static/**").addResourceLocations("/static/");
-		registry.addResourceHandler("/WEB-INF/**").addResourceLocations("/WEB-INF/");
+//		registry.addResourceHandler("/WEB-INF/**").addResourceLocations("/WEB-INF/");
+		registry.addResourceHandler("/app/**").addResourceLocations("/app/");
 	}
 	
-	@Bean
-	public SimpleMappingExceptionResolver simpleMappingExceptionResolver() {
-		SimpleMappingExceptionResolver resolver = new SimpleMappingExceptionResolver();
-		resolver.addStatusCode("/error.html", 404);
-		
-		return resolver;
-	}
+//	@Bean
+//	public SimpleMappingExceptionResolver simpleMappingExceptionResolver() {
+//		SimpleMappingExceptionResolver resolver = new SimpleMappingExceptionResolver();
+//		resolver.addStatusCode("/error.html", 404);
+//		
+//		return resolver;
+//	}
 	
 }

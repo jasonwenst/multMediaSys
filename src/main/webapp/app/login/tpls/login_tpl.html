@@ -1,0 +1,10 @@
+<div class="page-container" ng-controller="loginCtrl">
+    <h1>Login</h1>
+    <form class="form-center">
+        <input type="text" name="username" class="username" placeholder="Username" ng-model="user.username"/>
+        <input type="password" name="password" class="password" placeholder="Password" ng-model="user.password"/>
+        <button type="submit" ng-click="login()" >登录</button>
+        <div class="error"><span>+</span></div>
+    </form>
+</div>
+

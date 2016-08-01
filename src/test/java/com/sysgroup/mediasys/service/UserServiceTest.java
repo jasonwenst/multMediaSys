@@ -6,10 +6,8 @@ import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.sysgroup.mediasys.entity.UserEntity;
-import com.sysgroup.mediasys.entity.UserEntity1;
 import com.sysgroup.mediasys.model.User;
 import com.sysgroup.mediasys.repository.UserRepository;
-import com.sysgroup.mediasys.repository.UserRepository1;
 
 
 public class UserServiceTest extends BaseJUnit4Test{

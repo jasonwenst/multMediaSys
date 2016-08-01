@@ -1,13 +1,13 @@
-var loginModule = angular.module('loginModule',['restangular']);
-loginModule.factory('loginService', ['$scope', 'restangular', function($scope, Restangular){
+var myApp.services = angular.module('myApp.services',['restangular']);
+myApp.services.factory('loginService', ['$scope', 'Restangular', function($scope, Restangular){
 	var login = Restangular.All('login');
 	var param = {
 		username : $scope.username,
 		password : $scope.password
 	}
-	return function name(){
+	return {
 		doLogin : function() {
-			login.post(param);
+			return login.post(param);
 		}
 	};
 }])
