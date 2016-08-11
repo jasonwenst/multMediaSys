@@ -1,5 +1,4 @@
 <!DOCTYPE html >
-
 <head>
 	<title></title>
 	 <meta charset="utf-8" >
@@ -9,6 +8,7 @@
 	<script type="text/javascript" src="../static/js/framework/angular-1.5.8.min.js"></script>
 	<script type="text/javascript" src="../static/js/framework/angular-ui-router.js"></script>
 	<script type="text/javascript" src="../static/js/framework/restangular.js"></script>
+<!-- 	<script type="text/javascript" src="../static/js/framework/jquery.js"></script> -->
 	<!-- <script type="text/javascript" src="framework/restangular.min.js"></script> -->
 	<script type="text/javascript" src="../static/js/framework/lodash/lodash.min.js"></script>
 	

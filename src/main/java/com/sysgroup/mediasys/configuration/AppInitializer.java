@@ -18,12 +18,12 @@ public class AppInitializer extends AbstractAnnotationConfigDispatcherServletIni
   
     @Override
     protected String[] getServletMappings() {
-        return new String[] { "/", "/*"};
+        return new String[] { "/"};
     }
     
     @Override
     protected Filter[] getServletFilters() {
-    	Filter [] singleton = { new CORSFilter(), new LoginFilter() };
+    	Filter [] singleton = { new CORSFilter() };
     	return singleton;
 	}
  

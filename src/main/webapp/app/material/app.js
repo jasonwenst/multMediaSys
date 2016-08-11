@@ -14,7 +14,7 @@ materialModule.config(function($stateProvider, $urlRouterProvider) {
 		.state('/default', {
 			url:'/default',
 			views:{
-				'':{templateUrl : 'tpls/materialHome.html'}
+				'':{templateUrl : 'material/tpls/materialHome.html'}
 			}
 		})
 })

@@ -17,12 +17,6 @@ loginModule.config(function($stateProvider, $urlRouterProvider) {
 				'':{templateUrl : 'login/tpls/login_tpl.html'}
 			}
 		})
-		.state('/home', {
-			url:'/home',
-			views:{
-				'':{templateUrl : 'login/tpls/home_tpl.html'}
-			}
-		})
 	
 		
 })

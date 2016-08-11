@@ -26,6 +26,7 @@ public class MaterialController {
 	@Autowired
 	private MaterialService materialService;
 
+	@SuppressWarnings("unchecked")
 	@ResponseBody
 	@RequestMapping(value = "/page", method = RequestMethod.GET)
 	public ResponseEntity<MaterialEntity> getEntities(@RequestParam("currentPage") int currentPage, 
@@ -38,12 +39,15 @@ public class MaterialController {
 		
 	}
 	
-	
-	@RequestMapping(value="/app/material/default", method = RequestMethod.GET)
+	@RequestMapping(value="/app/default", method = RequestMethod.GET)
 	public String getDefaultPage() {
-		return "material/app";
+		return "default/app";
 	}
 	
+	@RequestMapping(value="/app/material", method = RequestMethod.GET)
+	public String getMagerialPage() {
+		return "material/app";
+	}
 	
 	
 }
